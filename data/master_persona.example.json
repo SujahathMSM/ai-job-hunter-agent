@@ -1,0 +1,48 @@
+{
+  "identity": {
+    "full_name": "Full Name",
+    "professional_title": "Software Engineer | Backend, Data & AI Systems",
+    "subtitle": "Python | FastAPI | PostgreSQL | Docker | AWS | Machine Learning",
+    "email": "candidate@example.com",
+    "phone": "+94 XX XXX XXXX",
+    "current_location": "Sri Lanka",
+    "relocation_status": "Open to Relocation (UAE/GCC, Europe & International) and Worldwide Remote",
+    "linkedin": "https://linkedin.com/in/username",
+    "github": "https://github.com/username"
+  },
+  "summary": "Executive summary highlighting core engineering accomplishments, system scale, and domain capabilities.",
+  "core_skills_categorized": [
+    {
+      "category": "Programming & Backend",
+      "skills": "Python, SQL, Java, FastAPI, REST APIs, WebSockets"
+    },
+    {
+      "category": "Data & Databases",
+      "skills": "PostgreSQL, TimescaleDB, MongoDB, Redis, pgvector"
+    },
+    {
+      "category": "AI & Machine Learning",
+      "skills": "LangGraph, RAG, PyTorch, LLM Evaluation, Vision Models"
+    },
+    {
+      "category": "Cloud, DevOps & Systems",
+      "skills": "AWS (EC2, S3, RDS, Lambda), Docker, GitLab CI/CD, GitHub Actions, Linux"
+    },
+    {
+      "category": "IoT & Protocols",
+      "skills": "MQTT, Modbus RTU/RS485, Raspberry Pi, STM32"
+    },
+    {
+      "category": "Analysis & Delivery",
+      "skills": "Requirements Analysis, System Architecture, Agile/Scrum"
+    },
+    {
+      "category": "Documentation & Records",
+      "skills": "Technical Specifications, Runbooks, Deployment Records"
+    }
+  ],
+  "work_history": [],
+  "projects": [],
+  "education": [],
+  "certifications": []
+}

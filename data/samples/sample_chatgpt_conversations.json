@@ -1,0 +1,50 @@
+[
+  {
+    "title": "Designing Distributed Telemetry Pipeline for IoT Sensors",
+    "mapping": {
+      "node-1": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {
+            "parts": [
+              "I am architecting an IoT telemetry data ingestion pipeline handling 50,000 sensor events per second. We are evaluating MQTT brokers vs Kafka. How can we ensure zero message loss while running on AWS ECS and optimizing database write throughput with TimescaleDB?"
+            ]
+          }
+        }
+      },
+      "node-2": {
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {
+            "parts": ["To handle 50k events/sec with zero loss, deploy EMQX or AWS IoT Core as the ingestion layer..."]
+          }
+        }
+      },
+      "node-3": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {
+            "parts": [
+              "We implemented connection pooling and batch commits in Python with asyncio and psycopg2. We reduced P99 latency from 1.4s down to 85ms on our Docker cluster. Next step is setting up automated Grafana alerts and Prometheus metrics."
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "title": "Optimizing Mechanical CAD Stress Analysis and Simulation",
+    "mapping": {
+      "node-4": {
+        "message": {
+          "author": {"role": "user"},
+          "content": {
+            "parts": [
+              "In SolidWorks simulation, the von Mises stress on the aluminum mounting bracket exceeds yield strength at the corner fillet. Should we increase radius from 2mm to 5mm or switch to structural steel?"
+            ]
+          }
+        }
+      }
+    }
+  }
+]

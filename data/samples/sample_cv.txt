@@ -1,0 +1,29 @@
+KASUN PERERA
+Colombo, Sri Lanka | +94 77 123 4567 | kasun.engineer@gmail.com
+LinkedIn: linkedin.com/in/kasun-perera-eng | GitHub: github.com/kasun-dev
+
+PROFESSIONAL SUMMARY
+Versatile Systems & Software Engineer with over 4 years of engineering experience architecting scalable distributed systems, industrial automation solutions, and cloud infrastructure. Proven expertise in system performance optimization, microservices, and cross-functional project execution. Ready for immediate international relocation to the Gulf (UAE, Saudi Arabia, Qatar) or global migration hubs.
+
+CORE SKILLS
+- Systems Engineering, Distributed Architectures, Root Cause Analysis, Technical Project Management
+- Languages & Frameworks: Python, C++, TypeScript, SQL, Bash
+- Cloud & Infrastructure: AWS (ECS, S3, RDS), Docker, Kubernetes, Linux System Administration, CI/CD
+- Industrial & Tooling: REST APIs, PostgreSQL, Redis, Grafana, Prometheus, Git
+
+WORK EXPERIENCE
+Systems Engineer | Apex Engineering Solutions | Colombo, Sri Lanka
+2021 - Present
+- Architected and deployed microservices handling 40M+ monthly transactions with 99.98% system uptime.
+- Optimized database indexing and caching layers, cutting average response time by 45%.
+- Led technical team of 5 engineers across sprint planning, code reviews, and architecture reviews.
+
+Associate Engineer | Lanka Tech Innovations | Colombo, Sri Lanka
+2019 - 2021
+- Developed real-time telemetry ingestion pipelines using Python, Docker, and MQTT.
+- Authored comprehensive technical documentation, standard operating procedures, and automated test suites.
+
+EDUCATION
+B.Sc. (Hons) in Engineering
+University of Moratuwa, Sri Lanka (2015 - 2019)
+Second Class Upper Honors
