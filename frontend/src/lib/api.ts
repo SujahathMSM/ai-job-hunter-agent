@@ -1,4 +1,4 @@
-import { CandidateProfile, JobItem, HiringCompanyLead, ApplicationItem } from "../types";
+import { CandidateProfile, JobItem, HiringCompanyLead, ApplicationItem, GlobalRemoteJob } from "../types";
 
 const API_BASE = "/api";
 
@@ -289,5 +289,22 @@ export async function deletePortal(id: number): Promise<any> {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to delete portal");
+  return res.json();
+}
+
+export async function fetchGlobalRemoteJobs(
+  keyword: string = "Python",
+  worldwideOnly: boolean = true,
+  limit: number = 60,
+  source: string = "ALL"
+): Promise<{ count: number; jobs: GlobalRemoteJob[] }> {
+  const params = new URLSearchParams({
+    keyword,
+    worldwide_only: String(worldwideOnly),
+    limit: String(limit),
+    source,
+  });
+  const res = await fetch(`${API_BASE}/jobs/remote?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch global remote jobs");
   return res.json();
 }

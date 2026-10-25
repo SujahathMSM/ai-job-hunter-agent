@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import ProfileView from "../components/views/ProfileView";
 import JobHunterView from "../components/views/JobHunterView";
+import GlobalRemoteJobsView from "../components/views/GlobalRemoteJobsView";
 import CareerPortalsView from "../components/views/CareerPortalsView";
 import CVTailorView from "../components/views/CVTailorView";
 import ColdEmailView from "../components/views/ColdEmailView";
@@ -136,6 +137,15 @@ export default function Home() {
             <JobHunterView
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
+            />
+          </div>
+          <div className={activeTab === "remote" ? "block" : "hidden"}>
+            <GlobalRemoteJobsView
+              onSelectForTailor={handleSelectForTailor}
+              onSelectForOutreach={handleSelectForOutreach}
+              onSelectForRecruiters={(company, title) => {
+                setActiveTab("recruiters");
+              }}
             />
           </div>
           <div className={activeTab === "portals" ? "block" : "hidden"}>

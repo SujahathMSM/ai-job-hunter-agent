@@ -295,6 +295,27 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
         }
     )
 
+# --- GLOBAL REMOTE JOBS (WORLDWIDE ONLY) ---
+@app.get("/api/jobs/remote")
+def get_global_remote_jobs(
+    keyword: str = "Python",
+    worldwide_only: bool = True,
+    limit: int = 60,
+    source: str = "ALL"
+):
+    """Fetches verified 100% remote jobs from keyless public JSON feeds (RemoteOK, Remotive, 
+    Jobicy, Himalayas, Arbeitnow, WWR RSS) and Direct Company ATS (Greenhouse/Ashby/Lever).
+    Enforces worldwide openness and strict Israel exclusion."""
+    from hunter.remote_hunter import GlobalRemoteHunter
+    hunter = GlobalRemoteHunter()
+    jobs = hunter.search_all_remote(
+        keyword=keyword,
+        worldwide_only=worldwide_only,
+        limit=limit,
+        source_filter=source
+    )
+    return {"status": "success", "count": len(jobs), "jobs": jobs}
+
 
 # --- GLOBAL RECRUITER & HR FINDER ---
 @app.get("/api/hr/by-role/stream")

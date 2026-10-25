@@ -97,3 +97,19 @@ export interface ApplicationItem {
   date_applied: string;
   notes?: string;
 }
+
+export interface GlobalRemoteJob {
+  id: string;
+  job_title: string;
+  company: string;
+  location: string;
+  is_worldwide: boolean;
+  salary: string;
+  tags: string[];
+  source: string;
+  source_type: "public_api" | "rss" | "ats" | string;
+  apply_url: string;
+  description: string;
+  match_score: number;
+  posted_at?: string;
+}

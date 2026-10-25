@@ -12,6 +12,7 @@ import {
   Settings as SettingsIcon,
   Zap,
   Globe,
+  Laptop,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ export default function Sidebar({ activeTab, setActiveTab, stats }: SidebarProps
   const navItems = [
     { id: "profile", label: "Profile & CV Intake", icon: UserCheck },
     { id: "hunter", label: "Live Job Hunter", icon: Radar },
+    { id: "remote", label: "Global Remote Jobs", icon: Laptop, badge: "Worldwide" },
     { id: "portals", label: "Career Portals", icon: Globe, badge: "Direct" },
     { id: "tailor", label: "AI CV Tailor", icon: Sparkles },
     { id: "outreach", label: "Cold Email Dispatcher", icon: Send },
