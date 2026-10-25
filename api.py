@@ -99,6 +99,23 @@ class PortalAddRequest(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     settings: Dict[str, str]
 
+class LinkedInParseRequest(BaseModel):
+    linkedin_url: str = ""
+    raw_text: Optional[str] = ""
+
+class GitHubParseRequest(BaseModel):
+    url_or_username: str
+
+class WebsiteParseRequest(BaseModel):
+    website_url: str
+
+class SynthesizeProfileRequest(BaseModel):
+    cv_sources: Optional[List[Dict[str, Any]]] = []
+    chat_sources: Optional[List[Dict[str, Any]]] = []
+    github_data: Optional[Dict[str, Any]] = None
+    linkedin_data: Optional[Dict[str, Any]] = None
+    website_data: Optional[Dict[str, Any]] = None
+
 
 @app.get("/api/health")
 def health_check():
@@ -132,6 +149,81 @@ async def upload_cv(file: UploadFile = File(...)):
     updated = pb.build_from_sources(cv_data_list=[extracted], chat_insights=[])
     pb.update_profile(updated)
     return {"status": "success", "extracted": extracted, "profile": pb.profile}
+
+@app.post("/api/profile/upload-multiple-cvs")
+async def upload_multiple_cvs(files: List[UploadFile] = File(...)):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    saved_paths = []
+    for f in files:
+        save_path = UPLOADS_DIR / f.filename
+        with open(save_path, "wb") as out:
+            out.write(await f.read())
+        saved_paths.append(save_path)
+    
+    parsed = engine.parse_multiple_cvs(saved_paths)
+    return {"status": "success", "count": len(parsed), "cvs": parsed}
+
+@app.post("/api/profile/upload-chat-history")
+async def upload_chat_history(files: List[UploadFile] = File(...)):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    all_insights = []
+    for f in files:
+        save_path = UPLOADS_DIR / f.filename
+        with open(save_path, "wb") as out:
+            out.write(await f.read())
+        insights = engine.parse_chat_history_file(save_path)
+        all_insights.extend(insights)
+    return {"status": "success", "count": len(all_insights), "insights": all_insights}
+
+@app.post("/api/profile/parse-github")
+def parse_github(req: GitHubParseRequest):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    data = engine.parse_github_profile(req.url_or_username)
+    return {"status": "success", "github": data}
+
+@app.post("/api/profile/parse-linkedin")
+def parse_linkedin(req: LinkedInParseRequest):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    data = engine.parse_linkedin_text_or_url(req.linkedin_url, req.raw_text or "")
+    return {"status": "success", "linkedin": data}
+
+@app.post("/api/profile/parse-website")
+def parse_website(req: WebsiteParseRequest):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    data = engine.scrape_personal_website(req.website_url)
+    return {"status": "success", "website": data}
+
+@app.post("/api/profile/synthesize")
+def synthesize_profile(req: SynthesizeProfileRequest):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    updated = engine.synthesize_master_profile(
+        cv_data_list=req.cv_sources or [],
+        chat_insights=req.chat_sources or [],
+        github_data=req.github_data,
+        linkedin_data=req.linkedin_data,
+        website_data=req.website_data
+    )
+    return {"status": "success", "profile": updated}
+
+@app.get("/api/profile/download-europass-cv")
+def download_default_europass_cv():
+    pb = PersonaBuilder()
+    builder = PDFResumeBuilder()
+    out_file = GENERATED_DIR / "Europass_CV_MS_Mohamed_Sujahath.pdf"
+    builder.build_resume_pdf(pb.profile, out_file)
+    if not os.path.exists(out_file):
+        raise HTTPException(status_code=500, detail="Failed to compile Europass CV PDF.")
+    return FileResponse(
+        out_file,
+        media_type="application/pdf",
+        filename="Europass_CV_MS_Mohamed_Sujahath.pdf"
+    )
 
 
 # --- LIVE JOB HUNTER ---

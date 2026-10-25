@@ -58,6 +58,9 @@ class CVParser:
         raw_text = re.sub(r"[\u25a0\u25aa■\uf0b7]\s*", "\n• ", raw_text)
         raw_text = re.sub(r"\n{3,}", "\n\n", raw_text)
 
+    def parse_cv(self, file_path: Path) -> Dict[str, Any]:
+        return self.parse_file(file_path)
+
         extracted_name = self._extract_candidate_name(raw_text)
         contact_info = self._extract_contacts(raw_text)
         sections = self._segment_sections(raw_text)

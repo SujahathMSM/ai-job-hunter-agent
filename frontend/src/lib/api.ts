@@ -29,6 +29,80 @@ export async function uploadCVFile(file: File): Promise<any> {
   return res.json();
 }
 
+export async function uploadMultipleCVs(files: File[]): Promise<any> {
+  const formData = new FormData();
+  files.forEach((f) => formData.append("files", f));
+  const res = await fetch(`${API_BASE}/profile/upload-multiple-cvs`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Failed to upload and parse multiple CVs");
+  return res.json();
+}
+
+export async function uploadChatHistory(files: File[]): Promise<any> {
+  const formData = new FormData();
+  files.forEach((f) => formData.append("files", f));
+  const res = await fetch(`${API_BASE}/profile/upload-chat-history`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Failed to upload chat history");
+  return res.json();
+}
+
+export async function parseGitHub(urlOrUsername: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/profile/parse-github`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url_or_username: urlOrUsername }),
+  });
+  if (!res.ok) throw new Error("Failed to parse GitHub profile");
+  return res.json();
+}
+
+export async function parseLinkedIn(linkedinUrl: string, rawText?: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/profile/parse-linkedin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ linkedin_url: linkedinUrl, raw_text: rawText || "" }),
+  });
+  if (!res.ok) throw new Error("Failed to parse LinkedIn profile");
+  return res.json();
+}
+
+export async function parsePersonalWebsite(websiteUrl: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/profile/parse-website`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ website_url: websiteUrl }),
+  });
+  if (!res.ok) throw new Error("Failed to scrape personal website");
+  return res.json();
+}
+
+export async function synthesizeMasterProfile(payload: {
+  cv_sources?: any[];
+  chat_sources?: any[];
+  github_data?: any;
+  linkedin_data?: any;
+  website_data?: any;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/profile/synthesize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to synthesize master profile");
+  return res.json();
+}
+
+export async function downloadDefaultEuropassCV(): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/profile/download-europass-cv`);
+  if (!res.ok) throw new Error("Failed to generate default Europass CV PDF");
+  return res.blob();
+}
+
 export async function searchLiveJobs(keyword: string, region: string, maxResults: number = 15): Promise<JobItem[]> {
   const res = await fetch(`${API_BASE}/jobs/search`, {
     method: "POST",
