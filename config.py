@@ -138,6 +138,6 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")  # App Password
-SENDER_NAME = os.getenv("SENDER_NAME", "Engineering Candidate")
+SENDER_NAME = os.getenv("SENDER_NAME", "M.S. Mohamed Sujahath")
 REPLY_TO = os.getenv("REPLY_TO", "")
 SAFE_MODE = os.getenv("SAFE_MODE", "True").lower() in ("true", "1", "yes")  # Review before real sending

@@ -79,6 +79,7 @@ class SendEmailRequest(BaseModel):
     location: str = "Gulf / Remote"
     portal_link: Optional[str] = None
     cv_path: Optional[str] = None
+    cover_letter_path: Optional[str] = None
     dry_run: bool = True
 
 class StatusUpdateRequest(BaseModel):
@@ -287,6 +288,7 @@ def send_outreach(req: SendEmailRequest):
         subject=req.subject,
         body_text=req.body,
         attachment_path=Path(req.cv_path) if req.cv_path else None,
+        cover_letter_path=Path(req.cover_letter_path) if req.cover_letter_path else None,
         company=req.company,
         job_title=req.job_title,
         location=req.location,

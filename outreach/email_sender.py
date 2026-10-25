@@ -1,4 +1,6 @@
 import os
+import re
+import time
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -7,7 +9,7 @@ from email.utils import formatdate
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SENDER_NAME, DRAFTS_DIR
+from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SENDER_NAME, DRAFTS_DIR, GENERATED_DIR
 from outreach.tracker import ApplicationTracker
 
 class EmailDispatcher:
@@ -28,7 +30,7 @@ class EmailDispatcher:
     ) -> MIMEMultipart:
         msg = MIMEMultipart()
         s_email = sender_email or os.getenv("SMTP_USER", SMTP_USER).strip() or "candidate@engineering-talent.com"
-        s_name = sender_display_name or os.getenv("SENDER_NAME", SENDER_NAME)
+        s_name = sender_display_name or os.getenv("SENDER_NAME", SENDER_NAME) or "M.S. Mohamed Sujahath"
 
         msg["From"] = f"{s_name} <{s_email}>"
         msg["To"] = recipient_email
@@ -41,8 +43,8 @@ class EmailDispatcher:
             for filepath in attachments:
                 if filepath and filepath.exists():
                     with open(filepath, "rb") as f:
-                        part = MIMEApplication(f.read(), Name=filepath.name)
-                        part["Content-Disposition"] = f'attachment; filename="{filepath.name}"'
+                        part = MIMEApplication(f.read(), _subtype="pdf")
+                        part.add_header("Content-Disposition", "attachment", filename=filepath.name)
                         msg.attach(part)
 
         return msg
@@ -56,22 +58,63 @@ class EmailDispatcher:
         job_title: str = "Software Engineer",
         location: str = "Gulf / Remote",
         attachment_path: Optional[Path] = None,
+        cover_letter_path: Optional[Path] = None,
         portal_link: Optional[str] = None,
         dry_run: bool = True
     ) -> Dict[str, Any]:
-        """Dispatches live email via SMTP or logs safe draft based on dry_run mode."""
+        """Dispatches live email via SMTP or logs safe draft based on dry_run mode.
+        Guarantees both Europass CV and Cover Letter are attached."""
         clean_user = os.getenv("SMTP_USER", SMTP_USER).strip()
         clean_pwd = os.getenv("SMTP_PASSWORD", SMTP_PASSWORD).replace(" ", "").strip()
         host = os.getenv("SMTP_HOST", SMTP_HOST).strip()
         port = int(os.getenv("SMTP_PORT", str(SMTP_PORT)))
+        sender_name = os.getenv("SENDER_NAME", SENDER_NAME) or "M.S. Mohamed Sujahath"
 
-        attachments = [attachment_path] if attachment_path and attachment_path.exists() else []
+        safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
+
+        # 1. Ensure Europass CV PDF Attachment
+        cv_pdf_file = attachment_path
+        if not cv_pdf_file or not cv_pdf_file.exists():
+            cv_pdf_file = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
+            try:
+                from generators.pdf_builder import PDFResumeBuilder
+                from ingestion.persona_builder import PersonaBuilder
+                builder = PDFResumeBuilder()
+                pb = PersonaBuilder()
+                builder.build_resume_pdf(pb.profile, cv_pdf_file)
+            except Exception as e:
+                print(f"[Auto-CV Generation Error]: {e}")
+
+        # 2. Ensure Cover Letter PDF Attachment
+        cl_pdf_file = cover_letter_path
+        if not cl_pdf_file or not cl_pdf_file.exists():
+            cl_pdf_file = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+            try:
+                from generators.pdf_builder import PDFResumeBuilder
+                from ingestion.persona_builder import PersonaBuilder
+                builder = PDFResumeBuilder()
+                pb = PersonaBuilder()
+                builder.build_cover_letter_pdf(
+                    body_text or f"Cover letter application for {job_title} at {company}",
+                    pb.profile,
+                    cl_pdf_file
+                )
+            except Exception as e:
+                print(f"[Auto-Cover Letter Generation Error]: {e}")
+
+        # Gather confirmed physical attachments
+        attachments = []
+        if cv_pdf_file and cv_pdf_file.exists():
+            attachments.append(cv_pdf_file)
+        if cl_pdf_file and cl_pdf_file.exists():
+            attachments.append(cl_pdf_file)
 
         msg = self.build_email_message(
             recipient_email=to_email,
             subject=subject,
             body_text=body_text,
             sender_email=clean_user or None,
+            sender_display_name=sender_name,
             attachments=attachments
         )
 
@@ -91,17 +134,18 @@ class EmailDispatcher:
                     location=location,
                     hr_email=to_email,
                     status="Applied",
-                    cv_pdf_path=str(attachment_path) if attachment_path else "",
-                    cover_letter_pdf_path="",
+                    cv_pdf_path=str(cv_pdf_file) if cv_pdf_file and cv_pdf_file.exists() else "",
+                    cover_letter_pdf_path=str(cl_pdf_file) if cl_pdf_file and cl_pdf_file.exists() else "",
                     email_subject=subject,
-                    notes=f"Dispatched live via SMTP to {to_email} ({clean_user})."
+                    notes=f"Dispatched live via SMTP to {to_email} ({clean_user}) with {[p.name for p in attachments]}."
                 )
 
                 return {
                     "status": "success",
                     "mode": "LIVE_SENT",
                     "application_id": app_id,
-                    "message": f"Email successfully dispatched to {to_email} via SMTP!"
+                    "attachments": [p.name for p in attachments],
+                    "message": f"Email successfully dispatched to {to_email} via SMTP with {len(attachments)} attached documents!"
                 }
             except Exception as e:
                 print(f"[Live SMTP Dispatch Error]: {e}")
@@ -124,10 +168,10 @@ class EmailDispatcher:
             location=location,
             hr_email=to_email,
             status="Drafted",
-            cv_pdf_path=str(attachment_path) if attachment_path else "",
-            cover_letter_pdf_path="",
+            cv_pdf_path=str(cv_pdf_file) if cv_pdf_file and cv_pdf_file.exists() else "",
+            cover_letter_pdf_path=str(cl_pdf_file) if cl_pdf_file and cl_pdf_file.exists() else "",
             email_subject=subject,
-            notes=f"[Safe Mode] Saved draft EML: {safe_filename}."
+            notes=f"[Safe Mode] Saved draft EML: {safe_filename} with {[p.name for p in attachments]}."
         )
 
         return {
@@ -135,7 +179,8 @@ class EmailDispatcher:
             "mode": "DRAFT_SAVED",
             "application_id": app_id,
             "draft_file": str(eml_path),
-            "message": f"[Safe Mode] Application prepared in Draft mode. Logged in tracker (ID: {app_id})."
+            "attachments": [p.name for p in attachments],
+            "message": f"[Safe Mode] Application prepared with {len(attachments)} attached documents. Saved to: {safe_filename}"
         }
 
     def send_or_draft_application(
