@@ -243,6 +243,17 @@ def tailor_cv(req: TailorRequest):
         location=req.location,
         jd_text=req.jd_text
     )
+
+    import re
+    safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', req.company).strip('_') or "Company"
+    try:
+        pdf_gen = PDFResumeBuilder()
+        cv_out = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
+        cl_out = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+        pdf_gen.build_resume_pdf(tailored_resume, cv_out)
+        pdf_gen.build_cover_letter_pdf(cover_letter, pb.profile, cl_out)
+    except Exception as e:
+        print(f"[Tailor Pre-build Error]: {e}")
     
     return {
         "tailored_resume": tailored_resume,
