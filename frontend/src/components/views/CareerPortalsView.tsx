@@ -126,6 +126,7 @@ export default function CareerPortalsView({
   const gulfCount = portals.filter((p) => p.region === "GULF").length;
   const sgCount = portals.filter((p) => p.region === "SINGAPORE").length;
   const ukCount = portals.filter((p) => p.region === "UK_EUROPE").length;
+  const globalCount = portals.filter((p) => p.region === "GLOBAL").length;
 
   return (
     <div className="flex flex-col gap-5 p-6 max-w-7xl mx-auto">
@@ -138,7 +139,7 @@ export default function CareerPortalsView({
               Enterprise Career Portals &amp; Direct Gateways
             </h1>
             <p className="text-[13px] text-[#bcc9cd] mt-0.5">
-              Direct recruitment portals for Gulf energy conglomerates (ADNOC, Aramco, NEOM), sovereign tech groups, and migratable corridors.
+              Direct recruitment portals for 50+ Gulf energy conglomerates (ADNOC, Aramco, Masdar, NEOM, ACWA Power), sovereign tech groups, and migratable corridors.
             </p>
           </div>
 
@@ -172,6 +173,7 @@ export default function CareerPortalsView({
               { id: "GULF", label: `Gulf Energy & Mega (${gulfCount})` },
               { id: "SINGAPORE", label: `Singapore (${sgCount})` },
               { id: "UK_EUROPE", label: `UK & Europe (${ukCount})` },
+              { id: "GLOBAL", label: `Global / Aus (${globalCount})` },
             ].map((tab) => (
               <button
                 key={tab.id}
