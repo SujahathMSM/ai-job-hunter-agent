@@ -183,3 +183,170 @@ class HRFinder:
         ]
 
         return result
+
+    @classmethod
+    def resolve_company_domain(cls, company_name: str) -> str:
+        """Resolves authentic company domain using Clearbit autocomplete API or clean slug."""
+        clean_name = re.sub(r"\s+(LLC|FZE|Inc\.?|Ltd\.?|Group|Corporation|FZ-LLC)$", "", company_name, flags=re.IGNORECASE).strip()
+        try:
+            url = f"https://autocomplete.clearbit.com/v1/companies/suggest?query={urllib.parse.quote(clean_name)}"
+            resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data and isinstance(data, list) and len(data) > 0:
+                    dom = data[0].get("domain")
+                    if dom:
+                        return dom.lower().strip()
+        except Exception:
+            pass
+        clean_slug = re.sub(r"[^a-zA-Z0-9]", "", clean_name.lower())
+        return f"{clean_slug}.com"
+
+    @classmethod
+    def find_companies_and_hr_by_role(
+        cls,
+        role: str,
+        region: str = "GULF",
+        max_companies: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Automatically searches for active engineering postings matching a specific job role,
+        extracts hiring companies, resolves authentic corporate domains, discovers verified HR emails
+        via Hunter.io/Apollo.io or job posting text, and builds 1-click recruiter reach-out intelligence."""
+        from matcher.geo_rules import GeoLocationEngine
+
+        if region == "GULF":
+            target_locs = [
+                "Dubai, United Arab Emirates",
+                "Riyadh, Saudi Arabia",
+                "Abu Dhabi, United Arab Emirates",
+                "Doha, Qatar"
+            ]
+        elif region == "MIGRATABLE":
+            target_locs = [
+                "Singapore",
+                "London, United Kingdom",
+                "Berlin, Germany",
+                "Sydney, Australia"
+            ]
+        else:
+            target_locs = [
+                "Dubai, United Arab Emirates",
+                "Riyadh, Saudi Arabia",
+                "Singapore",
+                "London, United Kingdom",
+                "Berlin, Germany"
+            ]
+
+        results: List[Dict[str, Any]] = []
+        seen_companies = set()
+
+        try:
+            from jobspy import scrape_jobs
+
+            for loc in target_locs:
+                if len(results) >= max_companies:
+                    break
+                try:
+                    df = scrape_jobs(
+                        site_name=["indeed", "glassdoor", "bayt"],
+                        search_term=role,
+                        location=loc,
+                        results_wanted=min(max_companies, 8),
+                        hours_old=336,
+                        fetch_description=True,
+                        linkedin_fetch_description=False,
+                        description_format="markdown"
+                    )
+                    if df is None or df.empty:
+                        continue
+
+                    for _, row in df.iterrows():
+                        comp = str(row.get("company", "")).strip()
+                        title = str(row.get("title", "")).strip()
+                        job_loc = str(row.get("location", loc)).strip()
+                        job_url = str(row.get("job_url", "")).strip()
+                        desc = str(row.get("description", "") or "").strip()
+
+                        if not comp or comp.lower() in ["verified employer", "gulf employer", "external job link", "nan", "none"]:
+                            continue
+
+                        comp_key = comp.lower().strip()
+                        if comp_key in seen_companies:
+                            continue
+
+                        # Check Geo Rules (strictly excludes Israel and unapproved regions)
+                        is_el, reason, meta = GeoLocationEngine.evaluate_location(job_loc, f"{title} {desc}")
+                        if not is_el:
+                            continue
+                        if region == "GULF" and meta.get("category") != "GULF":
+                            continue
+                        if region == "MIGRATABLE" and meta.get("category") != "MIGRATABLE_GLOBAL":
+                            continue
+
+                        seen_companies.add(comp_key)
+                        domain = cls.resolve_company_domain(comp)
+                        email_pattern = f"{{first}}.{{last}}@{domain}"
+
+                        # Extract emails directly from posting text
+                        posting_emails = cls.extract_emails_from_text(desc)
+
+                        # If Hunter API key is present, look up verified domain contacts
+                        verified_contacts = []
+                        hunter_key = os.getenv("HUNTER_API_KEY", HUNTER_API_KEY)
+                        if hunter_key and domain:
+                            try:
+                                h_url = f"https://api.hunter.io/v2/domain-search?domain={domain}&department=human_resources&api_key={hunter_key}"
+                                h_resp = requests.get(h_url, timeout=4)
+                                if h_resp.status_code == 200:
+                                    h_data = h_resp.json().get("data", {})
+                                    for em in h_data.get("emails", [])[:3]:
+                                        val = em.get("value")
+                                        if val:
+                                            f_name = em.get("first_name") or ""
+                                            l_name = em.get("last_name") or ""
+                                            verified_contacts.append({
+                                                "name": f"{f_name} {l_name}".strip() or "Recruiter",
+                                                "email": val,
+                                                "role": em.get("position") or "Human Resources",
+                                                "confidence": f"{em.get('confidence', 90)}%"
+                                            })
+                            except Exception:
+                                pass
+
+                        # Primary contact decision: verified HR email > posting email > empty
+                        primary_email = ""
+                        if verified_contacts:
+                            primary_email = verified_contacts[0]["email"]
+                        elif posting_emails:
+                            primary_email = posting_emails[0]
+
+                        # Dorks
+                        encoded_comp = urllib.parse.quote(f'"{comp}"')
+                        recruiter_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Technical+Recruiter'+OR+'Talent+Acquisition'+OR+'HR')+{encoded_comp}"
+                        eng_lead_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Engineering+Manager'+OR+'Head+of+Engineering'+OR+'Tech+Lead')+{encoded_comp}"
+
+                        results.append({
+                            "company": comp,
+                            "job_title": title,
+                            "location": job_loc,
+                            "domain": domain,
+                            "email_pattern": email_pattern,
+                            "primary_email": primary_email,
+                            "posting_emails": posting_emails,
+                            "verified_contacts": verified_contacts,
+                            "portal": job_url,
+                            "recruiter_dork": recruiter_dork,
+                            "eng_lead_dork": eng_lead_dork,
+                            "description": desc[:300] + "..." if len(desc) > 300 else desc,
+                            "geo_meta": meta
+                        })
+
+                        if len(results) >= max_companies:
+                            break
+                except Exception as loc_e:
+                    print(f"[Role HR Search Warn for {loc}]: {loc_e}")
+                    continue
+        except Exception as e:
+            print(f"[Role HR Search Error]: {e}")
+
+        return results

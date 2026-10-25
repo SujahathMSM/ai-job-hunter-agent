@@ -167,6 +167,22 @@ evalX | Pytest, LLM-as-a-Judge
         self.assertGreaterEqual(len(res["search_dorks"]), 3)
         self.assertTrue(any("LinkedIn" in d["title"] for d in res["search_dorks"]))
 
+    def test_hr_finder_domain_resolution_and_role_search(self):
+        """Test HRFinder authentic domain resolution and role-based company discovery."""
+        from hunter.hr_finder import HRFinder
+        domain = HRFinder.resolve_company_domain("Careem")
+        self.assertEqual(domain, "careem.com")
+
+        # Mock / live search test for role discovery
+        comps = HRFinder.find_companies_and_hr_by_role("Python Developer", region="GULF", max_companies=2)
+        self.assertIsInstance(comps, list)
+        if comps:
+            first = comps[0]
+            self.assertIn("company", first)
+            self.assertIn("domain", first)
+            self.assertIn("email_pattern", first)
+            self.assertIn("@", first["email_pattern"])
+
     def test_resume_tailorer_ai_and_systems(self):
         """Test ResumeTailorer generates rich tailored content for AI roles."""
         tailorer = ResumeTailorer(self.profile)

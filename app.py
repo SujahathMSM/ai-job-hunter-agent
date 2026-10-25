@@ -599,77 +599,224 @@ Sincerely,
 # ==========================================
 with tab_finder:
     st.header("👥 Global HR & Recruiter Finder")
-    st.write("Discover real, verified Human Resources managers, Technical Recruiters, and Engineering Hiring Leads at any company worldwide using free APIs and precision queries.")
+    st.write("Discover real, verified Human Resources managers, Technical Recruiters, and Engineering Hiring Leads by **Job Role** (e.g. *Python Developer*) or by **Company Name** globally.")
 
-    col_sr1, col_sr2, col_sr3, col_sr4 = st.columns([2, 1.5, 1.2, 1])
-    with col_sr1:
-        sr_company = st.text_input("Target Company Name", value="Careem", placeholder="e.g. Careem, Valtrans, Emaar, Talabat, Grab")
-    with col_sr2:
-        sr_domain = st.text_input("Company Domain (Optional)", placeholder="e.g. careem.com, emaar.ae")
-    with col_sr3:
-        sr_region = st.selectbox("Region Filter", ["GULF", "MIGRATABLE", "ALL"], key="hr_region")
-    with col_sr4:
-        st.write("")
-        st.write("")
-        btn_find_hr = st.button("🔎 Find Contacts", type="primary", use_container_width=True)
+    hr_mode = st.radio(
+        "Discovery Mode",
+        ["🎯 Auto-Discover by Job Role (e.g. Python Developer)", "🏢 Look up Specific Company (e.g. Careem)"],
+        horizontal=True,
+        key="hr_finder_mode"
+    )
 
-    if btn_find_hr or "hr_search_cache" in st.session_state:
-        if btn_find_hr:
-            with st.spinner(f"Searching global databases, Hunter.io, and live recruiter profiles for '{sr_company}'..."):
-                hr_results = HRFinder.search_global_hr(sr_company, domain=sr_domain, region=sr_region)
-                st.session_state.hr_search_cache = hr_results
+    if hr_mode == "🎯 Auto-Discover by Job Role (e.g. Python Developer)":
+        # Quick role presets
+        st.markdown("**Quick Role Presets:**")
+        preset_cols = st.columns(6)
+        presets = [
+            ("🐍 Python Developer", "Python Developer"),
+            ("💻 Full Stack", "Full Stack Engineer"),
+            ("🤖 AI / LLM Engineer", "AI Engineer"),
+            ("⚡ Embedded Systems", "Embedded Systems Engineer"),
+            ("☁️ DevOps / Cloud", "DevOps Engineer"),
+            ("📊 Data Engineer", "Data Engineer")
+        ]
+        
+        for i, (label, val) in enumerate(presets):
+            if preset_cols[i].button(label, key=f"preset_{i}", use_container_width=True):
+                st.session_state.selected_role_input = val
 
-        data = st.session_state.hr_search_cache
-        st.divider()
+        if "selected_role_input" not in st.session_state:
+            st.session_state.selected_role_input = "Python Developer"
 
-        # Domain & Pattern Overview
-        col_ov1, col_ov2, col_ov3 = st.columns(3)
-        col_ov1.metric("Target Domain", data.get("domain", "Unknown"))
-        col_ov2.metric("Company Email Pattern", data.get("email_pattern") or ("{first}.{last}@" + data.get("domain", "")))
-        col_ov3.metric("Verified Contacts Found", len(data.get("verified_contacts", [])))
+        col_r1, col_r2, col_r3, col_r4 = st.columns([2.5, 1.2, 1, 1.2])
+        with col_r1:
+            target_role = st.text_input("Target Job Role / Engineering Title", value=st.session_state.selected_role_input, key="role_input_text")
+        with col_r2:
+            target_region = st.selectbox("Region Filter", ["GULF", "MIGRATABLE", "ALL"], key="role_region_picker")
+        with col_r3:
+            max_comps = st.selectbox("Max Companies", [5, 10, 15, 20], index=1, key="max_comps_picker")
+        with col_r4:
+            st.write("")
+            st.write("")
+            btn_role_search = st.button("🚀 Discover Hiring Companies & HR", type="primary", use_container_width=True)
 
-        # Verified Email Contacts (from Hunter / Apollo)
-        verified = data.get("verified_contacts", [])
-        if verified:
-            st.subheader("✅ Verified HR & Talent Acquisition Emails")
-            for c in verified:
-                with st.container():
-                    c_col1, c_col2, c_col3 = st.columns([2, 2, 1])
-                    c_col1.markdown(f"**{c['name']}**  \n*{c['role']}*")
-                    c_col2.markdown(f"📧 `{c['email']}`  \n*(Confidence: {c['confidence']})*")
-                    with c_col3:
-                        if st.button("🚀 Use for Outreach", key=f"use_{c['email']}"):
-                            if not st.session_state.selected_job:
-                                st.session_state.selected_job = {
-                                    "id": "direct-recruiter",
-                                    "job_title": "Software Engineer",
-                                    "company": data["company"],
-                                    "location": "Gulf / International",
-                                    "hr_email": c["email"],
-                                    "portal": "Direct Outreach",
-                                    "description": f"Direct outreach to {c['name']} ({c['role']}) at {data['company']}."
-                                }
+        if btn_role_search or ("role_companies_cache" in st.session_state and st.session_state.get("cached_role_query") == f"{target_role}_{target_region}"):
+            if btn_role_search:
+                with st.spinner(f"Scanning live postings in {target_region} for companies hiring '{target_role}' and resolving HR contacts..."):
+                    discovered_companies = HRFinder.find_companies_and_hr_by_role(
+                        role=target_role,
+                        region=target_region,
+                        max_companies=max_comps
+                    )
+                    st.session_state.role_companies_cache = discovered_companies
+                    st.session_state.cached_role_query = f"{target_role}_{target_region}"
+
+            companies = st.session_state.get("role_companies_cache", [])
+
+            if companies:
+                st.divider()
+                st.subheader(f"🏢 {len(companies)} Companies Actively Hiring for '{target_role}' in {target_region}")
+
+                # Summary metric row
+                m_col1, m_col2, m_col3 = st.columns(3)
+                verified_count = sum(1 for c in companies if c.get("primary_email"))
+                m_col1.metric("Companies Discovered", len(companies))
+                m_col2.metric("Direct Emails Available", verified_count)
+                m_col3.metric("Regional Filter", target_region)
+
+                # Export CSV button
+                import pandas as pd
+                export_data = []
+                for c in companies:
+                    export_data.append({
+                        "Company": c.get("company"),
+                        "Job Title": c.get("job_title"),
+                        "Location": c.get("location"),
+                        "Domain": c.get("domain"),
+                        "Email Pattern": c.get("email_pattern"),
+                        "Direct HR Email": c.get("primary_email"),
+                        "Application Portal": c.get("portal")
+                    })
+                df_export = pd.DataFrame(export_data)
+                csv_bytes = df_export.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Export Discovered Companies & HR List (CSV)",
+                    data=csv_bytes,
+                    file_name=f"companies_hiring_{target_role.replace(' ', '_').lower()}.csv",
+                    mime="text/csv",
+                    key="download_role_companies_csv"
+                )
+
+                st.write("")
+
+                # List out cards
+                for idx, comp_data in enumerate(companies):
+                    comp_name = comp_data.get("company", "Company")
+                    job_title = comp_data.get("job_title", target_role)
+                    loc = comp_data.get("location", "Gulf / Global")
+                    domain = comp_data.get("domain", "")
+                    pattern = comp_data.get("email_pattern", "")
+                    primary_email = comp_data.get("primary_email", "")
+                    portal = comp_data.get("portal", "")
+                    recruiter_dork = comp_data.get("recruiter_dork", "")
+                    eng_lead_dork = comp_data.get("eng_lead_dork", "")
+                    desc = comp_data.get("description", "")
+
+                    with st.container(border=True):
+                        c_head1, c_head2 = st.columns([3, 1])
+                        with c_head1:
+                            st.markdown(f"### 🏢 {comp_name}")
+                            st.markdown(f"💼 **Active Opening:** `{job_title}` &nbsp;&nbsp;|&nbsp;&nbsp; 📍 **Location:** `{loc}`")
+                        with c_head2:
+                            if primary_email:
+                                st.success("✅ Direct Email Available")
                             else:
-                                st.session_state.selected_job["hr_email"] = c["email"]
-                            st.success(f"Copied {c['email']} to Tab 4 for direct application!")
-        else:
-            st.info("ℹ️ No public email addresses were leaked in open databases for this domain. To enable verified Hunter.io domain searches, enter your free API key in Tab 7 (Settings).")
+                                st.info("🌐 Portal Application")
 
-        # Discovered Recruiters on LinkedIn
-        recruiters = data.get("discovered_recruiters", [])
-        if recruiters:
-            st.subheader("💼 Discovered Recruiters & Talent Acquisition Specialists")
-            for r in recruiters:
-                with st.expander(f"👤 {r['name']} — {r['role']}"):
-                    st.write(r.get("snippet", ""))
-                    if r.get("linkedin_url"):
-                        st.markdown(f"🔗 [Open Profile on LinkedIn]({r['linkedin_url']})")
+                        card_col1, card_col2, card_col3 = st.columns([2, 2, 1.8])
+                        with card_col1:
+                            st.markdown(f"**Corporate Domain:** `{domain}`")
+                            st.markdown(f"**Email Format:** `{pattern}`")
+                        with card_col2:
+                            if primary_email:
+                                st.markdown(f"**📬 HR Email:** `{primary_email}`")
+                            else:
+                                st.caption("No public inbox detected in posting text. Use corporate format or direct portal below.")
+                            if portal:
+                                st.markdown(f"🔗 [Open Official Job Posting]({portal})")
+                        with card_col3:
+                            st.markdown(f"🔍 [Recruiters on LinkedIn]({recruiter_dork})")
+                            st.markdown(f"⚡ [Tech Leads on LinkedIn]({eng_lead_dork})")
+                            if st.button("🚀 Use for Outreach", key=f"use_role_comp_{idx}_{comp_name}"):
+                                outreach_email = primary_email if primary_email else f"careers@{domain}"
+                                st.session_state.selected_job = {
+                                    "id": f"role-{idx}",
+                                    "job_title": job_title,
+                                    "company": comp_name,
+                                    "location": loc,
+                                    "hr_email": outreach_email,
+                                    "portal": portal if portal else "Direct Outreach",
+                                    "description": desc if desc else f"Application for {job_title} at {comp_name} ({loc})."
+                                }
+                                st.success(f"Loaded {comp_name} ({outreach_email}) into Tab 4! Switch to Tab 4 to send email.")
 
-        # 1-Click Search Dorks
-        st.subheader("⚡ 1-Click Precision Recruiter & Hiring Manager Dorks")
-        st.caption("Click any query below to instantly open verified LinkedIn and careers results in Google:")
-        for d in data.get("search_dorks", []):
-            st.markdown(f"👉 **[{d['title']}]({d['url']})**: {d['description']}")
+                        if desc:
+                            with st.expander("📄 View Job Snippet & Context"):
+                                st.write(desc)
+            else:
+                st.warning(f"No active job postings found matching '{target_role}' in '{target_region}'. Try selecting 'ALL' or expanding your search title.")
+
+    else:
+        # Existing Single Company Mode
+        col_sr1, col_sr2, col_sr3, col_sr4 = st.columns([2, 1.5, 1.2, 1])
+        with col_sr1:
+            sr_company = st.text_input("Target Company Name", value="Careem", placeholder="e.g. Careem, Valtrans, Emaar, Talabat, Grab")
+        with col_sr2:
+            sr_domain = st.text_input("Company Domain (Optional)", placeholder="e.g. careem.com, emaar.ae")
+        with col_sr3:
+            sr_region = st.selectbox("Region Filter", ["GULF", "MIGRATABLE", "ALL"], key="hr_region")
+        with col_sr4:
+            st.write("")
+            st.write("")
+            btn_find_hr = st.button("🔎 Find Contacts", type="primary", use_container_width=True)
+
+        if btn_find_hr or "hr_search_cache" in st.session_state:
+            if btn_find_hr:
+                with st.spinner(f"Searching global databases, Hunter.io, and live recruiter profiles for '{sr_company}'..."):
+                    hr_results = HRFinder.search_global_hr(sr_company, domain=sr_domain, region=sr_region)
+                    st.session_state.hr_search_cache = hr_results
+
+            data = st.session_state.hr_search_cache
+            st.divider()
+
+            # Domain & Pattern Overview
+            col_ov1, col_ov2, col_ov3 = st.columns(3)
+            col_ov1.metric("Target Domain", data.get("domain", "Unknown"))
+            col_ov2.metric("Company Email Pattern", data.get("email_pattern") or ("{first}.{last}@" + data.get("domain", "")))
+            col_ov3.metric("Verified Contacts Found", len(data.get("verified_contacts", [])))
+
+            # Verified Email Contacts (from Hunter / Apollo)
+            verified = data.get("verified_contacts", [])
+            if verified:
+                st.subheader("✅ Verified HR & Talent Acquisition Emails")
+                for c in verified:
+                    with st.container():
+                        c_col1, c_col2, c_col3 = st.columns([2, 2, 1])
+                        c_col1.markdown(f"**{c['name']}**  \n*{c['role']}*")
+                        c_col2.markdown(f"📧 `{c['email']}`  \n*(Confidence: {c['confidence']})*")
+                        with c_col3:
+                            if st.button("🚀 Use for Outreach", key=f"use_{c['email']}"):
+                                if not st.session_state.selected_job:
+                                    st.session_state.selected_job = {
+                                        "id": "direct-recruiter",
+                                        "job_title": "Software Engineer",
+                                        "company": data["company"],
+                                        "location": "Gulf / International",
+                                        "hr_email": c["email"],
+                                        "portal": "Direct Outreach",
+                                        "description": f"Direct outreach to {c['name']} ({c['role']}) at {data['company']}."
+                                    }
+                                else:
+                                    st.session_state.selected_job["hr_email"] = c["email"]
+                                st.success(f"Copied {c['email']} to Tab 4 for direct application!")
+            else:
+                st.info("ℹ️ No public email addresses were leaked in open databases for this domain. To enable verified Hunter.io domain searches, enter your free API key in Tab 7 (Settings).")
+
+            # Discovered Recruiters on LinkedIn
+            recruiters = data.get("discovered_recruiters", [])
+            if recruiters:
+                st.subheader("💼 Discovered Recruiters & Talent Acquisition Specialists")
+                for r in recruiters:
+                    with st.expander(f"👤 {r['name']} — {r['role']}"):
+                        st.write(r.get("snippet", ""))
+                        if r.get("linkedin_url"):
+                            st.markdown(f"🔗 [Open Profile on LinkedIn]({r['linkedin_url']})")
+
+            # 1-Click Search Dorks
+            st.subheader("⚡ 1-Click Precision Recruiter & Hiring Manager Dorks")
+            st.caption("Click any query below to instantly open verified LinkedIn and careers results in Google:")
+            for d in data.get("search_dorks", []):
+                st.markdown(f"👉 **[{d['title']}]({d['url']})**: {d['description']}")
 
 # ==========================================
 # TAB 6: APPLICATION TRACKER
