@@ -482,7 +482,7 @@ class PDFResumeBuilder:
         story.append(Spacer(1, 4))
 
         # 2. ABOUT ME / EXECUTIVE PROFILE
-        summary = resume_data.get("summary", "")
+        summary = resume_data.get("summary", "") or resume_data.get("tailored_summary", "")
         if summary:
             story.append(Paragraph("ABOUT ME", self.styles["EuropassSectionTitle"]))
             story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))

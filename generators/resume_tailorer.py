@@ -173,6 +173,7 @@ Return ONLY valid JSON with keys:
             "tailored_title": tailored_title,
             "tailored_subtitle": tailored_subtitle,
             "summary": tailored_profile,
+            "tailored_summary": tailored_profile,
             "core_skills_categorized": tailored_skills,
             "work_history": tailored_work,
             "projects": tailored_projects,
