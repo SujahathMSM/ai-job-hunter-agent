@@ -35,3 +35,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+stitch_autonomous_job_hunter_saas.zip
+stitch_design/
+frontend/node_modules/
+frontend/.next/
