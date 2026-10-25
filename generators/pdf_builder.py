@@ -2,7 +2,7 @@ import re
 import unicodedata
 from pathlib import Path
 from typing import Dict, Any, List
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib import colors
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
@@ -207,88 +207,48 @@ class PDFResumeBuilder:
             spaceAfter=10
         ))
 
-    def _deduplicate_work_history(self, work_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Guarantees strictly the 3 real commercial employers and zero duplicates."""
-        canonical_jobs = {
-            "blue_brand": {
+    def _default_canonical_work_history(self) -> List[Dict[str, Any]]:
+        return [
+            {
                 "company": "Blue Brand - Advanced R&D and IP Institute (HQ: Ploiesti, Romania)",
                 "branch": "Sri Lanka Branch",
                 "title": "Software Engineer",
                 "duration": "Mar 2025 - Present",
-                "bullets": []
+                "bullets": [
+                    "Build and operate production Python/FastAPI services for a live multi-site solar and battery energy-management platform, connecting real-time device data, control workflows, databases, and operator-facing APIs and dashboards.",
+                    "Design and maintain REST, WebSocket, and MQTT data flows between Raspberry Pi edge controllers and cloud services, with PostgreSQL/TimescaleDB storage, health monitoring, retries, and fallback handling.",
+                    "Translate operational and safety requirements from operations, firmware, and hardware stakeholders into specifications and deployable software, owning changes from requirements through implementation, deployment, and verification.",
+                    "Investigate production issues using logs, SQL analysis, and telemetry; fixes reduced device polling failures from about 80% to 0% and controller startup time from 5-6 minutes to 15-30 seconds.",
+                    "Audited a 419-file Python codebase, validated critical safety fixes, and identified 1.83 GB of write-only database tables with no readers, supporting corrective action through structured analysis.",
+                    "Design and run staged test plans before production changes: baseline checks, controlled read/write tests, failure scenarios, regression checks, rollback validation, and soak monitoring.",
+                    "Maintain version-controlled technical documentation and records: system architecture, register maps, procedures, runbooks, deployment and rollback records, and engineer onboarding guides.",
+                    "Deliver versioned Docker releases through GitLab CI/CD, Harbor, and Ansible across ARM64 edge and AMD64 cloud environments; host cloud services on AWS EC2 with S3 object storage.",
+                    "Built an operator control-panel dashboard with Vue, TypeScript, and Tailwind giving operators live visibility of system status."
+                ]
             },
-            "codescale": {
+            {
                 "company": "CodeScale Pvt Ltd",
                 "branch": "Colombo, Sri Lanka",
                 "title": "Software Engineer Intern / Associate Engineer",
                 "duration": "Jul 2024 - Feb 2025",
-                "bullets": []
+                "bullets": [
+                    "Developed WheresNow, a real-time location platform with live tracking, geofencing, crash detection, background processing, and secure messaging across mobile and web clients.",
+                    "Built backend services and integrations with Node.js (Express/Nest.js), Java, Firebase, REST, and GraphQL, alongside React Native and Vue.js interfaces; integrated PostgreSQL and MongoDB and optimised queries.",
+                    "Used AWS EC2, Lambda, IAM, RDS, and S3; maintained CI/CD with GitHub Actions and Jenkins; worked in Agile/Scrum through code reviews, testing, and release workflows."
+                ]
             },
-            "lanka_hydraulic": {
+            {
                 "company": "Lanka Hydraulic Institute",
                 "branch": "Moratuwa, Sri Lanka",
                 "title": "Trainee Engineer",
                 "duration": "Jan 2023 - Jun 2023",
-                "bullets": []
+                "bullets": [
+                    "Processed, validated, and visualised large engineering datasets with Python (Pandas, NumPy, Matplotlib) and PostgreSQL; supported coastal simulations and spatial analysis using Mike Zero and ArcGIS."
+                ]
             }
-        }
+        ]
 
-        default_bullets = {
-            "blue_brand": [
-                "Build and operate production Python/FastAPI services for a live multi-site solar and battery energy-management platform, connecting real-time device data, control workflows, databases, and operator-facing APIs and dashboards.",
-                "Design and maintain REST, WebSocket, and MQTT data flows between Raspberry Pi edge controllers and cloud services, with PostgreSQL/TimescaleDB storage, health monitoring, retries, and fallback handling.",
-                "Translate operational and safety requirements from operations, firmware, and hardware stakeholders into specifications and deployable software, owning changes from requirements through implementation, deployment, and verification.",
-                "Investigate production issues using logs, SQL analysis, and telemetry; fixes reduced device polling failures from about 80% to 0% and controller startup time from 5-6 minutes to 15-30 seconds.",
-                "Audited a 419-file Python codebase, validated critical safety fixes, and identified 1.83 GB of write-only database tables with no readers, supporting corrective action through structured analysis.",
-                "Design and run staged test plans before production changes: baseline checks, controlled read/write tests, failure scenarios, regression checks, rollback validation, and soak monitoring.",
-                "Maintain version-controlled technical documentation and records: system architecture, register maps, procedures, runbooks, deployment and rollback records, and engineer onboarding guides.",
-                "Deliver versioned Docker releases through GitLab CI/CD, Harbor, and Ansible across ARM64 edge and AMD64 cloud environments; host cloud services on AWS EC2 with S3 object storage.",
-                "Built an operator control-panel dashboard with Vue, TypeScript, and Tailwind giving operators live visibility of system status."
-            ],
-            "codescale": [
-                "Developed WheresNow, a real-time location platform with live tracking, geofencing, crash detection, background processing, and secure messaging across mobile and web clients.",
-                "Built backend services and integrations with Node.js (Express/Nest.js), Java, Firebase, REST, and GraphQL, alongside React Native and Vue.js interfaces; integrated PostgreSQL and MongoDB and optimised queries.",
-                "Used AWS EC2, Lambda, IAM, RDS, and S3; maintained CI/CD with GitHub Actions and Jenkins; worked in Agile/Scrum through code reviews, testing, and release workflows."
-            ],
-            "lanka_hydraulic": [
-                "Processed, validated, and visualised large engineering datasets with Python (Pandas, NumPy, Matplotlib) and PostgreSQL; supported coastal simulations and spatial analysis using Mike Zero and ArcGIS."
-            ]
-        }
-
-        for exp in work_history:
-            comp = exp.get("company", "")
-            title = exp.get("title", "")
-            key_text = f"{comp} {title}".lower()
-
-            target_key = None
-            if "blue brand" in key_text or "ploiesti" in key_text or "solar" in key_text or "energy" in key_text:
-                target_key = "blue_brand"
-            elif "codescale" in key_text or "wheresnow" in key_text:
-                target_key = "codescale"
-            elif "hydraulic" in key_text or "coastal" in key_text:
-                target_key = "lanka_hydraulic"
-
-            if not target_key:
-                continue
-
-            raw_bullets = exp.get("bullets", [])
-            for b in raw_bullets:
-                clean_b = re.sub(r"^[•\-*■\s]+", "", str(b)).strip()
-                sub_parts = re.split(r"[■•]", clean_b)
-                for sp in sub_parts:
-                    sp_text = sp.strip(" -–|:•■")
-                    if len(sp_text) > 25 and not any(sp_text.lower() in existing.lower() or existing.lower() in sp_text.lower() for existing in canonical_jobs[target_key]["bullets"]):
-                        canonical_jobs[target_key]["bullets"].append(sp_text)
-
-        # Fallback to default verified bullets if bullets were empty
-        for k in ["blue_brand", "codescale", "lanka_hydraulic"]:
-            if not canonical_jobs[k]["bullets"]:
-                canonical_jobs[k]["bullets"] = default_bullets[k]
-
-        return [canonical_jobs["blue_brand"], canonical_jobs["codescale"], canonical_jobs["lanka_hydraulic"]]
-
-    def _deduplicate_education(self, education: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Guarantees University of Moratuwa and IJSE appear exactly once."""
+    def _default_canonical_education(self) -> List[Dict[str, Any]]:
         return [
             {
                 "degree": "Bachelor of the Science of Engineering Honours (BScEngHons)",
@@ -306,8 +266,7 @@ class PDFResumeBuilder:
             }
         ]
 
-    def _deduplicate_projects(self, projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Guarantees verified candidate GitHub projects appear cleanly with zero duplicates."""
+    def _default_canonical_projects(self) -> List[Dict[str, Any]]:
         return [
             {
                 "title": "AeroIntel | Deterministic RAG Pipeline for Aviation Maintenance",
@@ -339,15 +298,125 @@ class PDFResumeBuilder:
             }
         ]
 
+    def _deduplicate_work_history(self, work_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Cleans and deduplicates work history while preserving tailored bullets from LLM / Persona."""
+        if not work_history:
+            return self._default_canonical_work_history()
+
+        deduped = []
+        seen = set()
+
+        for exp in work_history:
+            comp = exp.get("company", "").strip()
+            title = exp.get("title", "").strip()
+            branch = exp.get("branch", "").strip()
+            dur = exp.get("duration", "").strip()
+            raw_bullets = exp.get("bullets", [])
+
+            if not comp and not title:
+                continue
+
+            norm_key = f"{comp.lower()}_{title.lower()}"
+            if norm_key in seen:
+                continue
+            seen.add(norm_key)
+
+            clean_bullets = []
+            for b in raw_bullets:
+                clean_b = re.sub(r"^[•\-*■\s]+", "", str(b)).strip()
+                sub_parts = re.split(r"[■•]", clean_b)
+                for sp in sub_parts:
+                    sp_text = sp.strip(" -–|:•■")
+                    if len(sp_text) > 18 and not any(sp_text.lower() == existing.lower() for existing in clean_bullets):
+                        clean_bullets.append(sp_text)
+
+            deduped.append({
+                "company": comp,
+                "branch": branch,
+                "title": title,
+                "duration": dur,
+                "bullets": clean_bullets
+            })
+
+        return deduped if deduped else self._default_canonical_work_history()
+
+    def _deduplicate_education(self, education: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Cleans and deduplicates education entries while preserving structured data."""
+        if not education:
+            return self._default_canonical_education()
+
+        deduped = []
+        seen = set()
+
+        for edu in education:
+            deg = edu.get("degree", "").strip()
+            inst = edu.get("institution", "").strip()
+            dur = edu.get("duration", "").strip()
+            loc = edu.get("location", "").strip()
+            det = edu.get("details", "").strip()
+
+            if not deg and not inst:
+                continue
+
+            norm_key = f"{deg.lower()}_{inst.lower()}"
+            if norm_key in seen:
+                continue
+            seen.add(norm_key)
+
+            deduped.append({
+                "degree": deg,
+                "institution": inst,
+                "duration": dur,
+                "location": loc,
+                "details": det
+            })
+
+        return deduped if deduped else self._default_canonical_education()
+
+    def _deduplicate_projects(self, projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Preserves tailored / selected projects while eliminating duplicates and artifacts."""
+        if not projects:
+            return self._default_canonical_projects()
+
+        deduped = []
+        seen = set()
+
+        for proj in projects:
+            title = proj.get("title", "").strip()
+            tech = proj.get("technologies", "")
+            bullets = proj.get("bullets", [])
+
+            if not title:
+                continue
+
+            norm_key = title.lower()[:30]
+            if norm_key in seen:
+                continue
+            seen.add(norm_key)
+
+            clean_bullets = []
+            for b in bullets:
+                clean_b = re.sub(r"^[•\-*■\s]+", "", str(b)).strip()
+                if len(clean_b) > 15:
+                    clean_bullets.append(clean_b)
+
+            deduped.append({
+                "title": title,
+                "technologies": ", ".join(tech) if isinstance(tech, list) else str(tech),
+                "bullets": clean_bullets
+            })
+
+        return deduped[:4] if deduped else self._default_canonical_projects()
+
     def build_resume_pdf(self, resume_data: Dict[str, Any], output_path: Path) -> Path:
-        """Renders an authentic, official European Union Europass CV."""
+        """Renders an authentic, official European Union Europass CV in standard A4 format."""
         doc = SimpleDocTemplate(
             str(output_path),
-            pagesize=letter,
-            leftMargin=32,
-            rightMargin=32,
-            topMargin=24,
-            bottomMargin=24
+            pagesize=A4,
+            leftMargin=30,
+            rightMargin=30,
+            topMargin=22,
+            bottomMargin=22
         )
         story = []
 
@@ -360,6 +429,7 @@ class PDFResumeBuilder:
         email = identity.get("email", "sujahathmhmd@gmail.com")
         linkedin = identity.get("linkedin", "https://linkedin.com/in/sujahath-siddeek").replace("https://", "")
         github = identity.get("github", "https://github.com/SujahathMSM").replace("https://", "")
+        location_str = identity.get("current_location", "Moratuwa, Sri Lanka")
 
         # 1. OFFICIAL EUROPASS HEADER
         header_table_data = [
@@ -368,7 +438,7 @@ class PDFResumeBuilder:
                 Paragraph("<b>European Standard Format</b>", self.styles["EuropassCityCol"])
             ]
         ]
-        t_header = Table(header_table_data, colWidths=[410, 138])
+        t_header = Table(header_table_data, colWidths=[395, 140])
         t_header.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -384,12 +454,12 @@ class PDFResumeBuilder:
 
         contact_table_data = [
             [
-                Paragraph(f"<b>Location:</b> Moratuwa, Sri Lanka", self.styles["EuropassContactItem"]),
+                Paragraph(f"<b>Location:</b> {location_str}", self.styles["EuropassContactItem"]),
                 Paragraph(f"<b>Phone:</b> {phone}", self.styles["EuropassContactItem"])
             ],
             [
                 Paragraph(f"<b>Email:</b> {email}", self.styles["EuropassContactItem"]),
-                Paragraph(f"<b>Nationality:</b> Sri Lankan", self.styles["EuropassContactItem"])
+                Paragraph(f"<b>Nationality:</b> {identity.get('nationality', 'Sri Lankan')}", self.styles["EuropassContactItem"])
             ],
             [
                 Paragraph(f"<b>LinkedIn:</b> {linkedin}", self.styles["EuropassContactItem"]),
@@ -400,7 +470,7 @@ class PDFResumeBuilder:
                 Paragraph(f"<b>Core Stack:</b> {subtitle}", self.styles["EuropassContactItem"])
             ]
         ]
-        t_contact = Table(contact_table_data, colWidths=[274, 274])
+        t_contact = Table(contact_table_data, colWidths=[267, 268])
         t_contact.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -450,7 +520,7 @@ class PDFResumeBuilder:
                     if clean_b:
                         right_cell.append(Paragraph(f"&bull; {clean_b}", self.styles["EuropassBullet"]))
 
-                job_table = Table([[date_cell, right_cell]], colWidths=[110, 438])
+                job_table = Table([[date_cell, right_cell]], colWidths=[105, 430])
                 job_table.setStyle(TableStyle([
                     ('VALIGN', (0,0), (-1,-1), 'TOP'),
                     ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -488,7 +558,7 @@ class PDFResumeBuilder:
                 if det:
                     right_cell.append(Paragraph(f"&bull; {det}", self.styles["EuropassBullet"]))
 
-                edu_table = Table([[date_cell, right_cell]], colWidths=[110, 438])
+                edu_table = Table([[date_cell, right_cell]], colWidths=[105, 430])
                 edu_table.setStyle(TableStyle([
                     ('VALIGN', (0,0), (-1,-1), 'TOP'),
                     ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -563,27 +633,36 @@ class PDFResumeBuilder:
         doc.build(story)
         return output_path
 
-    def build_cover_letter_pdf(self, cover_letter_text: str, candidate_name: str, output_path: Path) -> Path:
-        """Renders an executive Europass-style cover letter matching the candidate's exact letterhead."""
+    def build_cover_letter_pdf(self, cover_letter_text: str, candidate_name: Any, output_path: Path) -> Path:
+        """Renders an executive Europass-style cover letter in A4 format."""
         doc = SimpleDocTemplate(
             str(output_path),
-            pagesize=letter,
-            leftMargin=44,
-            rightMargin=44,
-            topMargin=40,
-            bottomMargin=40
+            pagesize=A4,
+            leftMargin=40,
+            rightMargin=40,
+            topMargin=36,
+            bottomMargin=36
         )
         story = []
 
+        phone = ""
+        email = ""
+        location = ""
         if isinstance(candidate_name, dict):
-            c_name = sanitize_pdf_text(candidate_name.get("identity", {}).get("full_name", candidate_name.get("full_name", "M.S. MOHAMED SUJAHATH")))
+            ident = candidate_name.get("identity", candidate_name)
+            c_name = sanitize_pdf_text(ident.get("full_name", "Candidate"))
+            phone = ident.get("phone", "")
+            email = ident.get("email", "")
+            location = ident.get("current_location", "Moratuwa, Sri Lanka")
         else:
-            c_name = sanitize_pdf_text(candidate_name or "M.S. MOHAMED SUJAHATH")
+            c_name = sanitize_pdf_text(str(candidate_name or "Candidate"))
 
         # Official Europass Letterhead
         story.append(Paragraph("<b>europass</b> &nbsp;|&nbsp; <b>APPLICATION COVER LETTER</b>", self.styles["EuropassBrand"]))
         story.append(Paragraph(f"<b>{c_name}</b>", self.styles["EuropassName"]))
-        contact_line = sanitize_pdf_text("+94 76 485 8427 / +971 50 229 1865 | sujahathmhmd@gmail.com | Moratuwa, Sri Lanka")
+
+        contact_parts = [p for p in [phone, email, location] if p]
+        contact_line = sanitize_pdf_text(" | ".join(contact_parts)) if contact_parts else "Immediate International & Remote Relocation"
         story.append(Paragraph(contact_line, self.styles["EuropassContactItem"]))
         story.append(HRFlowable(width="100%", thickness=1.5, color=self.c_europass, spaceBefore=4, spaceAfter=14))
 

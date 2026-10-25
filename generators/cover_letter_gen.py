@@ -73,7 +73,7 @@ Dear Hiring Team,
 
 I am writing to express my strong enthusiasm and formal application for the {job_title} position at {company}. With a rigorous foundation in engineering principles, hands-on technical execution, and complex problem-solving, I have developed a proven track record of architecting reliable systems and delivering measurable operational results.
 
-Having closely reviewed your requirements for the {job_title} role, I was particularly drawn to {company}'s engineering initiatives. My core competencies in {skills or 'systems engineering, root cause analysis, and technical project delivery'} align directly with the high standards your team demands. In my previous engineering endeavors, I have consistently focused on optimizing technical workflows, eliminating system bottlenecks, and translating ambiguous technical specifications into scalable, high-performance solutions.
+Having closely reviewed your requirements for the {job_title} role, I was particularly drawn to {company}'s engineering initiatives. My core competencies in {skills_summary} align directly with the high standards your team demands. In my previous engineering endeavors, I have consistently focused on optimizing technical workflows, eliminating system bottlenecks, and translating ambiguous technical specifications into scalable, high-performance solutions.
 
 Currently based in Sri Lanka, I have structured my personal and professional affairs to enable an immediate, seamless international relocation to {location}. I am fully prepared for international relocation, adaptable to multicultural working environments, and eager to contribute on-site or in hybrid capacities across {location}.
 

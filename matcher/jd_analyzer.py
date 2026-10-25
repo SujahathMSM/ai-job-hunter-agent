@@ -44,13 +44,32 @@ class JobDescriptionAnalyzer:
         potential_tech = set(re.findall(r"\b(?:python|react|docker|kubernetes|aws|azure|sql|c\+\+|cad|solidworks|plc|ansys|sap|graphql|linux|ci/cd|terraform|scada|matlab|revit|agile|scrum|embedded|mqtt|modbus|timescaledb)\b", jd_text.lower()))
         unmatched_tech = [t.title() for t in potential_tech if t not in [s.lower() for s in matched_skills]]
 
-        # Compute match percentage
+        # Compute realistic, multi-factor ATS match percentage
         if not is_engineering or not is_geo_eligible:
             total_score = 0
+            breakdown = {"title_match": 0, "skills_overlap": 0, "systems_depth": 0}
         else:
-            base_score = 55
-            skill_bonus = min(len(matched_skills) * 8, 43)
-            total_score = min(base_score + skill_bonus, 98)
+            # 1. Title match (0 - 25 points)
+            title_lower = job_title.lower()
+            core_roles = ["software", "backend", "systems", "python", "ai", "data", "platform", "engineer", "developer"]
+            title_hits = sum(1 for r in core_roles if r in title_lower)
+            title_score = min(title_hits * 8, 25)
+
+            # 2. Skills overlap (0 - 50 points)
+            unique_matched = set(s.lower() for s in matched_skills)
+            skill_score = min(len(unique_matched) * 6, 50)
+
+            # 3. Systems engineering & production depth (0 - 25 points)
+            depth_terms = ["production", "scale", "api", "architecture", "docker", "cloud", "aws", "database", "sql", "ci/cd", "reliability"]
+            depth_hits = sum(1 for term in depth_terms if term in combined_text)
+            depth_score = min(depth_hits * 3, 25)
+
+            total_score = max(min(title_score + skill_score + depth_score, 98), 40)
+            breakdown = {
+                "title_match": title_score,
+                "skills_overlap": skill_score,
+                "systems_depth": depth_score
+            }
 
         return {
             "job_title": job_title,
@@ -62,6 +81,7 @@ class JobDescriptionAnalyzer:
             "is_engineering": is_engineering,
             "matched_discipline_keywords": matched_eng_keywords[:5],
             "match_score": total_score,
+            "score_breakdown": breakdown,
             "matched_skills": matched_skills,
             "recommended_keywords": unmatched_tech[:6],
             "recommendation": "Strong Match" if total_score >= 75 else ("Fair Match" if total_score >= 50 else "Weak Match")

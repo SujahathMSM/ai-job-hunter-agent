@@ -218,7 +218,7 @@ class CVParser:
         curr_proj: Dict[str, Any] = {}
 
         for line in lines:
-            if "|" in line or "—" in line or " - " in line and not line.startswith("•"):
+            if ("|" in line or "—" in line or " - " in line) and not line.startswith("•"):
                 if curr_proj and curr_proj.get("bullets"):
                     projects.append(curr_proj)
                 

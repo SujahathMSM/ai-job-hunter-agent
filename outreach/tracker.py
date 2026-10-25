@@ -11,8 +11,14 @@ class ApplicationTracker:
         self.db_path = db_path
         self._init_db()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, timeout=15.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+        return conn
+
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS applications (
@@ -46,7 +52,7 @@ class ApplicationTracker:
         notes: str = ""
     ) -> int:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO applications (
@@ -63,7 +69,7 @@ class ApplicationTracker:
             return cursor.lastrowid
 
     def update_status(self, app_id: int, new_status: str, notes: Optional[str] = None):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.cursor()
             if notes is not None:
                 cursor.execute("""
@@ -80,7 +86,7 @@ class ApplicationTracker:
             conn.commit()
 
     def list_applications(self, limit: int = 100) -> List[Dict[str, Any]]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("""
@@ -92,7 +98,7 @@ class ApplicationTracker:
             return [dict(row) for row in rows]
 
     def get_metrics(self) -> Dict[str, int]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT status, COUNT(*) FROM applications GROUP BY status")
             rows = cursor.fetchall()

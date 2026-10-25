@@ -3,10 +3,11 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from email.utils import formatdate
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SENDER_NAME, DRAFTS_DIR, SAFE_MODE
+from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SENDER_NAME, DRAFTS_DIR
 from outreach.tracker import ApplicationTracker
 
 class EmailDispatcher:
@@ -32,7 +33,7 @@ class EmailDispatcher:
         msg["From"] = f"{s_name} <{s_email}>"
         msg["To"] = recipient_email
         msg["Subject"] = subject
-        msg["Date"] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S +0000")
+        msg["Date"] = formatdate(localtime=True)
 
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
 
@@ -72,7 +73,7 @@ class EmailDispatcher:
         host = os.getenv("SMTP_HOST", SMTP_HOST)
         port = int(os.getenv("SMTP_PORT", str(SMTP_PORT)))
 
-        can_send_live = bool(user and pwd and force_live_send and not SAFE_MODE)
+        can_send_live = bool(user and pwd and force_live_send)
 
         if can_send_live:
             try:

@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from matcher.geo_rules import GeoLocationEngine
 from hunter.hr_finder import HRFinder
+from config import RAPIDAPI_KEY
 
 class LiveJobHunter:
     """Live web scraper and multi-portal engine that scrapes real-time jobs
@@ -134,7 +135,12 @@ class LiveJobHunter:
             if len(all_jobs) >= max_results * 2:
                 break
 
-        # 2. Scrape live Gulf boards (Bayt, GulfTalent, Naukrigulf) via web query proxy
+        # 2. Check JSearch API (if RAPIDAPI_KEY is configured)
+        if RAPIDAPI_KEY:
+            jsearch_jobs = self._scrape_with_jsearch(queries[0], region_filter)
+            all_jobs.extend(jsearch_jobs)
+
+        # 3. Scrape live Gulf boards (Bayt, GulfTalent, Naukrigulf) via web query proxy
         web_jobs = self._scrape_gulf_web_portals(queries[0], region_filter)
         all_jobs.extend(web_jobs)
 
@@ -179,7 +185,7 @@ class LiveJobHunter:
         results_wanted: int = 15,
         hours_old: int = 336
     ) -> List[Dict[str, Any]]:
-        """Scrapes live postings using python-jobspy from LinkedIn, Glassdoor, and Indeed
+        """Scrapes live postings using python-jobspy from LinkedIn, Glassdoor, Indeed, and Bayt
         with full description fetching and strict hour limits (14 days = 336 hours)."""
         results = []
         try:
@@ -192,6 +198,7 @@ class LiveJobHunter:
                     "Riyadh, Saudi Arabia",
                     "Doha, Qatar"
                 ]
+                sites = ["bayt", "glassdoor", "indeed", "zip_recruiter", "linkedin"]
             elif region_filter == "MIGRATABLE":
                 target_locs = [
                     "Singapore",
@@ -199,6 +206,7 @@ class LiveJobHunter:
                     "London, United Kingdom",
                     "Sydney, Australia"
                 ]
+                sites = ["glassdoor", "indeed", "zip_recruiter", "linkedin"]
             else:
                 target_locs = [
                     "Dubai, United Arab Emirates",
@@ -207,11 +215,12 @@ class LiveJobHunter:
                     "Berlin, Germany",
                     "London, United Kingdom"
                 ]
+                sites = ["bayt", "glassdoor", "indeed", "zip_recruiter", "linkedin"]
 
             for loc in target_locs:
                 try:
                     df = scrape_jobs(
-                        site_name=["glassdoor", "indeed", "zip_recruiter", "linkedin"],
+                        site_name=sites,
                         search_term=query,
                         location=loc,
                         results_wanted=min(results_wanted, 8),
@@ -252,14 +261,14 @@ class LiveJobHunter:
                                 except Exception:
                                     post_date_str = str(date_posted_val)[:10]
 
-                            # Skip if older than 14 days
+                            # Skip if older than 14 days when date is known
                             if days_ago is not None and days_ago > 14:
                                 continue
 
                             posted_label = (
                                 "Today" if days_ago == 0 else (
                                     "Yesterday" if days_ago == 1 else (
-                                        f"{days_ago} days ago" if days_ago is not None else "Recent (Last 1-2 weeks)"
+                                        f"{days_ago} days ago" if days_ago is not None else "Date Unspecified"
                                     )
                                 )
                             )
@@ -272,6 +281,21 @@ class LiveJobHunter:
 
                             if not desc or len(desc) < 30:
                                 desc = f"Active {t} engineering opening at {c} ({l}). Key responsibilities involve production system architecture, high-availability execution, code verification, and engineering delivery."
+
+                            # Extract salary if available
+                            min_amt = row.get("min_amount")
+                            max_amt = row.get("max_amount")
+                            curr = str(row.get("currency", "") or "").strip()
+                            interval = str(row.get("interval", "") or "").strip()
+                            salary_text = ""
+                            try:
+                                if min_amt is not None and str(min_amt) != "nan" and float(min_amt) > 0:
+                                    if max_amt is not None and str(max_amt) != "nan" and float(max_amt) > 0:
+                                        salary_text = f"{curr} {int(float(min_amt)):,} - {int(float(max_amt)):,} ({interval or 'yr'})"
+                                    else:
+                                        salary_text = f"{curr} {int(float(min_amt)):,}+ ({interval or 'yr'})"
+                            except Exception:
+                                pass
 
                             # Extract HR emails
                             emails = row.get("emails", [])
@@ -289,9 +313,10 @@ class LiveJobHunter:
                                 "portal": f"{site} (Live Scraped)",
                                 "hr_email": hr_email,
                                 "apply_url": url,
+                                "salary": salary_text,
                                 "description": desc[:5000],  # Full rich description
-                                "date_posted": post_date_str or datetime.now().strftime("%Y-%m-%d"),
-                                "days_ago": days_ago if days_ago is not None else 3,
+                                "date_posted": post_date_str or "Date Unspecified",
+                                "days_ago": days_ago,
                                 "posted_label": posted_label
                             })
                 except Exception as inner_e:
@@ -299,6 +324,59 @@ class LiveJobHunter:
         except Exception as e:
             print(f"[JobSpy Load Error]: {e}")
 
+        return results
+
+    def _scrape_with_jsearch(self, query: str, region_filter: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """Optional JSearch API via RapidAPI for aggregated Google Jobs listings."""
+        if not RAPIDAPI_KEY:
+            return []
+
+        results = []
+        loc = "Dubai, UAE" if region_filter == "GULF" else ("Singapore" if region_filter == "MIGRATABLE" else "Dubai OR Singapore OR London")
+        url = "https://jsearch.p.rapidapi.com/search"
+        headers = {
+            "x-rapidapi-key": RAPIDAPI_KEY,
+            "x-rapidapi-host": "jsearch.p.rapidapi.com"
+        }
+        params = {
+            "query": f"{query} in {loc}",
+            "page": "1",
+            "num_pages": "1",
+            "date_posted": "week"
+        }
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=12)
+            if resp.status_code == 200:
+                data = resp.json().get("data", [])
+                for item in data[:max_results]:
+                    title = item.get("job_title", "")
+                    company = item.get("employer_name", "")
+                    city = item.get("job_city", "")
+                    country = item.get("job_country", "")
+                    location = f"{city}, {country}".strip(", ") or loc
+                    desc = item.get("job_description", "")
+                    apply_link = item.get("job_apply_link", "")
+                    posted_at = item.get("job_posted_at_datetime_utc", "")
+                    post_date_str = posted_at[:10] if posted_at else "Recent"
+
+                    emails = HRFinder.extract_emails_from_text(desc)
+                    hr_email = emails[0] if emails else HRFinder.deduce_company_hr_email(company)[0]
+
+                    results.append({
+                        "id": f"jsearch-{len(results)+1}",
+                        "job_title": title,
+                        "company": company,
+                        "location": location,
+                        "portal": "Google Jobs (JSearch)",
+                        "hr_email": hr_email,
+                        "apply_url": apply_link,
+                        "description": desc[:5000],
+                        "date_posted": post_date_str,
+                        "days_ago": 3,
+                        "posted_label": "Recent (This Week)"
+                    })
+        except Exception as e:
+            print(f"[JSearch API Error]: {e}")
         return results
 
     def _scrape_gulf_web_portals(self, keyword: str, region_filter: str) -> List[Dict[str, Any]]:
@@ -360,9 +438,9 @@ class LiveJobHunter:
                         "hr_email": hr_email,
                         "apply_url": raw_link,
                         "description": snippet,
-                        "date_posted": datetime.now().strftime("%Y-%m-%d"),
-                        "days_ago": 1,
-                        "posted_label": "Recent (This Week)"
+                        "date_posted": "Date Unspecified",
+                        "days_ago": None,
+                        "posted_label": f"Web Listing ({portal_name})"
                     })
         except Exception as e:
             print(f"[Gulf Scrape Error]: {e}")

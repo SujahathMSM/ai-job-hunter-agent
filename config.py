@@ -84,6 +84,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", ""))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+# External Job Search & HR Finding APIs (Optional Free Tiers)
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "")
+HUNTER_API_KEY = os.getenv("HUNTER_API_KEY", "")
+
 # Default Email / SMTP Configuration
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

@@ -145,6 +145,14 @@ class PersonaBuilder:
         profile["core_skills_categorized"] = self._build_categorized_skills(profile.get("technical_stack", []))
 
         self.profile = profile
+        # 5. Optionally enrich with live GitHub repositories if GitHub URL exists
+        gh_url = profile.get("identity", {}).get("github", "")
+        if gh_url:
+            try:
+                self.sync_github_repositories(gh_url)
+            except Exception:
+                pass
+
         self.save()
         return profile
 
@@ -342,6 +350,50 @@ class PersonaBuilder:
                 "skills": ", ".join(items[:12])
             })
         return result
+
+    def sync_github_repositories(self, github_url: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Queries public GitHub API for candidate's real repositories to enrich portfolio."""
+        url = github_url or self.profile.get("identity", {}).get("github", "")
+        if not url:
+            return []
+
+        username = url.rstrip("/").split("/")[-1].strip()
+        if not username or username.lower() in ["github.com", "none"]:
+            return []
+
+        import requests
+        headers = {"User-Agent": "JobHunter-Agent"}
+        try:
+            resp = requests.get(f"https://api.github.com/users/{username}/repos?sort=updated&per_page=12", headers=headers, timeout=8)
+            if resp.status_code == 200:
+                repos = resp.json()
+                synced = []
+                for r in repos:
+                    if r.get("fork"):
+                        continue
+                    name = r.get("name", "")
+                    desc = r.get("description", "") or ""
+                    lang = r.get("language", "") or "Software"
+                    topics = r.get("topics", [])
+                    techs = [lang] + [t for t in topics if t.lower() != lang.lower()]
+
+                    if desc:
+                        synced.append({
+                            "title": f"{name} | {desc[:60]}",
+                            "technologies": ", ".join(techs),
+                            "bullets": [desc]
+                        })
+                if synced:
+                    existing_titles = [p.get("title", "").lower() for p in self.profile.get("projects", [])]
+                    for sp in synced:
+                        p_name = sp["title"].split("|")[0].strip().lower()
+                        if not any(p_name in et for et in existing_titles):
+                            self.profile.setdefault("projects", []).append(sp)
+                    self.save()
+                    return synced
+        except Exception as e:
+            print(f"[GitHub Sync Warning]: {e}")
+        return []
 
     def save(self):
         with open(self.profile_path, "w", encoding="utf-8") as f:

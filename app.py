@@ -20,23 +20,10 @@ from ingestion.chat_parser import ChatHistoryParser
 from ingestion.linkedin_parser import LinkedInParser
 from matcher.geo_rules import GeoLocationEngine
 from matcher.jd_analyzer import JobDescriptionAnalyzer
-import importlib
-import generators.pdf_builder
-importlib.reload(generators.pdf_builder)
 from generators.pdf_builder import PDFResumeBuilder
-import generators.resume_tailorer
-importlib.reload(generators.resume_tailorer)
 from generators.resume_tailorer import ResumeTailorer
-import generators.cover_letter_gen
-importlib.reload(generators.cover_letter_gen)
 from generators.cover_letter_gen import CoverLetterGenerator
-import ingestion.persona_builder
-importlib.reload(ingestion.persona_builder)
 from ingestion.persona_builder import PersonaBuilder
-import hunter.live_scraper
-importlib.reload(hunter.live_scraper)
-import hunter.job_search
-importlib.reload(hunter.job_search)
 from hunter.job_search import JobHunter
 
 from hunter.hr_finder import HRFinder
@@ -100,15 +87,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Initialize Session State
-st.session_state.persona_builder = PersonaBuilder()
-current_work = st.session_state.get("active_profile", {}).get("work_history", [])
-if (
-    "active_profile" not in st.session_state
-    or len(current_work) > 3
-    or any(w.get("company") == "Engineering Organization" for w in current_work)
-    or any(w.get("company") == "Commercial Engineering Experience" for w in current_work)
-):
+if "persona_builder" not in st.session_state:
+    st.session_state.persona_builder = PersonaBuilder()
+if "profile_initialized" not in st.session_state:
     st.session_state.active_profile = st.session_state.persona_builder.get_profile()
+    st.session_state.profile_initialized = True
 if "selected_job" not in st.session_state:
     st.session_state.selected_job = None
 if "tailored_resume" not in st.session_state:
@@ -376,6 +359,8 @@ with tab_hunter:
                 st.markdown(f"**Portal / Source:** `{portal_badge}`")
                 if j.get("apply_url"):
                     st.markdown(f"**Direct Link:** [Open Posting]({j['apply_url']})")
+                if j.get("salary"):
+                    st.markdown(f"**💰 Estimated Salary:** `{j['salary']}`")
                 st.markdown(f"**HR Contact:** `{j.get('hr_email', 'careers@company.com')}`")
                 st.markdown(f"**Full Job Description:**\n\n{j.get('description', '')}")
             with c_right:
@@ -502,15 +487,25 @@ with tab_tailor:
                 cl_edit = st.text_area("Cover Letter Content (Editable)", value=st.session_state.cover_letter_text, height=350)
                 st.session_state.cover_letter_text = cl_edit
 
-                if st.session_state.cl_pdf_path and st.session_state.cl_pdf_path.exists():
-                    with open(st.session_state.cl_pdf_path, "rb") as f:
-                        st.download_button(
-                            label="📥 Download Cover Letter (PDF)",
-                            data=f.read(),
-                            file_name=st.session_state.cl_pdf_path.name,
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
+                col_cl1, col_cl2 = st.columns([1, 1])
+                with col_cl1:
+                    if st.button("🔄 Recompile Edited Text to PDF", use_container_width=True):
+                        pdf_builder = PDFResumeBuilder()
+                        candidate_profile = st.session_state.active_profile
+                        if st.session_state.cl_pdf_path:
+                            pdf_builder.build_cover_letter_pdf(cl_edit, candidate_profile, st.session_state.cl_pdf_path)
+                            st.success("✅ Cover letter PDF updated with your edits!")
+
+                with col_cl2:
+                    if st.session_state.cl_pdf_path and st.session_state.cl_pdf_path.exists():
+                        with open(st.session_state.cl_pdf_path, "rb") as f:
+                            st.download_button(
+                                label="📥 Download Cover Letter (PDF)",
+                                data=f.read(),
+                                file_name=st.session_state.cl_pdf_path.name,
+                                mime="application/pdf",
+                                use_container_width=True
+                            )
 
 # ==========================================
 # TAB 4: HR EMAIL & DISPATCH
@@ -636,9 +631,11 @@ with tab_settings:
     with col_s1:
         gemini_key_input = st.text_input("Google Gemini API Key", value=os.getenv("GEMINI_API_KEY", ""), type="password")
         openai_key_input = st.text_input("OpenAI API Key", value=os.getenv("OPENAI_API_KEY", ""), type="password")
+        rapidapi_key_input = st.text_input("RapidAPI Key (for JSearch Google Jobs)", value=os.getenv("RAPIDAPI_KEY", ""), type="password", help="Optional: 200 free requests/mo from RapidAPI JSearch.")
 
     with col_s2:
         anthropic_key_input = st.text_input("Anthropic Claude API Key", value=os.getenv("ANTHROPIC_API_KEY", ""), type="password")
+        hunter_key_input = st.text_input("Hunter.io API Key (for Verified HR Emails)", value=os.getenv("HUNTER_API_KEY", ""), type="password", help="Optional: 25-50 free searches/mo for verified recruiter contacts.")
 
     if st.button("Save API Keys"):
         from config import update_env_file
@@ -652,6 +649,12 @@ with tab_settings:
         if anthropic_key_input:
             os.environ["ANTHROPIC_API_KEY"] = anthropic_key_input
             updates["ANTHROPIC_API_KEY"] = anthropic_key_input
+        if rapidapi_key_input:
+            os.environ["RAPIDAPI_KEY"] = rapidapi_key_input
+            updates["RAPIDAPI_KEY"] = rapidapi_key_input
+        if hunter_key_input:
+            os.environ["HUNTER_API_KEY"] = hunter_key_input
+            updates["HUNTER_API_KEY"] = hunter_key_input
         update_env_file(updates)
         st.success("API Keys saved permanently to .env file!")
 
