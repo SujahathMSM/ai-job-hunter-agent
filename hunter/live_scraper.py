@@ -125,6 +125,19 @@ class LiveJobHunter:
             print(f"[Fetch Desc Error for {url}]: {e}")
         return ""
 
+    @staticmethod
+    def clean_description(text: str) -> str:
+        """Removes markdown syntax artifacts (*, #, _, [link](url)) and normalizes formatting."""
+        if not text:
+            return ""
+        cleaned = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+        cleaned = re.sub(r"^#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+        cleaned = re.sub(r"_{1,2}(.*?)_{1,2}", r"\1", cleaned)
+        cleaned = re.sub(r"^\s*[-*•]\s*", "• ", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
+
     def stream_live(
         self,
         keyword: str = "engineer",
@@ -215,6 +228,60 @@ class LiveJobHunter:
                         if region_filter == "MIGRATABLE" and meta.get("category") != "MIGRATABLE_GLOBAL":
                             continue
 
+                        # Extract and parse Date Posted
+                        date_posted_val = row.get("date_posted")
+                        post_date_str = ""
+                        days_ago = None
+                        if date_posted_val is not None:
+                            try:
+                                if hasattr(date_posted_val, "strftime"):
+                                    post_date_str = date_posted_val.strftime("%Y-%m-%d")
+                                    days_ago = (datetime.now().date() - date_posted_val).days
+                                elif isinstance(date_posted_val, str) and date_posted_val != "nan":
+                                    parsed = datetime.strptime(date_posted_val[:10], "%Y-%m-%d").date()
+                                    post_date_str = parsed.strftime("%Y-%m-%d")
+                                    days_ago = (datetime.now().date() - parsed).days
+                            except Exception:
+                                post_date_str = str(date_posted_val)[:10]
+
+                        if days_ago is not None and days_ago >= 0:
+                            if days_ago == 0:
+                                posted_label = "Posted Today"
+                            elif days_ago == 1:
+                                posted_label = "Posted Yesterday"
+                            else:
+                                posted_label = f"Posted {days_ago}d ago"
+                        elif post_date_str:
+                            posted_label = f"Posted {post_date_str}"
+                        else:
+                            posted_label = "Recently Listed"
+
+                        # Extract Salary if available
+                        min_amt = row.get("min_amount")
+                        max_amt = row.get("max_amount")
+                        curr = str(row.get("currency", "") or "").strip()
+                        interval = str(row.get("interval", "") or "").strip()
+                        salary_text = ""
+                        try:
+                            if min_amt is not None and str(min_amt) != "nan" and float(min_amt) > 0:
+                                if max_amt is not None and str(max_amt) != "nan" and float(max_amt) > 0:
+                                    salary_text = f"{curr} {int(float(min_amt)):,} - {int(float(max_amt)):,} / {interval or 'mo'}"
+                                else:
+                                    salary_text = f"{curr} {int(float(min_amt)):,} / {interval or 'mo'}"
+                        except Exception:
+                            pass
+
+                        # Extract Emails & Recruiter Dork
+                        posting_emails = HRFinder.extract_emails_from_text(desc)
+                        hr_email = posting_emails[0] if posting_emails else ""
+                        encoded_comp = urllib.parse.quote(f'"{c}"')
+                        recruiter_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Technical+Recruiter'+OR+'Talent+Acquisition'+OR+'HR')+{encoded_comp}"
+
+                        cleaned_full = self.clean_description(desc)
+                        cleaned_snippet = re.sub(r"\s+", " ", cleaned_full)[:300].strip()
+                        if len(cleaned_full) > 300:
+                            cleaned_snippet += "..."
+
                         seen.add(key)
                         count += 1
                         yield {
@@ -224,7 +291,17 @@ class LiveJobHunter:
                             "location": l,
                             "portal": url,
                             "job_url": url,
-                            "description": desc[:350] + "..." if len(desc) > 350 else desc,
+                            "site": str(row.get("site", "Indeed")).capitalize(),
+                            "date_posted": post_date_str,
+                            "posted_label": posted_label,
+                            "days_ago": days_ago,
+                            "salary": salary_text,
+                            "salary_range": salary_text,
+                            "hr_email": hr_email,
+                            "has_hr_email": bool(hr_email),
+                            "recruiter_dork": recruiter_dork,
+                            "description": cleaned_snippet or f"Active engineering opening at {c}.",
+                            "full_description": cleaned_full or desc,
                             "geo_meta": meta
                         }
 

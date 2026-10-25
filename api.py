@@ -165,7 +165,7 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
                 job_title=j.get("job_title", ""),
                 company=j.get("company", ""),
                 location=j.get("location", ""),
-                jd_text=j.get("description", "")
+                jd_text=j.get("full_description") or j.get("description", "")
             )
             j["fit_analysis"] = analysis
             yield f"data: {json.dumps(j)}\n\n"

@@ -28,6 +28,16 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
   const [sending, setSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  React.useEffect(() => {
+    if (initialData?.hrEmail) setToEmail(initialData.hrEmail);
+    if (initialData?.company) setCompany(initialData.company);
+    if (initialData?.jobTitle) {
+      setJobTitle(initialData.jobTitle);
+      setSubject(`Application: ${initialData.jobTitle} — M.S. Mohamed Sujahath`);
+    }
+    if (initialData?.context) setBody(initialData.context);
+  }, [initialData]);
+
   const handleSend = async () => {
     setSending(true);
     setStatusMessage(null);

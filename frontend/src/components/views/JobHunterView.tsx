@@ -1,13 +1,40 @@
 "use client";
 
 import React, { useState } from "react";
-import { Radar, Search, ShieldCheck, ArrowRight, ExternalLink, Sparkles, Send } from "lucide-react";
+import {
+  Radar,
+  Search,
+  ShieldCheck,
+  ExternalLink,
+  Sparkles,
+  Send,
+  Calendar,
+  Mail,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Users,
+  CheckCircle2,
+  Building2,
+  MapPin
+} from "lucide-react";
 import { JobItem } from "../../types";
-import { searchLiveJobs } from "../../lib/api";
 
 interface JobHunterViewProps {
   onSelectForTailor: (job: JobItem) => void;
   onSelectForOutreach: (job: JobItem) => void;
+}
+
+function formatCleanText(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/\*{1,3}(.*?)\*{1,3}/g, "$1")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1")
+    .replace(/_{1,2}(.*?)_{1,2}/g, "$1")
+    .replace(/^\s*[-*•]\s*/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }: JobHunterViewProps) {
@@ -17,6 +44,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [expandedJobKey, setExpandedJobKey] = useState<string | null>(null);
   const sseRef = React.useRef<EventSource | null>(null);
 
   React.useEffect(() => {
@@ -25,10 +53,15 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
     };
   }, []);
 
+  const toggleExpand = (key: string) => {
+    setExpandedJobKey((prev) => (prev === key ? null : key));
+  };
+
   const handleSearch = () => {
     setLoading(true);
     setHasSearched(true);
     setJobs([]);
+    setExpandedJobKey(null);
 
     if (sseRef.current) {
       sseRef.current.close();
@@ -178,27 +211,231 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
         </div>
       )}
 
-      {/* Jobs Grid: Renders immediately as each job streams in */}
+      {/* Jobs Grid */}
       {jobs.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {jobs.map((job, idx) => {
+            const jobKey = job.id || `${job.company}-${job.job_title}-${idx}`;
+            const isExpanded = expandedJobKey === jobKey;
             const score = job.fit_analysis?.match_score || 70;
             const scoreColor =
               score >= 75 ? "text-[#4edea3] border-[#4edea3]/40 bg-[#4edea3]/10" : "text-[#4cd7f6] border-[#4cd7f6]/40 bg-[#4cd7f6]/10";
+            const hasEmail = Boolean(job.hr_email && job.hr_email.includes("@"));
+            const portalUrl = job.portal || job.job_url || "#";
+            const recruiterSearchUrl =
+              job.recruiter_dork ||
+              `https://www.google.com/search?q=site:linkedin.com/in+('Technical+Recruiter'+OR+'Talent+Acquisition')+${encodeURIComponent('"' + job.company + '"')}`;
 
+            if (isExpanded) {
+              return (
+                <div
+                  key={jobKey}
+                  className="col-span-1 md:col-span-2 p-6 rounded-xl bg-[#0e1017] border-2 border-[#4cd7f6]/60 specular-border flex flex-col gap-4 shadow-2xl transition-all"
+                >
+                  {/* Expanded Top Header */}
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 pb-3 border-b border-[#3d494c]/30">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-[19px] font-bold text-[#e3e1ec]">{job.job_title}</h2>
+                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${scoreColor}`}>
+                          {score}% ATS Match
+                        </span>
+                        {job.site && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1e1f26] text-[#869397] border border-[#3d494c]/30">
+                            via {job.site}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[13px] text-[#bcc9cd] mt-1.5 flex-wrap">
+                        <span className="flex items-center gap-1 font-semibold text-[#e3e1ec]">
+                          <Building2 className="w-3.5 h-3.5 text-[#4cd7f6]" /> {job.company}
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#869397]" /> {job.location}
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1 text-[#4cd7f6] font-mono">
+                          <Calendar className="w-3.5 h-3.5" /> {job.posted_label || job.date_posted || "Recently Listed"}
+                        </span>
+                        {job.salary && (
+                          <>
+                            <span>•</span>
+                            <span className="text-[#4edea3] font-mono font-semibold">{job.salary}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Prominent HR Status Badge */}
+                      <div className="mt-2.5">
+                        {hasEmail ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#4edea3]/10 border border-[#4edea3]/30 text-[#4edea3] text-[11px] font-mono">
+                            <Mail className="w-3.5 h-3.5 text-[#4edea3]" />
+                            <span>Verified Corporate HR: <strong>{job.hr_email}</strong></span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#f59e0b]/10 border border-[#f59e0b]/30 text-[#f59e0b] text-[11px] font-mono">
+                            <AlertCircle className="w-3.5 h-3.5 text-[#f59e0b]" />
+                            <span>No Direct HR Email in Posting • Direct Portal Application Required</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expanded Top Action Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
+                      <button
+                        onClick={() => onSelectForTailor(job)}
+                        className="px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 text-[#e3e1ec] text-xs hover:border-[#4cd7f6] hover:text-[#4cd7f6] flex items-center gap-1.5 transition-all"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                        <span>Tailor CV</span>
+                      </button>
+
+                      {hasEmail ? (
+                        <button
+                          onClick={() => onSelectForOutreach(job)}
+                          className="px-3.5 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-semibold text-xs hover:bg-white transition-all flex items-center gap-1.5 cyan-glow"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Outreach Email</span>
+                        </button>
+                      ) : (
+                        <a
+                          href={portalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3.5 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-semibold text-xs hover:bg-white transition-all flex items-center gap-1.5 cyan-glow"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Apply on Portal ↗</span>
+                        </a>
+                      )}
+
+                      <a
+                        href={recruiterSearchUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/40 text-[#bcc9cd] hover:text-[#e3e1ec] text-xs flex items-center gap-1.5 transition-all"
+                      >
+                        <Users className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                        <span>Find Recruiters ↗</span>
+                      </a>
+
+                      <button
+                        onClick={() => toggleExpand(jobKey)}
+                        className="px-3 py-1.5 rounded-lg bg-[#292931] text-[#bcc9cd] hover:text-white text-xs flex items-center gap-1 transition-all"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                        <span>Collapse</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Skills & ATS Insights */}
+                  {job.fit_analysis && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 rounded-lg bg-[#14151f] border border-[#3d494c]/20">
+                      <div>
+                        <div className="text-[11px] font-mono uppercase text-[#4edea3] mb-1.5 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Matched Engineering Skills
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {job.fit_analysis.matched_skills && job.fit_analysis.matched_skills.length > 0 ? (
+                            job.fit_analysis.matched_skills.map((s, i) => (
+                              <span key={i} className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/20">
+                                {s}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[#869397]">Core backend architecture & engineering standards</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-[11px] font-mono uppercase text-[#bcc9cd] mb-1.5">
+                          Target Platform Tech Stack
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {job.fit_analysis.missing_tech && job.fit_analysis.missing_tech.length > 0 ? (
+                            job.fit_analysis.missing_tech.map((s, i) => (
+                              <span key={i} className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#1e1f26] text-[#bcc9cd] border border-[#3d494c]/30">
+                                {s}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[#869397]">Aligned with candidate master engineering persona</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full Clean Formatted Description */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[11px] font-mono uppercase text-[#869397]">
+                      Full Production Job Description
+                    </div>
+                    <div className="p-4 rounded-xl bg-[#14151f] border border-[#3d494c]/30 text-[13px] text-[#e3e1ec] leading-relaxed max-h-[460px] overflow-y-auto whitespace-pre-line font-sans scrollbar-thin">
+                      {formatCleanText(job.full_description || job.description)}
+                    </div>
+                  </div>
+
+                  {/* Expanded Bottom Action Footer */}
+                  <div className="pt-3 border-t border-[#3d494c]/20 flex items-center justify-between">
+                    <a
+                      href={portalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-[#4cd7f6] hover:underline"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Original Job Posting Link ({job.company})</span>
+                    </a>
+
+                    <button
+                      onClick={() => toggleExpand(jobKey)}
+                      className="text-xs text-[#bcc9cd] hover:text-[#e3e1ec] flex items-center gap-1"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                      <span>Close Details</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            // Compact Bento Grid Card
             return (
               <div
-                key={idx}
+                key={jobKey}
                 className="p-5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/30 hover:border-[#3d494c]/80 transition-all specular-border flex flex-col justify-between group"
               >
                 <div>
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-[16px] font-semibold text-[#e3e1ec] group-hover:text-[#4cd7f6] transition-colors">
+                      <h3
+                        onClick={() => toggleExpand(jobKey)}
+                        className="text-[16px] font-semibold text-[#e3e1ec] group-hover:text-[#4cd7f6] transition-colors cursor-pointer"
+                      >
                         {job.job_title}
                       </h3>
                       <div className="text-[13px] text-[#bcc9cd] mt-0.5">
                         <strong className="text-[#e3e1ec]">{job.company}</strong> &nbsp;•&nbsp; {job.location}
+                      </div>
+                      {/* Date Posted & Salary */}
+                      <div className="flex items-center gap-2 text-[11px] text-[#869397] font-mono mt-1">
+                        <span className="flex items-center gap-1 text-[#4cd7f6]">
+                          <Calendar className="w-3 h-3" />
+                          {job.posted_label || job.date_posted || "Recently Listed"}
+                        </span>
+                        {job.salary && (
+                          <>
+                            <span>•</span>
+                            <span className="text-[#4edea3] font-semibold">{job.salary}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${scoreColor}`}>
@@ -206,9 +443,34 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                     </span>
                   </div>
 
-                  <div className="mt-3 text-[12px] text-[#bcc9cd] line-clamp-3">
-                    {job.description || "Active production opening in the engineering platform team."}
+                  {/* HR Status Pill */}
+                  <div className="mt-2.5">
+                    {hasEmail ? (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#4edea3]/10 border border-[#4edea3]/30 text-[#4edea3] text-[10px] font-mono">
+                        <Mail className="w-3 h-3 text-[#4edea3]" />
+                        <span>HR: {job.hr_email}</span>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#f59e0b]/10 border border-[#f59e0b]/30 text-[#f59e0b] text-[10px] font-mono">
+                        <AlertCircle className="w-3 h-3 text-[#f59e0b]" />
+                        <span>No Direct HR Email • Apply on Portal</span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Clean Snippet Description */}
+                  <div className="mt-3 text-[12px] text-[#bcc9cd] line-clamp-3 leading-relaxed">
+                    {formatCleanText(job.description || "Active engineering opening in the production platform team.")}
+                  </div>
+
+                  {/* View Full Description Toggle */}
+                  <button
+                    onClick={() => toggleExpand(jobKey)}
+                    className="text-[11px] text-[#4cd7f6] hover:underline mt-2 flex items-center gap-1 font-mono"
+                  >
+                    <span>View Full Job Details &amp; Requirements</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
 
                   {/* Skills badges */}
                   {job.fit_analysis?.matched_skills && job.fit_analysis.matched_skills.length > 0 && (
@@ -222,16 +484,16 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                   )}
                 </div>
 
-                {/* Card Actions */}
+                {/* Card Actions Footer */}
                 <div className="mt-4 pt-3 border-t border-[#3d494c]/20 flex items-center justify-between">
                   <a
-                    href={job.portal || job.job_url || "#"}
+                    href={portalUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-1 text-xs text-[#bcc9cd] hover:text-[#e3e1ec]"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    <span>View Portal</span>
+                    <span>Job Portal</span>
                   </a>
 
                   <div className="flex items-center gap-2">
@@ -243,13 +505,25 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                       <span>Tailor CV</span>
                     </button>
 
-                    <button
-                      onClick={() => onSelectForOutreach(job)}
-                      className="px-3 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-medium text-xs hover:bg-white transition-all flex items-center gap-1 active:scale-[0.98] cyan-glow"
-                    >
-                      <Send className="w-3 h-3" />
-                      <span>Outreach</span>
-                    </button>
+                    {hasEmail ? (
+                      <button
+                        onClick={() => onSelectForOutreach(job)}
+                        className="px-3 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-semibold text-xs hover:bg-white transition-all flex items-center gap-1 active:scale-[0.98] cyan-glow"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>Outreach</span>
+                      </button>
+                    ) : (
+                      <a
+                        href={portalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-semibold text-xs hover:bg-white transition-all flex items-center gap-1 active:scale-[0.98] cyan-glow"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Apply on Portal ↗</span>
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

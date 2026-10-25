@@ -327,6 +327,12 @@ class HRFinder:
                         recruiter_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Technical+Recruiter'+OR+'Talent+Acquisition'+OR+'HR')+{encoded_comp}"
                         eng_lead_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Engineering+Manager'+OR+'Head+of+Engineering'+OR+'Tech+Lead')+{encoded_comp}"
 
+                        clean_d = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", desc)
+                        clean_d = re.sub(r"^#{1,6}\s*", "", clean_d, flags=re.MULTILINE)
+                        clean_d = re.sub(r"_{1,2}(.*?)_{1,2}", r"\1", clean_d)
+                        clean_d = re.sub(r"\s+", " ", clean_d).strip()
+                        snippet_desc = clean_d[:280] + ("..." if len(clean_d) > 280 else "")
+
                         lead_item = {
                             "company": comp,
                             "job_title": title,
@@ -339,7 +345,7 @@ class HRFinder:
                             "portal": job_url,
                             "recruiter_dork": recruiter_dork,
                             "eng_lead_dork": eng_lead_dork,
-                            "description": desc[:300] + "..." if len(desc) > 300 else desc,
+                            "description": snippet_desc or f"Hiring {title} at {comp}.",
                             "geo_meta": meta
                         }
 

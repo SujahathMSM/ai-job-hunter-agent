@@ -39,6 +39,7 @@ export interface CandidateProfile {
 }
 
 export interface JobItem {
+  id?: string;
   job_title: string;
   company: string;
   location: string;
@@ -47,9 +48,14 @@ export interface JobItem {
   job_url?: string;
   date_posted?: string;
   posted_label?: string;
+  days_ago?: number;
+  salary?: string;
   salary_range?: string;
   description: string;
+  full_description?: string;
   hr_email?: string;
+  has_hr_email?: boolean;
+  recruiter_dork?: string;
   fit_analysis?: {
     match_score: number;
     is_engineering: boolean;

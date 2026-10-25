@@ -25,6 +25,13 @@ export default function CVTailorView({ initialJob, onProceedToOutreach }: CVTail
   const [tailoredData, setTailoredData] = useState<any>(null);
   const [coverLetter, setCoverLetter] = useState<string>("");
 
+  React.useEffect(() => {
+    if (initialJob?.job_title) setJobTitle(initialJob.job_title);
+    if (initialJob?.company) setCompany(initialJob.company);
+    if (initialJob?.location) setLocation(initialJob.location);
+    if (initialJob?.description) setJdText(initialJob.description);
+  }, [initialJob]);
+
   const handleTailor = async () => {
     setTailoring(true);
     try {

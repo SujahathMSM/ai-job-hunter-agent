@@ -54,17 +54,21 @@ export default function Home() {
       job_title: job.job_title,
       company: job.company,
       location: job.location,
-      description: job.description,
+      description: job.full_description || job.description,
     });
     setActiveTab("tailor");
   };
 
   const handleSelectForOutreach = (job: JobItem) => {
+    if (!job.hr_email && job.portal) {
+      window.open(job.portal, "_blank");
+      return;
+    }
     setSelectedOutreachData({
       jobTitle: job.job_title,
       company: job.company,
       hrEmail: job.hr_email || "careers@company.com",
-      context: job.description,
+      context: job.full_description || job.description,
     });
     setActiveTab("outreach");
   };
