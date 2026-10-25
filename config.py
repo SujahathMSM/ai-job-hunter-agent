@@ -87,6 +87,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # External Job Search & HR Finding APIs (Optional Free Tiers)
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "")
 HUNTER_API_KEY = os.getenv("HUNTER_API_KEY", "")
+APOLLO_API_KEY = os.getenv("APOLLO_API_KEY", "")
 
 # Default Email / SMTP Configuration
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")

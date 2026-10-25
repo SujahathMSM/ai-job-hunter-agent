@@ -158,6 +158,15 @@ evalX | Pytest, LLM-as-a-Judge
         deduced = HRFinder.deduce_company_hr_email("Emaar Properties")
         self.assertTrue(any("careers@emaarproperties.com" in e for e in deduced))
 
+    def test_hr_finder_global_search(self):
+        """Test HRFinder global recruiter and domain dork generator."""
+        from hunter.hr_finder import HRFinder
+        res = HRFinder.search_global_hr("Careem", domain="careem.com", region="GULF")
+        self.assertEqual(res["company"], "Careem")
+        self.assertEqual(res["domain"], "careem.com")
+        self.assertGreaterEqual(len(res["search_dorks"]), 3)
+        self.assertTrue(any("LinkedIn" in d["title"] for d in res["search_dorks"]))
+
     def test_resume_tailorer_ai_and_systems(self):
         """Test ResumeTailorer generates rich tailored content for AI roles."""
         tailorer = ResumeTailorer(self.profile)

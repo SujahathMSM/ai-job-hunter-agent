@@ -152,13 +152,14 @@ st.markdown('<div class="main-header">Autonomous Engineering Job Hunter & Applic
 st.markdown('<div class="sub-header">Intakes your CVs, Claude / Gemini / ChatGPT histories, and LinkedIn profile to synthesize your authentic persona, discover engineering roles across Gulf & Global pathways, tailor ATS-optimized CVs & Cover Letters, and dispatch applications to HR.</div>', unsafe_allow_html=True)
 
 # Tabs
-tab_persona, tab_hunter, tab_tailor, tab_outreach, tab_tracker, tab_settings = st.tabs([
+tab_persona, tab_hunter, tab_tailor, tab_outreach, tab_finder, tab_tracker, tab_settings = st.tabs([
     "🧠 1. Understand Me (Data Intake)",
     "🔎 2. Job Hunter & Matcher",
     "📝 3. Tailor CV & Cover Letter",
     "🚀 4. HR Email & Dispatch",
-    "📋 5. Application Tracker",
-    "⚙️ 6. Settings"
+    "👥 5. Global Recruiter Finder",
+    "📋 6. Application Tracker",
+    "⚙️ 7. Settings"
 ])
 
 # ==========================================
@@ -594,7 +595,84 @@ Sincerely,
                             st.error(f"Failed to process application: {result.get('message')}")
 
 # ==========================================
-# TAB 5: APPLICATION TRACKER
+# TAB 5: GLOBAL RECRUITER & HR FINDER
+# ==========================================
+with tab_finder:
+    st.header("👥 Global HR & Recruiter Finder")
+    st.write("Discover real, verified Human Resources managers, Technical Recruiters, and Engineering Hiring Leads at any company worldwide using free APIs and precision queries.")
+
+    col_sr1, col_sr2, col_sr3, col_sr4 = st.columns([2, 1.5, 1.2, 1])
+    with col_sr1:
+        sr_company = st.text_input("Target Company Name", value="Careem", placeholder="e.g. Careem, Valtrans, Emaar, Talabat, Grab")
+    with col_sr2:
+        sr_domain = st.text_input("Company Domain (Optional)", placeholder="e.g. careem.com, emaar.ae")
+    with col_sr3:
+        sr_region = st.selectbox("Region Filter", ["GULF", "MIGRATABLE", "ALL"], key="hr_region")
+    with col_sr4:
+        st.write("")
+        st.write("")
+        btn_find_hr = st.button("🔎 Find Contacts", type="primary", use_container_width=True)
+
+    if btn_find_hr or "hr_search_cache" in st.session_state:
+        if btn_find_hr:
+            with st.spinner(f"Searching global databases, Hunter.io, and live recruiter profiles for '{sr_company}'..."):
+                hr_results = HRFinder.search_global_hr(sr_company, domain=sr_domain, region=sr_region)
+                st.session_state.hr_search_cache = hr_results
+
+        data = st.session_state.hr_search_cache
+        st.divider()
+
+        # Domain & Pattern Overview
+        col_ov1, col_ov2, col_ov3 = st.columns(3)
+        col_ov1.metric("Target Domain", data.get("domain", "Unknown"))
+        col_ov2.metric("Company Email Pattern", data.get("email_pattern") or ("{first}.{last}@" + data.get("domain", "")))
+        col_ov3.metric("Verified Contacts Found", len(data.get("verified_contacts", [])))
+
+        # Verified Email Contacts (from Hunter / Apollo)
+        verified = data.get("verified_contacts", [])
+        if verified:
+            st.subheader("✅ Verified HR & Talent Acquisition Emails")
+            for c in verified:
+                with st.container():
+                    c_col1, c_col2, c_col3 = st.columns([2, 2, 1])
+                    c_col1.markdown(f"**{c['name']}**  \n*{c['role']}*")
+                    c_col2.markdown(f"📧 `{c['email']}`  \n*(Confidence: {c['confidence']})*")
+                    with c_col3:
+                        if st.button("🚀 Use for Outreach", key=f"use_{c['email']}"):
+                            if not st.session_state.selected_job:
+                                st.session_state.selected_job = {
+                                    "id": "direct-recruiter",
+                                    "job_title": "Software Engineer",
+                                    "company": data["company"],
+                                    "location": "Gulf / International",
+                                    "hr_email": c["email"],
+                                    "portal": "Direct Outreach",
+                                    "description": f"Direct outreach to {c['name']} ({c['role']}) at {data['company']}."
+                                }
+                            else:
+                                st.session_state.selected_job["hr_email"] = c["email"]
+                            st.success(f"Copied {c['email']} to Tab 4 for direct application!")
+        else:
+            st.info("ℹ️ No public email addresses were leaked in open databases for this domain. To enable verified Hunter.io domain searches, enter your free API key in Tab 7 (Settings).")
+
+        # Discovered Recruiters on LinkedIn
+        recruiters = data.get("discovered_recruiters", [])
+        if recruiters:
+            st.subheader("💼 Discovered Recruiters & Talent Acquisition Specialists")
+            for r in recruiters:
+                with st.expander(f"👤 {r['name']} — {r['role']}"):
+                    st.write(r.get("snippet", ""))
+                    if r.get("linkedin_url"):
+                        st.markdown(f"🔗 [Open Profile on LinkedIn]({r['linkedin_url']})")
+
+        # 1-Click Search Dorks
+        st.subheader("⚡ 1-Click Precision Recruiter & Hiring Manager Dorks")
+        st.caption("Click any query below to instantly open verified LinkedIn and careers results in Google:")
+        for d in data.get("search_dorks", []):
+            st.markdown(f"👉 **[{d['title']}]({d['url']})**: {d['description']}")
+
+# ==========================================
+# TAB 6: APPLICATION TRACKER
 # ==========================================
 with tab_tracker:
     st.header("📋 Application Tracker & Dashboard")
@@ -625,7 +703,7 @@ with tab_tracker:
                 st.rerun()
 
 # ==========================================
-# TAB 6: SETTINGS
+# TAB 7: SETTINGS
 # ==========================================
 with tab_settings:
     st.header("⚙️ Agent Configuration & API Keys")
@@ -642,6 +720,7 @@ with tab_settings:
     with col_s2:
         anthropic_key_input = st.text_input("Anthropic Claude API Key", value=os.getenv("ANTHROPIC_API_KEY", ""), type="password")
         hunter_key_input = st.text_input("Hunter.io API Key (for Verified HR Emails)", value=os.getenv("HUNTER_API_KEY", ""), type="password", help="Optional: 25-50 free searches/mo for verified recruiter contacts.")
+        apollo_key_input = st.text_input("Apollo.io API Key (for Recruiter Discovery)", value=os.getenv("APOLLO_API_KEY", ""), type="password", help="Optional: 60 free credits/mo for company recruiter contacts.")
 
     if st.button("Save API Keys"):
         from config import update_env_file
@@ -661,6 +740,9 @@ with tab_settings:
         if hunter_key_input:
             os.environ["HUNTER_API_KEY"] = hunter_key_input
             updates["HUNTER_API_KEY"] = hunter_key_input
+        if apollo_key_input:
+            os.environ["APOLLO_API_KEY"] = apollo_key_input
+            updates["APOLLO_API_KEY"] = apollo_key_input
         update_env_file(updates)
         st.success("API Keys saved permanently to .env file!")
 
