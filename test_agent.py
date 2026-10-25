@@ -185,13 +185,16 @@ evalX | Pytest, LLM-as-a-Judge
         self.assertTrue(len(letter) > 200)
 
     def test_live_scraper_title_filter_and_queries(self):
-        """Test LiveJobHunter title legitimacy filter and broad query expansions."""
+        """Test LiveJobHunter title legitimacy filter, aggregator page rejection, and broad query expansions."""
         from hunter.live_scraper import LiveJobHunter
         scraper = LiveJobHunter()
         self.assertTrue(scraper._is_legitimate_engineering_job("Senior Backend Engineer"))
         self.assertTrue(scraper._is_legitimate_engineering_job("AI / ML Platform Specialist"))
         self.assertFalse(scraper._is_legitimate_engineering_job("Primary School Teacher"))
         self.assertFalse(scraper._is_legitimate_engineering_job("Restaurant Waiter"))
+        # Must reject SEO aggregator category pages (e.g. 417 Vacancies, 4784 Jobs)
+        self.assertFalse(scraper._is_legitimate_engineering_job("Rag Agentic Ai Jobs - 417 Vacancies (with Salaries) Oct 2026"))
+        self.assertFalse(scraper._is_legitimate_engineering_job("Ai Rag Applications Jobs in Dubai - 4784 Vacancies Oct 2026"))
 
         expanded = scraper._expand_search_queries("RAG")
         self.assertTrue(any("AI Engineer" in q or "LLM" in q for q in expanded))

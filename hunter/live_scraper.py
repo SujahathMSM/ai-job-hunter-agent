@@ -37,6 +37,19 @@ class LiveJobHunter:
         "fitness", "gym", "beautician", "barista"
     ]
 
+    # Aggregator search result pages / SEO spam (e.g. "417 Vacancies", "4784 Jobs", "Jobs in Dubai")
+    AGGREGATOR_PATTERNS = [
+        r"\b\d+[\d,]*\+?\s+vacanc(ies|y)\b",
+        r"\b\d+[\d,]*\+?\s+jobs\b",
+        r"\b\d+[\d,]*\+?\s+openings\b",
+        r"\bwith salaries\b",
+        r"\bjob search\b",
+        r"\bbrowse jobs\b",
+        r"\bjobs in\b",
+        r"\bvacancies in\b",
+        r"\bopen vacancies\b",
+    ]
+
     # Required engineering title indicators
     REQUIRED_TITLE_KEYWORDS = [
         "engineer", "developer", "architect", "programmer", "systems", "software",
@@ -47,6 +60,9 @@ class LiveJobHunter:
 
     def _is_legitimate_engineering_job(self, title: str) -> bool:
         t_lower = title.lower()
+        # Reject aggregator SEO category pages (e.g. "417 Vacancies in Dubai")
+        if any(re.search(pat, t_lower) for pat in self.AGGREGATOR_PATTERNS):
+            return False
         if any(re.search(rf"\b{kw}\b", t_lower) for kw in self.EXCLUDED_TITLE_KEYWORDS):
             return False
         if not any(re.search(rf"\b{kw}\b", t_lower) for kw in self.REQUIRED_TITLE_KEYWORDS):
@@ -140,17 +156,18 @@ class LiveJobHunter:
             jsearch_jobs = self._scrape_with_jsearch(queries[0], region_filter)
             all_jobs.extend(jsearch_jobs)
 
-        # 3. Scrape live Gulf boards (Bayt, GulfTalent, Naukrigulf) via web query proxy
-        web_jobs = self._scrape_gulf_web_portals(queries[0], region_filter)
-        all_jobs.extend(web_jobs)
-
         # 3. Deduplicate, filter age & engineering titles, and sort by latest posting
         deduped: List[Dict[str, Any]] = []
         seen = set()
 
         for j in all_jobs:
-            # Check Title legitimacy
+            # Check Title legitimacy (rejects non-engineering and aggregator search pages)
             if not self._is_legitimate_engineering_job(j["job_title"]):
+                continue
+
+            # Reject aggregator/generic companies
+            comp_clean = j.get("company", "").strip().lower()
+            if comp_clean in ["gulf employer", "verified employer", "external job link"]:
                 continue
 
             # Check Geo Eligibility & Israel strict exclusion
@@ -297,13 +314,13 @@ class LiveJobHunter:
                             except Exception:
                                 pass
 
-                            # Extract HR emails
+                            # Extract HR emails (Only real emails from job posting, NEVER guess fake domains)
                             emails = row.get("emails", [])
                             if isinstance(emails, list) and emails:
                                 hr_email = emails[0]
                             else:
                                 found_emails = HRFinder.extract_emails_from_text(desc)
-                                hr_email = found_emails[0] if found_emails else HRFinder.deduce_company_hr_email(c)[0]
+                                hr_email = found_emails[0] if found_emails else ""
 
                             results.append({
                                 "id": f"jobspy-{len(results)+1}",
@@ -360,7 +377,7 @@ class LiveJobHunter:
                     post_date_str = posted_at[:10] if posted_at else "Recent"
 
                     emails = HRFinder.extract_emails_from_text(desc)
-                    hr_email = emails[0] if emails else HRFinder.deduce_company_hr_email(company)[0]
+                    hr_email = emails[0] if emails else ""
 
                     results.append({
                         "id": f"jsearch-{len(results)+1}",

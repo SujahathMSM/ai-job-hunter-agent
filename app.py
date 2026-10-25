@@ -361,7 +361,10 @@ with tab_hunter:
                     st.markdown(f"**Direct Link:** [Open Posting]({j['apply_url']})")
                 if j.get("salary"):
                     st.markdown(f"**💰 Estimated Salary:** `{j['salary']}`")
-                st.markdown(f"**HR Contact:** `{j.get('hr_email', 'careers@company.com')}`")
+                if j.get("hr_email") and "@" in j["hr_email"]:
+                    st.markdown(f"**HR Contact:** `{j['hr_email']}`")
+                else:
+                    st.markdown("**HR Contact:** `🌐 Direct Application via Online Portal`")
                 st.markdown(f"**Full Job Description:**\n\n{j.get('description', '')}")
             with c_right:
                 st.markdown(f"**ATS Match Score:** `{analysis['match_score']}%`")
@@ -522,7 +525,10 @@ with tab_outreach:
         col_e1, col_e2 = st.columns([1, 1])
 
         with col_e1:
-            hr_recipient = st.text_input("HR / Recruiter Email", value=selected.get("hr_email", "careers@company.com"))
+            initial_email = selected.get("hr_email", "") if (selected.get("hr_email") and "@" in selected.get("hr_email")) else ""
+            hr_recipient = st.text_input("HR / Recruiter Email", value=initial_email, placeholder="e.g. talent@company.com (enter if known)")
+            if not initial_email:
+                st.info(f"💡 **Portal Application:** {selected.get('company', 'This employer')} receives applications directly through their online link. You can download your tailored CV and Cover Letter from Tab 3 and apply via their link, or enter a direct recruiter email above to send/draft an outreach email.")
             candidate_name = st.session_state.active_profile.get("identity", {}).get("full_name", "Candidate")
             default_subj = f"Application for {selected.get('job_title')} - {candidate_name} (Engineering Graduate / Specialist)"
             email_subj = st.text_input("Email Subject Line", value=default_subj)
