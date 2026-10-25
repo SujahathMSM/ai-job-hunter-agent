@@ -162,20 +162,33 @@ class IntakeEngine:
 
     def parse_linkedin_text_or_url(self, linkedin_url: str, raw_text: str = "") -> Dict[str, Any]:
         """Parses LinkedIn information from URL or pasted profile text."""
+        clean_url = linkedin_url.strip()
+        if clean_url and not clean_url.startswith("http://") and not clean_url.startswith("https://"):
+            clean_url = f"https://{clean_url}"
+
+        username = clean_url.rstrip("/").split("/")[-1].strip()
+
         result = {
-            "linkedin_url": linkedin_url.strip(),
+            "linkedin_url": clean_url,
+            "username": username,
             "headline": "",
             "summary": "",
             "skills": [],
-            "experience": []
+            "experience": [],
+            "status": "connected"
         }
+
+        # Automatically update master profile's linkedin URL
+        if clean_url:
+            self.persona_builder.profile.setdefault("identity", {})["linkedin"] = clean_url
+            self.persona_builder.save()
 
         text = raw_text.strip()
         if text:
             # Extract headline
             lines = [l.strip() for l in text.split("\n") if l.strip()]
-            for l in lines[:5]:
-                if any(kw in l.lower() for kw in ["engineer", "developer", "architect", "lead", "specialist"]):
+            for l in lines[:6]:
+                if any(kw in l.lower() for kw in ["engineer", "developer", "architect", "lead", "specialist", "intern", "iot", "systems"]):
                     result["headline"] = l
                     break
 
@@ -188,8 +201,36 @@ class IntakeEngine:
                 parts = text.split("About", 1)
                 about_body = parts[1].split("Experience")[0].split("Activity")[0].strip()
                 result["summary"] = about_body[:600]
+            elif len(text) > 40 and not result["summary"]:
+                result["summary"] = text[:400]
+
+            # Merge into profile if substantial
+            if result["headline"]:
+                self.persona_builder.profile.setdefault("identity", {})["professional_title"] = result["headline"]
+            if result["skills"]:
+                for s in result["skills"]:
+                    if s not in self.persona_builder.profile.get("technical_stack", []):
+                        self.persona_builder.profile.setdefault("technical_stack", []).append(s)
+            if result["summary"] and len(result["summary"]) > 80:
+                self.persona_builder.profile["summary"] = result["summary"]
+
+            self.persona_builder.save()
+            result["status"] = "parsed"
+        else:
+            result["status"] = "url_saved"
+            result["message"] = "LinkedIn profile URL saved to Master Persona! To extract detailed headline, bio, and skills, paste your profile text below or upload a LinkedIn PDF export."
 
         return result
+
+    def parse_linkedin_pdf(self, pdf_path: Path) -> Dict[str, Any]:
+        """Parses an official LinkedIn PDF export (generated via LinkedIn 'More' -> 'Save to PDF')."""
+        parsed_cv = self.cv_parser.parse_file(pdf_path)
+        raw_text = parsed_cv.get("raw_text", "")
+
+        return self.parse_linkedin_text_or_url(
+            linkedin_url=parsed_cv.get("contact_info", {}).get("linkedin", ""),
+            raw_text=raw_text
+        )
 
     def scrape_personal_website(self, website_url: str) -> Dict[str, Any]:
         """Scrapes candidate's personal portfolio website for bio, projects, and technologies."""

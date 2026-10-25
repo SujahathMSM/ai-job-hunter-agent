@@ -48,6 +48,7 @@ import {
   uploadChatHistory,
   parseGitHub,
   parseLinkedIn,
+  uploadLinkedInPDF,
   parsePersonalWebsite,
   synthesizeMasterProfile,
   downloadDefaultEuropassCV,
@@ -77,6 +78,8 @@ export default function ProfileView() {
   const [uploadingChats, setUploadingChats] = useState(false);
   const [fetchingGithub, setFetchingGithub] = useState(false);
   const [fetchingLinkedin, setFetchingLinkedin] = useState(false);
+  const [uploadingLinkedInPdf, setUploadingLinkedInPdf] = useState(false);
+  const [showLinkedinPaste, setShowLinkedinPaste] = useState(false);
   const [fetchingWebsite, setFetchingWebsite] = useState(false);
   const [synthesizing, setSynthesizing] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -174,14 +177,42 @@ export default function ProfileView() {
     try {
       const res = await parseLinkedIn(linkedinInput.trim(), linkedinRawText.trim());
       setLinkedinData(res.linkedin);
-      setStatusMsg({
-        type: "success",
-        text: "Parsed LinkedIn data and extracted headline & skills successfully!",
-      });
+      if (res.profile) setProfile(res.profile);
+      if (res.linkedin?.status === "parsed") {
+        setStatusMsg({
+          type: "success",
+          text: `LinkedIn data extracted! Headline: "${res.linkedin.headline || res.linkedin.username}"`,
+        });
+      } else {
+        setStatusMsg({
+          type: "success",
+          text: `LinkedIn profile URL connected to Master Persona!`,
+        });
+      }
     } catch (err: any) {
       setStatusMsg({ type: "error", text: err.message || "Failed to parse LinkedIn." });
     } finally {
       setFetchingLinkedin(false);
+    }
+  };
+
+  const handleLinkedInPDFUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setUploadingLinkedInPdf(true);
+    setStatusMsg(null);
+    try {
+      const res = await uploadLinkedInPDF(file);
+      setLinkedinData(res.linkedin);
+      if (res.profile) setProfile(res.profile);
+      setStatusMsg({
+        type: "success",
+        text: `Extracted LinkedIn details from export "${file.name}"!`,
+      });
+    } catch (err: any) {
+      setStatusMsg({ type: "error", text: err.message || "Failed to parse LinkedIn PDF." });
+    } finally {
+      setUploadingLinkedInPdf(false);
     }
   };
 
@@ -463,6 +494,20 @@ export default function ProfileView() {
                 </p>
               </div>
 
+              {githubData && (
+                <div className="p-2.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 flex flex-col gap-1 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-[#4edea3] font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>@{githubData.username}: {githubData.repositories?.length || 0} Repositories Synced</span>
+                  </div>
+                  {githubData.repositories && githubData.repositories.length > 0 && (
+                    <div className="text-[10px] text-[#4cd7f6] font-mono truncate">
+                      {githubData.repositories.slice(0, 3).map((r: any) => r.name).join(" • ")}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-col gap-2">
                 <input
                   type="text"
@@ -490,12 +535,34 @@ export default function ProfileView() {
                     <LinkedinIcon className="w-4 h-4 text-[#0a66c2]" />
                     LinkedIn Profile Parser
                   </span>
-                  <span className="text-[10px] font-mono text-[#0a66c2]">URL &amp; Bio</span>
+                  <span className="text-[10px] font-mono text-[#0a66c2]">URL, Text &amp; PDF</span>
                 </div>
                 <p className="text-[11px] text-[#bcc9cd]">
-                  Enter LinkedIn profile URL or paste about summary to extract headline &amp; skills.
+                  Enter profile URL, paste About/Experience text, or upload LinkedIn PDF export.
                 </p>
               </div>
+
+              {linkedinData && (
+                <div className="p-2.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 flex flex-col gap-1 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-[#4edea3] font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Connected: {linkedinData.username || "LinkedIn Profile"}</span>
+                  </div>
+                  {linkedinData.headline && (
+                    <div className="text-[#bcc9cd] line-clamp-1 italic text-[10px]">"{linkedinData.headline}"</div>
+                  )}
+                  {linkedinData.skills && linkedinData.skills.length > 0 && (
+                    <div className="text-[10px] text-[#4cd7f6] font-mono truncate">
+                      Skills: {linkedinData.skills.join(", ")}
+                    </div>
+                  )}
+                  {linkedinData.status === "url_saved" && (
+                    <div className="text-[10px] text-[#869397] pt-0.5">
+                      ✓ URL linked. Paste text or upload export for deep metrics.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <input
@@ -505,14 +572,45 @@ export default function ProfileView() {
                   placeholder="https://linkedin.com/in/username"
                   className="w-full px-3 py-1.5 bg-[#1a1b22] text-[#e3e1ec] text-xs rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none font-mono"
                 />
-                <button
-                  onClick={handleParseLinkedin}
-                  disabled={fetchingLinkedin}
-                  className="w-full py-1.5 px-3 rounded-lg bg-[#1a1b22] hover:bg-[#292931] border border-[#3d494c]/50 text-xs font-semibold text-[#4cd7f6] transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${fetchingLinkedin ? "animate-spin" : ""}`} />
-                  <span>{fetchingLinkedin ? "Parsing..." : "Parse LinkedIn"}</span>
-                </button>
+
+                {showLinkedinPaste && (
+                  <textarea
+                    rows={3}
+                    value={linkedinRawText}
+                    onChange={(e) => setLinkedinRawText(e.target.value)}
+                    placeholder="Paste your LinkedIn About, Headline, or Experience text here..."
+                    className="w-full px-3 py-1.5 bg-[#1a1b22] text-[#e3e1ec] text-[11px] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none font-mono"
+                  />
+                )}
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={handleParseLinkedin}
+                    disabled={fetchingLinkedin}
+                    className="py-1.5 px-2 rounded-lg bg-[#1a1b22] hover:bg-[#292931] border border-[#3d494c]/50 text-xs font-semibold text-[#4cd7f6] transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${fetchingLinkedin ? "animate-spin" : ""}`} />
+                    <span>{fetchingLinkedin ? "Parsing..." : "Parse LinkedIn"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowLinkedinPaste(!showLinkedinPaste)}
+                    className="py-1.5 px-2 rounded-lg bg-[#1a1b22] hover:bg-[#292931] border border-[#3d494c]/50 text-xs font-semibold text-[#bcc9cd] transition-colors"
+                  >
+                    {showLinkedinPaste ? "Hide Text" : "+ Paste Bio"}
+                  </button>
+                </div>
+
+                <label className="w-full py-1.5 px-2 rounded-lg bg-[#1a1b22] hover:bg-[#292931] border border-[#3d494c]/40 text-[11px] text-[#bcc9cd] hover:text-white cursor-pointer transition-colors flex items-center justify-center gap-1.5">
+                  <UploadCloud className="w-3 h-3 text-[#0a66c2]" />
+                  <span>{uploadingLinkedInPdf ? "Parsing Export..." : "Upload LinkedIn PDF Export"}</span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleLinkedInPDFUpload}
+                    className="hidden"
+                  />
+                </label>
               </div>
             </div>
 
@@ -530,6 +628,20 @@ export default function ProfileView() {
                   Enter your personal website to scrape project descriptions and portfolio tags.
                 </p>
               </div>
+
+              {websiteData && (
+                <div className="p-2.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 flex flex-col gap-1 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-[#4edea3] font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Scraped: {websiteData.title || "Portfolio Website"}</span>
+                  </div>
+                  {websiteData.detected_tech && websiteData.detected_tech.length > 0 && (
+                    <div className="text-[10px] text-[#4cd7f6] font-mono truncate">
+                      Tech: {websiteData.detected_tech.join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <input

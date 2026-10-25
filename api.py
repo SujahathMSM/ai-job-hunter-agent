@@ -189,7 +189,17 @@ def parse_linkedin(req: LinkedInParseRequest):
     from ingestion.intake_engine import IntakeEngine
     engine = IntakeEngine()
     data = engine.parse_linkedin_text_or_url(req.linkedin_url, req.raw_text or "")
-    return {"status": "success", "linkedin": data}
+    return {"status": "success", "linkedin": data, "profile": engine.persona_builder.profile}
+
+@app.post("/api/profile/upload-linkedin-pdf")
+async def upload_linkedin_pdf(file: UploadFile = File(...)):
+    from ingestion.intake_engine import IntakeEngine
+    engine = IntakeEngine()
+    save_path = UPLOADS_DIR / f"linkedin_{file.filename}"
+    with open(save_path, "wb") as out:
+        out.write(await file.read())
+    data = engine.parse_linkedin_pdf(save_path)
+    return {"status": "success", "linkedin": data, "profile": engine.persona_builder.profile}
 
 @app.post("/api/profile/parse-website")
 def parse_website(req: WebsiteParseRequest):

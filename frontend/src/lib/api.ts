@@ -71,6 +71,17 @@ export async function parseLinkedIn(linkedinUrl: string, rawText?: string): Prom
   return res.json();
 }
 
+export async function uploadLinkedInPDF(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/profile/upload-linkedin-pdf`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Failed to parse LinkedIn PDF");
+  return res.json();
+}
+
 export async function parsePersonalWebsite(websiteUrl: string): Promise<any> {
   const res = await fetch(`${API_BASE}/profile/parse-website`, {
     method: "POST",
