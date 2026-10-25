@@ -150,7 +150,7 @@ def search_jobs(req: JobSearchRequest):
     return {"count": len(scored_jobs), "jobs": scored_jobs}
 
 @app.get("/api/jobs/stream")
-def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_results: int = 15):
+def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_results: int = 30):
     def event_stream():
         yield ": ping\n\n"
         hunter = LiveJobHunter()
@@ -185,7 +185,7 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
 
 # --- GLOBAL RECRUITER & HR FINDER ---
 @app.get("/api/hr/by-role/stream")
-def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 10):
+def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 25):
     def event_stream():
         yield ": ping\n\n"
         for comp in HRFinder.stream_companies_and_hr_by_role(role=role, region=region, max_companies=limit):

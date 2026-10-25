@@ -13,7 +13,7 @@ interface JobHunterViewProps {
 export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }: JobHunterViewProps) {
   const [keyword, setKeyword] = useState("Python Developer");
   const [region, setRegion] = useState("GULF");
-  const [maxResults, setMaxResults] = useState(15);
+  const [maxResults, setMaxResults] = useState(30);
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -123,9 +123,11 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
               onChange={(e) => setMaxResults(Number(e.target.value))}
               className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] text-[13px] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
             >
-              <option value={10}>10 Postings</option>
-              <option value={15}>15 Postings</option>
-              <option value={25}>25 Postings</option>
+              <option value={15}>15 Postings (Fast)</option>
+              <option value={30}>30 Postings (Recommended)</option>
+              <option value={50}>50 Postings (Deep Scan)</option>
+              <option value={100}>100 Postings (Maximum Scrape)</option>
+              <option value={150}>150 Postings (Exhaustive)</option>
             </select>
           </div>
 

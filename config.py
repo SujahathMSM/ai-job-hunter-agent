@@ -69,6 +69,50 @@ EXCLUDED_COUNTRIES: List[str] = [
     "Israel", "Tel Aviv", "Jerusalem", "Haifa", "Beer Sheva", "IL"
 ]
 
+# 4. Structured Regional Scraping Hubs with Localized Indeed Country Domains
+EXPANDED_LOCATION_TARGETS = {
+    "GULF": [
+        {"city": "Dubai", "country": "united arab emirates", "display": "Dubai, UAE"},
+        {"city": "Riyadh", "country": "saudi arabia", "display": "Riyadh, Saudi Arabia"},
+        {"city": "Abu Dhabi", "country": "united arab emirates", "display": "Abu Dhabi, UAE"},
+        {"city": "Doha", "country": "qatar", "display": "Doha, Qatar"},
+        {"city": "Jeddah", "country": "saudi arabia", "display": "Jeddah, Saudi Arabia"},
+        {"city": "Muscat", "country": "oman", "display": "Muscat, Oman"},
+        {"city": "Sharjah", "country": "united arab emirates", "display": "Sharjah, UAE"},
+        {"city": "Manama", "country": "bahrain", "display": "Manama, Bahrain"},
+        {"city": "Kuwait City", "country": "kuwait", "display": "Kuwait City, Kuwait"},
+        {"city": "Dammam", "country": "saudi arabia", "display": "Dammam, Saudi Arabia"},
+    ],
+    "MIGRATABLE": [
+        {"city": "Singapore", "country": "singapore", "display": "Singapore"},
+        {"city": "London", "country": "uk", "display": "London, UK"},
+        {"city": "Berlin", "country": "germany", "display": "Berlin, Germany"},
+        {"city": "Munich", "country": "germany", "display": "Munich, Germany"},
+        {"city": "Amsterdam", "country": "netherlands", "display": "Amsterdam, Netherlands"},
+        {"city": "Dublin", "country": "ireland", "display": "Dublin, Ireland"},
+        {"city": "Sydney", "country": "australia", "display": "Sydney, Australia"},
+        {"city": "Melbourne", "country": "australia", "display": "Melbourne, Australia"},
+        {"city": "Toronto", "country": "canada", "display": "Toronto, Canada"},
+        {"city": "Vancouver", "country": "canada", "display": "Vancouver, Canada"},
+        {"city": "Manchester", "country": "uk", "display": "Manchester, UK"},
+    ],
+    "ALL": [
+        {"city": "Dubai", "country": "united arab emirates", "display": "Dubai, UAE"},
+        {"city": "Riyadh", "country": "saudi arabia", "display": "Riyadh, Saudi Arabia"},
+        {"city": "Singapore", "country": "singapore", "display": "Singapore"},
+        {"city": "London", "country": "uk", "display": "London, UK"},
+        {"city": "Abu Dhabi", "country": "united arab emirates", "display": "Abu Dhabi, UAE"},
+        {"city": "Berlin", "country": "germany", "display": "Berlin, Germany"},
+        {"city": "Doha", "country": "qatar", "display": "Doha, Qatar"},
+        {"city": "Sydney", "country": "australia", "display": "Sydney, Australia"},
+        {"city": "Amsterdam", "country": "netherlands", "display": "Amsterdam, Netherlands"},
+        {"city": "Toronto", "country": "canada", "display": "Toronto, Canada"},
+        {"city": "Jeddah", "country": "saudi arabia", "display": "Jeddah, Saudi Arabia"},
+        {"city": "Dublin", "country": "ireland", "display": "Dublin, Ireland"},
+        {"city": "Muscat", "country": "oman", "display": "Muscat, Oman"},
+    ]
+}
+
 # Engineering Disciplines & Broad Keywords
 ENGINEERING_KEYWORDS: List[str] = [
     "engineer", "engineering", "software", "mechanical", "electrical", "civil",

@@ -13,7 +13,7 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
   const [mode, setMode] = useState<"role" | "company">("role");
   const [roleInput, setRoleInput] = useState("Python Developer");
   const [regionFilter, setRegionFilter] = useState("GULF");
-  const [maxCompanies, setMaxCompanies] = useState(10);
+  const [maxCompanies, setMaxCompanies] = useState(25);
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<HiringCompanyLead[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
@@ -200,10 +200,10 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
                   onChange={(e) => setMaxCompanies(Number(e.target.value))}
                   className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] text-[13px] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
                 >
-                  <option value={5}>5 Companies</option>
-                  <option value={10}>10 Companies</option>
-                  <option value={15}>15 Companies</option>
-                  <option value={20}>20 Companies</option>
+                  <option value={10}>10 Companies (Fast)</option>
+                  <option value={25}>25 Companies (Recommended)</option>
+                  <option value={50}>50 Companies (Deep Scan)</option>
+                  <option value={100}>100 Companies (Maximum Scrape)</option>
                 </select>
               </div>
 

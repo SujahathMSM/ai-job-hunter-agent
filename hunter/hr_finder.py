@@ -4,7 +4,7 @@ import urllib.parse
 from typing import List, Optional, Dict, Any
 import requests
 from bs4 import BeautifulSoup
-from config import HUNTER_API_KEY, APOLLO_API_KEY
+from config import HUNTER_API_KEY, APOLLO_API_KEY, EXPANDED_LOCATION_TARGETS
 
 class HRFinder:
     """Extracts, verifies, and discovers real HR and Talent Acquisition contacts globally
@@ -212,45 +212,28 @@ class HRFinder:
         """Streams discovered hiring companies and resolved HR intelligence in real time."""
         from matcher.geo_rules import GeoLocationEngine
 
-        if region == "GULF":
-            target_locs = [
-                "Dubai, United Arab Emirates",
-                "Riyadh, Saudi Arabia",
-                "Abu Dhabi, United Arab Emirates",
-                "Doha, Qatar"
-            ]
-        elif region == "MIGRATABLE":
-            target_locs = [
-                "Singapore",
-                "London, United Kingdom",
-                "Berlin, Germany",
-                "Sydney, Australia"
-            ]
-        else:
-            target_locs = [
-                "Dubai, United Arab Emirates",
-                "Riyadh, Saudi Arabia",
-                "Singapore",
-                "London, United Kingdom",
-                "Berlin, Germany"
-            ]
-
+        targets = EXPANDED_LOCATION_TARGETS.get(region.upper(), EXPANDED_LOCATION_TARGETS["ALL"])
         seen_companies = set()
         count = 0
         role_terms = [t.lower().strip() for t in re.split(r"[\s/,-]+", role) if len(t.strip()) > 1]
+        batch_size = max(8, min(25, (max_companies // len(targets)) + 6))
 
         try:
             from jobspy import scrape_jobs
 
-            for loc in target_locs:
+            for loc_info in targets:
                 if count >= max_companies:
                     break
+                city = loc_info["city"]
+                country = loc_info["country"]
+                display_loc = loc_info["display"]
                 try:
                     df = scrape_jobs(
                         site_name=["indeed", "glassdoor"],
                         search_term=role,
-                        location=loc,
-                        results_wanted=min(max_companies, 8),
+                        location=city,
+                        country_indeed=country,
+                        results_wanted=min(max_companies - count, batch_size),
                         hours_old=336,
                         fetch_description=True,
                         linkedin_fetch_description=False,
@@ -262,7 +245,7 @@ class HRFinder:
                     for _, row in df.iterrows():
                         comp = str(row.get("company", "")).strip()
                         title = str(row.get("title", "")).strip()
-                        job_loc = str(row.get("location", loc)).strip()
+                        job_loc = str(row.get("location", display_loc)).strip()
                         job_url = str(row.get("job_url", "")).strip()
                         desc = str(row.get("description", "") or "").strip()
 
