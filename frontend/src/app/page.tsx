@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import ProfileView from "../components/views/ProfileView";
 import JobHunterView from "../components/views/JobHunterView";
+import CareerPortalsView from "../components/views/CareerPortalsView";
 import CVTailorView from "../components/views/CVTailorView";
 import ColdEmailView from "../components/views/ColdEmailView";
 import RecruiterFinderView from "../components/views/RecruiterFinderView";
@@ -101,6 +102,21 @@ export default function Home() {
     setActiveTab("outreach");
   };
 
+  const handlePortalRecruiters = (companyName: string) => {
+    setActiveTab("recruiters");
+  };
+
+  const handlePortalTailor = (companyName: string, location: string) => {
+    setSelectedJobForTailor({
+      job_title: "Software Engineer / Backend Developer",
+      company: companyName,
+      location: location,
+      hr_email: "",
+      description: `Targeting engineering, IoT telemetry, and Python backend microservices at ${companyName}.`,
+    });
+    setActiveTab("tailor");
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#12131a] text-[#e3e1ec]">
       {/* Sidebar (Fixed 256px) */}
@@ -120,6 +136,12 @@ export default function Home() {
             <JobHunterView
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
+            />
+          </div>
+          <div className={activeTab === "portals" ? "block" : "hidden"}>
+            <CareerPortalsView
+              onSelectCompanyForRecruiters={handlePortalRecruiters}
+              onSelectCompanyForTailor={handlePortalTailor}
             />
           </div>
           <div className={activeTab === "tailor" ? "block" : "hidden"}>

@@ -86,6 +86,16 @@ class StatusUpdateRequest(BaseModel):
     application_id: int
     new_status: str
 
+class PortalAddRequest(BaseModel):
+    name: str
+    portal_url: str
+    region: str = "GULF"
+    country: str = "United Arab Emirates"
+    industry: str = "Engineering & Technology"
+    ats_type: str = "Direct Portal"
+    hr_email: Optional[str] = ""
+    notes: Optional[str] = ""
+
 class SettingsUpdateRequest(BaseModel):
     settings: Dict[str, str]
 
@@ -321,6 +331,38 @@ def list_applications():
 def update_application_status(req: StatusUpdateRequest):
     tracker = ApplicationTracker()
     ok = tracker.update_status(req.application_id, req.new_status)
+    return {"status": "success" if ok else "error"}
+
+
+# --- CAREER PORTALS ---
+@app.get("/api/portals")
+def get_career_portals(region: Optional[str] = None, query: Optional[str] = None):
+    from hunter.portals import CareerPortalManager
+    mgr = CareerPortalManager()
+    portals = mgr.list_portals(region=region, query=query)
+    return {"portals": portals}
+
+@app.post("/api/portals")
+def add_career_portal(req: PortalAddRequest):
+    from hunter.portals import CareerPortalManager
+    mgr = CareerPortalManager()
+    created = mgr.add_custom_portal(
+        name=req.name,
+        portal_url=req.portal_url,
+        region=req.region,
+        country=req.country,
+        industry=req.industry,
+        ats_type=req.ats_type,
+        hr_email=req.hr_email or "",
+        notes=req.notes or ""
+    )
+    return {"status": "success", "portal": created}
+
+@app.delete("/api/portals/{portal_id}")
+def delete_career_portal(portal_id: int):
+    from hunter.portals import CareerPortalManager
+    mgr = CareerPortalManager()
+    ok = mgr.delete_portal(portal_id)
     return {"status": "success" if ok else "error"}
 
 

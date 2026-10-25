@@ -155,3 +155,54 @@ export async function saveSettings(settings: Record<string, string>): Promise<an
   if (!res.ok) throw new Error("Failed to update settings");
   return res.json();
 }
+
+export interface CareerPortalItem {
+  id: number;
+  name: string;
+  portal_url: string;
+  region: string;
+  country: string;
+  industry: string;
+  ats_type: string;
+  hr_email: string;
+  notes: string;
+  is_custom: number;
+  created_at: string;
+}
+
+export async function fetchPortals(region?: string, query?: string): Promise<CareerPortalItem[]> {
+  const params = new URLSearchParams();
+  if (region && region !== "ALL") params.append("region", region);
+  if (query) params.append("query", query);
+  const res = await fetch(`${API_BASE}/portals?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch portals");
+  const data = await res.json();
+  return data.portals || [];
+}
+
+export async function addPortal(payload: {
+  name: string;
+  portal_url: string;
+  region: string;
+  country: string;
+  industry: string;
+  ats_type: string;
+  hr_email?: string;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/portals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to add portal");
+  return res.json();
+}
+
+export async function deletePortal(id: number): Promise<any> {
+  const res = await fetch(`${API_BASE}/portals/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete portal");
+  return res.json();
+}
