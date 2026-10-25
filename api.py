@@ -136,7 +136,8 @@ def update_profile(profile_data: Dict[str, Any]):
 
 @app.post("/api/profile/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):
-    save_path = UPLOADS_DIR / file.filename
+    clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(file.filename or "cv.pdf").name)
+    save_path = UPLOADS_DIR / clean_name
     with open(save_path, "wb") as f:
         f.write(await file.read())
     
@@ -155,8 +156,9 @@ async def upload_multiple_cvs(files: List[UploadFile] = File(...)):
     from ingestion.intake_engine import IntakeEngine
     engine = IntakeEngine()
     saved_paths = []
-    for f in files:
-        save_path = UPLOADS_DIR / f.filename
+    for idx, f in enumerate(files):
+        clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(f.filename or f"cv_{idx}.pdf").name)
+        save_path = UPLOADS_DIR / clean_name
         with open(save_path, "wb") as out:
             out.write(await f.read())
         saved_paths.append(save_path)
@@ -169,8 +171,9 @@ async def upload_chat_history(files: List[UploadFile] = File(...)):
     from ingestion.intake_engine import IntakeEngine
     engine = IntakeEngine()
     all_insights = []
-    for f in files:
-        save_path = UPLOADS_DIR / f.filename
+    for idx, f in enumerate(files):
+        clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(f.filename or f"chat_{idx}.json").name)
+        save_path = UPLOADS_DIR / clean_name
         with open(save_path, "wb") as out:
             out.write(await f.read())
         insights = engine.parse_chat_history_file(save_path)
@@ -195,7 +198,8 @@ def parse_linkedin(req: LinkedInParseRequest):
 async def upload_linkedin_pdf(file: UploadFile = File(...)):
     from ingestion.intake_engine import IntakeEngine
     engine = IntakeEngine()
-    save_path = UPLOADS_DIR / f"linkedin_{file.filename}"
+    clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(file.filename or "export.pdf").name)
+    save_path = UPLOADS_DIR / f"linkedin_{clean_name}"
     with open(save_path, "wb") as out:
         out.write(await file.read())
     data = engine.parse_linkedin_pdf(save_path)
@@ -222,6 +226,7 @@ def synthesize_profile(req: SynthesizeProfileRequest):
     return {"status": "success", "profile": updated}
 
 @app.get("/api/profile/download-europass-cv")
+@app.get("/api/cv/download-europass")
 def download_default_europass_cv():
     pb = PersonaBuilder()
     builder = PDFResumeBuilder()
@@ -306,15 +311,19 @@ def get_global_remote_jobs(
     """Fetches verified 100% remote jobs from keyless public JSON feeds (RemoteOK, Remotive, 
     Jobicy, Himalayas, Arbeitnow, WWR RSS) and Direct Company ATS (Greenhouse/Ashby/Lever).
     Enforces worldwide openness and strict Israel exclusion."""
-    from hunter.remote_hunter import GlobalRemoteHunter
-    hunter = GlobalRemoteHunter()
-    jobs = hunter.search_all_remote(
-        keyword=keyword,
-        worldwide_only=worldwide_only,
-        limit=limit,
-        source_filter=source
-    )
-    return {"status": "success", "count": len(jobs), "jobs": jobs}
+    try:
+        from hunter.remote_hunter import GlobalRemoteHunter
+        hunter = GlobalRemoteHunter()
+        jobs = hunter.search_all_remote(
+            keyword=keyword,
+            worldwide_only=worldwide_only,
+            limit=limit,
+            source_filter=source
+        )
+        return {"status": "success", "count": len(jobs), "jobs": jobs}
+    except Exception as e:
+        print(f"[Remote Jobs Hunter Error]: {e}")
+        return {"status": "error", "message": str(e), "count": 0, "jobs": []}
 
 
 # --- GLOBAL RECRUITER & HR FINDER ---
@@ -418,23 +427,24 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
     from generators.pdf_builder import PDFResumeBuilder
     from ingestion.persona_builder import PersonaBuilder
     
-    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
-    pb = PersonaBuilder()
-    pdf_gen = PDFResumeBuilder()
+    try:
+        GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+        safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
+        pb = PersonaBuilder()
+        pdf_gen = PDFResumeBuilder()
 
-    if type == "cv":
-        out_file = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
-        if not out_file.exists():
+        if type == "cv":
+            out_file = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
+            # Always build fresh from current persona profile so profile edits appear immediately
             pdf_gen.build_resume_pdf(pb.profile, out_file)
-        return FileResponse(
-            out_file,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"inline; filename={out_file.name}"}
-        )
-    else:
-        out_file = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
-        if not out_file.exists():
+            return FileResponse(
+                out_file,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"inline; filename={out_file.name}"}
+            )
+        else:
+            out_file = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+            # Always build fresh tailored cover letter for company and job title
             cl_text = (
                 f"Dear {company} Hiring Team,\n\n"
                 f"I am writing to express my enthusiastic interest in the {job_title} opening at {company}.\n\n"
@@ -451,11 +461,14 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
                 f"linkedin.com/in/mohamed-sujahath | github.com/SujahathMSM"
             )
             pdf_gen.build_cover_letter_pdf(cl_text, pb.profile, out_file)
-        return FileResponse(
-            out_file,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"inline; filename={out_file.name}"}
-        )
+            return FileResponse(
+                out_file,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"inline; filename={out_file.name}"}
+            )
+    except Exception as e:
+        print(f"[Document Preview Generation Error]: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compile PDF document: {str(e)}")
 
 
 # --- OUTREACH & EMAIL DISPATCHER ---

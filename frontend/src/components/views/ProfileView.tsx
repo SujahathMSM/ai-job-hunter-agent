@@ -20,7 +20,9 @@ import {
   Plus,
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Eye,
+  X,
 } from "lucide-react";
 
 function GithubIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -87,6 +89,7 @@ export default function ProfileView() {
   // Status message
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showIntakeStudio, setShowIntakeStudio] = useState(true);
+  const [showCvPreview, setShowCvPreview] = useState(false);
 
   const loadProfile = () => {
     setLoading(true);
@@ -337,6 +340,16 @@ export default function ProfileView() {
 
         {/* Top Header Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Preview Europass CV Button */}
+          <button
+            onClick={() => setShowCvPreview(true)}
+            className="px-4 py-2.5 rounded-lg bg-[#1a1b22] border border-[#4cd7f6]/60 text-[#4cd7f6] font-semibold text-xs hover:bg-[#4cd7f6]/10 transition-all flex items-center gap-2"
+            title="Preview official European Union standard A4 CV PDF"
+          >
+            <Eye className="w-4 h-4 text-[#4cd7f6]" />
+            <span>Preview Europass CV</span>
+          </button>
+
           {/* Default Europass Generator Button */}
           <button
             onClick={handleDownloadEuropass}
@@ -779,6 +792,73 @@ export default function ProfileView() {
           ))}
         </div>
       </div>
+
+      {/* Europass CV Centered Blurred Preview Lightbox */}
+      {showCvPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setShowCvPreview(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[92vh] bg-[#0d0e15] border border-[#3d494c]/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden specular-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#3d494c]/30 bg-[#14151e]">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-5 h-5 text-[#4edea3]" />
+                <div>
+                  <div className="text-sm font-semibold text-[#e3e1ec] font-mono">
+                    Europass_CV_{identity.full_name.replace(/\s+/g, "_")}.pdf
+                  </div>
+                  <div className="text-[10px] text-[#869296]">
+                    Official European Union Standard A4 Layout • University of Moratuwa Credentials
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadEuropass}
+                  disabled={downloadingPdf}
+                  className="flex items-center gap-1.5 text-xs text-[#003824] bg-[#4edea3] hover:bg-white px-2.5 py-1.5 rounded-lg font-semibold transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </button>
+                <button
+                  onClick={() => setShowCvPreview(false)}
+                  className="p-1.5 rounded-lg text-[#869296] hover:text-[#e3e1ec] hover:bg-[#1a1b22] transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Viewport */}
+            <div className="flex-1 bg-[#1a1b22] p-2 overflow-hidden flex items-center justify-center">
+              <iframe
+                src="/api/profile/download-europass-cv"
+                className="w-full h-[72vh] rounded-lg border border-[#3d494c]/30 bg-white"
+                title="Europass CV Preview"
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[#3d494c]/30 bg-[#14151e] text-xs text-[#bcc9cd]">
+              <span className="font-mono text-[11px] text-[#869296]">
+                Compiled dynamically with authentic Moratuwa engineering achievements and verified stack.
+              </span>
+              <button
+                onClick={() => setShowCvPreview(false)}
+                className="px-4 py-1.5 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:bg-[#3d494c]/40 text-xs text-[#e3e1ec] font-medium transition-all"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

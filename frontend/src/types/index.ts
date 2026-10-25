@@ -9,6 +9,7 @@ export interface CandidateProfile {
     relocation_status: string;
     linkedin: string;
     github: string;
+    website?: string;
   };
   summary: string;
   core_skills: string[];
@@ -22,6 +23,7 @@ export interface CandidateProfile {
     company: string;
     duration: string;
     location: string;
+    branch?: string;
     bullets: string[];
   }>;
   projects: Array<{
@@ -109,6 +111,8 @@ export interface GlobalRemoteJob {
   source: string;
   source_type: "public_api" | "rss" | "ats" | string;
   apply_url: string;
+  portal?: string;
+  job_url?: string;
   description: string;
   match_score: number;
   posted_at?: string;
