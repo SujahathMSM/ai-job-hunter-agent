@@ -51,11 +51,11 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
         dry_run: safeMode,
       });
 
-      if (res.status === "success") {
+      if (res.status === "success" || res.success) {
         setStatusMessage({
           type: "success",
           text: safeMode
-            ? `[Safe Mode] Outreach email drafted & logged in database (ID: ${res.application_id}). No real email sent.`
+            ? `[Safe Mode] Outreach email drafted & logged in database (ID: ${res.application_id || res.app_id}). No real email sent.`
             : `Email dispatched successfully to ${toEmail} via SMTP!`,
         });
         if (onSentSuccess) onSentSuccess();

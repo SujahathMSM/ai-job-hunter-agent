@@ -49,6 +49,10 @@ export default function Home() {
       .catch(console.error);
   }, []);
 
+  const buildDefaultPitch = (jobTitle: string, company: string): string => {
+    return `Dear ${company} Hiring Team,\n\nI am writing to express my enthusiastic interest in the ${jobTitle} opening at ${company}.\n\nAs a production-tested Backend Software Engineer with a BScEngHons from the University of Moratuwa (Sri Lanka's premier engineering institution), I specialize in high-throughput microservices, distributed data architectures, and PostgreSQL/TimescaleDB optimization. In my current engineering role at Blue Brand IP Institute, I overhauled asynchronous data pipelines, reducing polling failures from 80% to 0% and slashing system startup times by 90%.\n\nI am based in Sri Lanka and 100% prepared for immediate international relocation with zero onboarding delay.\n\nPlease find my attached Europass CV for your review. I would welcome the opportunity to discuss how my background can immediately drive value for ${company}.\n\nSincerely,\nM.S. Mohamed Sujahath\n+971 50 229 1865 | sujahathmhmd@gmail.com\nlinkedin.com/in/mohamed-sujahath | github.com/SujahathMSM`;
+  };
+
   const handleSelectForTailor = (job: JobItem) => {
     setSelectedJobForTailor({
       job_title: job.job_title,
@@ -64,21 +68,23 @@ export default function Home() {
       window.open(job.portal, "_blank");
       return;
     }
+    const pitch = buildDefaultPitch(job.job_title, job.company);
     setSelectedOutreachData({
       jobTitle: job.job_title,
       company: job.company,
       hrEmail: job.hr_email || "careers@company.com",
-      context: job.full_description || job.description,
+      context: pitch,
     });
     setActiveTab("outreach");
   };
 
   const handleRecruiterOutreach = (jobTitle: string, company: string, email: string, portal: string, desc: string) => {
+    const pitch = buildDefaultPitch(jobTitle, company);
     setSelectedOutreachData({
       jobTitle: jobTitle,
       company: company,
       hrEmail: email,
-      context: desc,
+      context: pitch,
     });
     setActiveTab("outreach");
   };
@@ -87,6 +93,7 @@ export default function Home() {
     setSelectedOutreachData({
       jobTitle: jobTitle,
       company: company,
+      hrEmail: "",
       context: context,
     });
     setActiveTab("outreach");

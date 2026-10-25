@@ -117,8 +117,11 @@ export async function sendEmail(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("Failed to dispatch email");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || "Failed to dispatch email");
+  }
+  return data;
 }
 
 export async function fetchApplications(): Promise<{ metrics: any; applications: ApplicationItem[] }> {
