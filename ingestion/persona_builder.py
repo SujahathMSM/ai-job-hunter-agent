@@ -7,18 +7,33 @@ from config import PROFILE_PATH, GULF_COUNTRIES, MIGRATABLE_COUNTRIES, EXCLUDED_
 class PersonaBuilder:
     """Combines CV data, LinkedIn history, and LLM chat exports to synthesize a rich, accurate Master Persona."""
 
-    def __init__(self, profile_path: Path = PROFILE_PATH):
+    def __init__(self, profile_path: Path = PROFILE_PATH, user_id: str = "default"):
         self.profile_path = profile_path
+        self.user_id = user_id
+        from outreach.tracker import ApplicationTracker
+        self.tracker = ApplicationTracker()
         self.profile: Dict[str, Any] = self._load_or_init()
 
     def _load_or_init(self) -> Dict[str, Any]:
+        # 1. Check SQLite multi-tenant profile table first
+        db_prof = self.tracker.get_profile(self.user_id)
+        if db_prof:
+            return db_prof
+
+        # 2. Check disk profile.json (for default migration)
         if self.profile_path.exists():
             try:
                 with open(self.profile_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    self.tracker.save_profile(self.user_id, data)
+                    return data
             except Exception:
                 pass
-        return self._default_template()
+
+        # 3. Fallback to default Moratuwa template and seed DB
+        default_data = self._default_template()
+        self.tracker.save_profile(self.user_id, default_data)
+        return default_data
 
     def _default_template(self) -> Dict[str, Any]:
         return {
@@ -396,8 +411,16 @@ class PersonaBuilder:
         return []
 
     def save(self):
-        with open(self.profile_path, "w", encoding="utf-8") as f:
-            json.dump(self.profile, f, indent=2, ensure_ascii=False)
+        # 1. Multi-tenant persist in SQLite profiles table
+        self.tracker.save_profile(self.user_id, self.profile)
+
+        # 2. Synchronize file on disk if default user for backward compatibility
+        if self.user_id == "default":
+            try:
+                with open(self.profile_path, "w", encoding="utf-8") as f:
+                    json.dump(self.profile, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                print(f"[Disk Backup Warning]: {e}")
 
     def get_profile(self) -> Dict[str, Any]:
         return self.profile

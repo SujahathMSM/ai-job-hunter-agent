@@ -241,6 +241,32 @@ export async function saveSettings(settings: Record<string, string>): Promise<an
   return res.json();
 }
 
+export interface UserSettings {
+  user_id?: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_user?: string;
+  smtp_password?: string;
+  has_password?: boolean;
+  sender_name?: string;
+}
+
+export async function fetchUserSettings(userId: string = "default"): Promise<UserSettings> {
+  const res = await fetch(`${API_BASE}/settings/user?user_id=${encodeURIComponent(userId)}`);
+  if (!res.ok) throw new Error("Failed to fetch user settings");
+  return res.json();
+}
+
+export async function saveUserSettings(settings: UserSettings): Promise<any> {
+  const res = await fetch(`${API_BASE}/settings/user`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) throw new Error("Failed to save user settings");
+  return res.json();
+}
+
 export interface CareerPortalItem {
   id: number;
   name: string;

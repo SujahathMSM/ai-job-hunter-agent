@@ -59,6 +59,7 @@ class TailorRequest(BaseModel):
     company: str
     location: str
     jd_text: str
+    user_id: Optional[str] = "default"
 
 class PDFGenRequest(BaseModel):
     tailored_resume: Dict[str, Any]
@@ -69,6 +70,7 @@ class OutreachDraftRequest(BaseModel):
     hr_name: Optional[str] = "Hiring Team"
     hr_email: str
     tailored_content: Optional[str] = None
+    user_id: Optional[str] = "default"
 
 class SendEmailRequest(BaseModel):
     to_email: str
@@ -81,10 +83,20 @@ class SendEmailRequest(BaseModel):
     cv_path: Optional[str] = None
     cover_letter_path: Optional[str] = None
     dry_run: bool = True
+    user_id: Optional[str] = "default"
 
 class StatusUpdateRequest(BaseModel):
     application_id: int
     new_status: str
+    user_id: Optional[str] = "default"
+
+class UserSettingsRequest(BaseModel):
+    user_id: str = "default"
+    smtp_host: Optional[str] = "smtp.gmail.com"
+    smtp_port: Optional[int] = 587
+    smtp_user: Optional[str] = ""
+    smtp_password: Optional[str] = ""
+    sender_name: Optional[str] = ""
 
 class PortalAddRequest(BaseModel):
     name: str
@@ -124,18 +136,18 @@ def health_check():
 
 # --- PROFILE & CV INTAKE ---
 @app.get("/api/profile")
-def get_profile():
-    pb = PersonaBuilder()
+def get_profile(user_id: str = "default"):
+    pb = PersonaBuilder(user_id=user_id)
     return pb.profile
 
 @app.post("/api/profile")
-def update_profile(profile_data: Dict[str, Any]):
-    pb = PersonaBuilder()
+def update_profile(profile_data: Dict[str, Any], user_id: str = "default"):
+    pb = PersonaBuilder(user_id=user_id)
     pb.update_profile(profile_data)
     return {"status": "success", "profile": pb.profile}
 
 @app.post("/api/profile/upload-cv")
-async def upload_cv(file: UploadFile = File(...)):
+async def upload_cv(file: UploadFile = File(...), user_id: str = "default"):
     clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(file.filename or "cv.pdf").name)
     save_path = UPLOADS_DIR / clean_name
     with open(save_path, "wb") as f:
@@ -146,7 +158,7 @@ async def upload_cv(file: UploadFile = File(...)):
     if not extracted:
         raise HTTPException(status_code=400, detail="Could not extract text from CV.")
     
-    pb = PersonaBuilder()
+    pb = PersonaBuilder(user_id=user_id)
     updated = pb.build_from_sources(cv_data_list=[extracted], chat_insights=[])
     pb.update_profile(updated)
     return {"status": "success", "extracted": extracted, "profile": pb.profile}
@@ -227,17 +239,18 @@ def synthesize_profile(req: SynthesizeProfileRequest):
 
 @app.get("/api/profile/download-europass-cv")
 @app.get("/api/cv/download-europass")
-def download_default_europass_cv():
-    pb = PersonaBuilder()
+def download_default_europass_cv(user_id: str = "default"):
+    pb = PersonaBuilder(user_id=user_id)
     builder = PDFResumeBuilder()
-    out_file = GENERATED_DIR / "Europass_CV_MS_Mohamed_Sujahath.pdf"
+    clean_user = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
+    out_file = GENERATED_DIR / f"Europass_CV_{clean_user}.pdf"
     builder.build_resume_pdf(pb.profile, out_file)
     if not os.path.exists(out_file):
         raise HTTPException(status_code=500, detail="Failed to compile Europass CV PDF.")
     return FileResponse(
         out_file,
         media_type="application/pdf",
-        filename="Europass_CV_MS_Mohamed_Sujahath.pdf"
+        filename=f"Europass_CV_{re.sub(r'[^a-zA-Z0-9_.-]', '_', pb.profile.get('identity', {}).get('full_name', 'Candidate'))}.pdf"
     )
 
 
@@ -368,7 +381,8 @@ def find_hr_by_company(req: CompanyHRSearchRequest):
 # --- AI CV & COVER LETTER TAILOR ---
 @app.post("/api/cv/tailor")
 def tailor_cv(req: TailorRequest):
-    pb = PersonaBuilder()
+    user_id = req.user_id or "default"
+    pb = PersonaBuilder(user_id=user_id)
     tailorer = ResumeTailorer(pb.profile)
     cl_gen = CoverLetterGenerator(pb.profile)
     
@@ -388,10 +402,11 @@ def tailor_cv(req: TailorRequest):
 
     import re
     safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', req.company).strip('_') or "Company"
+    clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
     try:
         pdf_gen = PDFResumeBuilder()
-        cv_out = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
-        cl_out = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+        cv_out = GENERATED_DIR / f"Europass_CV_{clean_uid}_{safe_comp}.pdf"
+        cl_out = GENERATED_DIR / f"Cover_Letter_{clean_uid}_{safe_comp}.pdf"
         pdf_gen.build_resume_pdf(tailored_resume, cv_out)
         pdf_gen.build_cover_letter_pdf(cover_letter, pb.profile, cl_out)
     except Exception as e:
@@ -420,7 +435,7 @@ def generate_pdf(req: PDFGenRequest):
     )
 
 @app.get("/api/documents/preview")
-def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer"):
+def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer", user_id: str = "default"):
     """Returns or generates on the fly the Europass CV or Cover Letter PDF for preview."""
     import re
     from pathlib import Path
@@ -430,11 +445,12 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
     try:
         GENERATED_DIR.mkdir(parents=True, exist_ok=True)
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
-        pb = PersonaBuilder()
+        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
+        pb = PersonaBuilder(user_id=user_id)
         pdf_gen = PDFResumeBuilder()
 
         if type == "cv":
-            out_file = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
+            out_file = GENERATED_DIR / f"Europass_CV_{clean_uid}_{safe_comp}.pdf"
             # Always build fresh from current persona profile so profile edits appear immediately
             pdf_gen.build_resume_pdf(pb.profile, out_file)
             return FileResponse(
@@ -443,8 +459,15 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
                 headers={"Content-Disposition": f"inline; filename={out_file.name}"}
             )
         else:
-            out_file = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+            out_file = GENERATED_DIR / f"Cover_Letter_{clean_uid}_{safe_comp}.pdf"
             # Always build fresh tailored cover letter for company and job title
+            ident = pb.profile.get("identity", {})
+            full_name = ident.get("full_name") or "M.S. Mohamed Sujahath"
+            phone = ident.get("phone") or "+971 50 229 1865"
+            email = ident.get("email") or "sujahathmhmd@gmail.com"
+            linkedin = ident.get("linkedin") or "linkedin.com/in/mohamed-sujahath"
+            github = ident.get("github") or "github.com/SujahathMSM"
+            
             cl_text = (
                 f"Dear {company} Hiring Team,\n\n"
                 f"I am writing to express my enthusiastic interest in the {job_title} opening at {company}.\n\n"
@@ -456,9 +479,9 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
                 f"I am based in Sri Lanka and 100% prepared for immediate international relocation with zero onboarding delay.\n\n"
                 f"Please find my attached Europass CV for your review. I look forward to discussing how my experience will add value to {company}.\n\n"
                 f"Sincerely,\n"
-                f"M.S. Mohamed Sujahath\n"
-                f"+971 50 229 1865 | sujahathmhmd@gmail.com\n"
-                f"linkedin.com/in/mohamed-sujahath | github.com/SujahathMSM"
+                f"{full_name}\n"
+                f"{phone} | {email}\n"
+                f"{linkedin} | {github}"
             )
             pdf_gen.build_cover_letter_pdf(cl_text, pb.profile, out_file)
             return FileResponse(
@@ -474,7 +497,7 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
 # --- OUTREACH & EMAIL DISPATCHER ---
 @app.post("/api/outreach/draft")
 def draft_outreach(req: OutreachDraftRequest):
-    pb = PersonaBuilder()
+    pb = PersonaBuilder(user_id=req.user_id or "default")
     cl_gen = CoverLetterGenerator(pb.profile)
     subject, body = cl_gen.generate_recruiter_email(
         job_title=req.job_title,
@@ -497,23 +520,24 @@ def send_outreach(req: SendEmailRequest):
         job_title=req.job_title,
         location=req.location,
         portal_link=req.portal_link,
-        dry_run=req.dry_run
+        dry_run=req.dry_run,
+        user_id=req.user_id or "default"
     )
     return result
 
 
 # --- APPLICATION TRACKER ---
 @app.get("/api/tracker/applications")
-def list_applications():
+def list_applications(user_id: str = "default"):
     tracker = ApplicationTracker()
-    apps = tracker.list_applications(limit=100)
-    metrics = tracker.get_metrics()
+    apps = tracker.list_applications(limit=100, user_id=user_id)
+    metrics = tracker.get_metrics(user_id=user_id)
     return {"metrics": metrics, "applications": apps}
 
 @app.post("/api/tracker/update-status")
 def update_application_status(req: StatusUpdateRequest):
     tracker = ApplicationTracker()
-    ok = tracker.update_status(req.application_id, req.new_status)
+    ok = tracker.update_status(req.application_id, req.new_status, user_id=req.user_id or "default")
     return {"status": "success" if ok else "error"}
 
 
@@ -566,6 +590,48 @@ def get_settings():
 def update_settings(req: SettingsUpdateRequest):
     update_env_file(req.settings)
     return {"status": "success", "updated": list(req.settings.keys())}
+
+@app.get("/api/settings/user")
+def get_user_settings(user_id: str = "default"):
+    tracker = ApplicationTracker()
+    settings = tracker.get_user_settings(user_id)
+    has_pw = bool(settings.get("smtp_password"))
+    masked_pw = ("*" * 8) if has_pw else ""
+    return {
+        "user_id": user_id,
+        "smtp_host": settings.get("smtp_host", "smtp.gmail.com"),
+        "smtp_port": settings.get("smtp_port", 587),
+        "smtp_user": settings.get("smtp_user", ""),
+        "smtp_password": masked_pw,
+        "has_password": has_pw,
+        "sender_name": settings.get("sender_name", "")
+    }
+
+@app.post("/api/settings/user")
+def save_user_settings(req: UserSettingsRequest):
+    tracker = ApplicationTracker()
+    existing = tracker.get_user_settings(req.user_id)
+    pw_to_save = (req.smtp_password or "").strip()
+    if not pw_to_save or pw_to_save.startswith("****"):
+        pw_to_save = existing.get("smtp_password", "")
+    
+    data = {
+        "smtp_host": req.smtp_host or "smtp.gmail.com",
+        "smtp_port": req.smtp_port or 587,
+        "smtp_user": (req.smtp_user or "").strip(),
+        "smtp_password": pw_to_save,
+        "sender_name": (req.sender_name or "").strip()
+    }
+    tracker.save_user_settings(req.user_id, data)
+    return {
+        "status": "success",
+        "user_id": req.user_id,
+        "settings": {
+            **data,
+            "smtp_password": ("*" * 8) if pw_to_save else "",
+            "has_password": bool(pw_to_save)
+        }
+    }
 
 if __name__ == "__main__":
     import uvicorn

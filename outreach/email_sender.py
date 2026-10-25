@@ -60,15 +60,18 @@ class EmailDispatcher:
         attachment_path: Optional[Path] = None,
         cover_letter_path: Optional[Path] = None,
         portal_link: Optional[str] = None,
-        dry_run: bool = True
+        dry_run: bool = True,
+        user_id: str = "default"
     ) -> Dict[str, Any]:
         """Dispatches live email via SMTP or logs safe draft based on dry_run mode.
-        Guarantees both Europass CV and Cover Letter are attached."""
-        clean_user = os.getenv("SMTP_USER", SMTP_USER).strip()
-        clean_pwd = os.getenv("SMTP_PASSWORD", SMTP_PASSWORD).replace(" ", "").strip()
-        host = os.getenv("SMTP_HOST", SMTP_HOST).strip()
-        port = int(os.getenv("SMTP_PORT", str(SMTP_PORT)))
-        sender_name = os.getenv("SENDER_NAME", SENDER_NAME) or "M.S. Mohamed Sujahath"
+        Supports per-user private SMTP credentials with fallback to system defaults."""
+        user_cfg = self.tracker.get_user_settings(user_id)
+
+        clean_user = (user_cfg.get("smtp_user") or os.getenv("SMTP_USER", SMTP_USER)).strip()
+        clean_pwd = (user_cfg.get("smtp_password") or os.getenv("SMTP_PASSWORD", SMTP_PASSWORD)).replace(" ", "").strip()
+        host = (user_cfg.get("smtp_host") or os.getenv("SMTP_HOST", SMTP_HOST)).strip()
+        port = int(user_cfg.get("smtp_port") or os.getenv("SMTP_PORT", str(SMTP_PORT)))
+        sender_name = (user_cfg.get("sender_name") or os.getenv("SENDER_NAME", SENDER_NAME) or "M.S. Mohamed Sujahath").strip()
 
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
 
@@ -137,7 +140,8 @@ class EmailDispatcher:
                     cv_pdf_path=str(cv_pdf_file) if cv_pdf_file and cv_pdf_file.exists() else "",
                     cover_letter_pdf_path=str(cl_pdf_file) if cl_pdf_file and cl_pdf_file.exists() else "",
                     email_subject=subject,
-                    notes=f"Dispatched live via SMTP to {to_email} ({clean_user}) with {[p.name for p in attachments]}."
+                    notes=f"Dispatched live via SMTP to {to_email} ({clean_user}) with {[p.name for p in attachments]}.",
+                    user_id=user_id
                 )
 
                 return {
@@ -171,7 +175,8 @@ class EmailDispatcher:
             cv_pdf_path=str(cv_pdf_file) if cv_pdf_file and cv_pdf_file.exists() else "",
             cover_letter_pdf_path=str(cl_pdf_file) if cl_pdf_file and cl_pdf_file.exists() else "",
             email_subject=subject,
-            notes=f"[Safe Mode] Saved draft EML: {safe_filename} with {[p.name for p in attachments]}."
+            notes=f"[Safe Mode] Saved draft EML: {safe_filename} with {[p.name for p in attachments]}.",
+            user_id=user_id
         )
 
         return {
