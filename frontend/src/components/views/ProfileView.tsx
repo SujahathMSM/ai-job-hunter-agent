@@ -7,11 +7,28 @@ import { fetchProfile, uploadCVFile } from "../../lib/api";
 
 export default function ProfileView() {
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
+  const loadProfile = () => {
+    setLoading(true);
+    setFetchError(null);
+    fetchProfile()
+      .then((p) => {
+        setProfile(p);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Profile load err:", err);
+        setFetchError("Could not reach backend API at /api/profile.");
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
-    fetchProfile().then(setProfile).catch(console.error);
+    loadProfile();
   }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,8 +47,27 @@ export default function ProfileView() {
     }
   };
 
-  if (!profile) {
-    return <div className="p-8 text-center text-[#bcc9cd]">Loading Candidate Master Persona...</div>;
+  if (loading) {
+    return (
+      <div className="p-12 text-center text-[#bcc9cd] flex flex-col items-center gap-3">
+        <div className="w-6 h-6 border-2 border-[#4cd7f6] border-t-transparent rounded-full animate-spin"></div>
+        <span>Loading Candidate Master Persona...</span>
+      </div>
+    );
+  }
+
+  if (fetchError || !profile) {
+    return (
+      <div className="p-12 text-center text-[#ffb4ab] flex flex-col items-center gap-3">
+        <p>{fetchError || "Profile not loaded."}</p>
+        <button
+          onClick={loadProfile}
+          className="px-4 py-2 bg-[#4cd7f6] text-[#003640] rounded-lg text-xs font-semibold hover:bg-white"
+        >
+          Retry Connection
+        </button>
+      </div>
+    );
   }
 
   const { identity, core_skills, technical_stack, work_history, education } = profile;
