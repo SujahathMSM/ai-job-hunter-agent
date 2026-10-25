@@ -11,7 +11,7 @@ REQUEST_HEADERS = {
     "Accept": "application/json, text/xml, */*"
 }
 
-EXCLUDED_TERMS = ["israel", "tel aviv", "jerusalem", "haifa", "beer sheva"]
+EXCLUDED_TERMS = ["israel", "tel aviv", "tel-aviv", "tlv", "jerusalem", "haifa", "beer sheva", "herzliya", "ra'anana", "petah tikva"]
 
 RESTRICTED_LOCATION_PATTERNS = [
     r"\bus\s*only\b",
@@ -293,6 +293,60 @@ class GlobalRemoteHunter:
                         })
         except Exception as e:
             print(f"[WeWorkRemotely Error]: {e}")
+
+        # 5B. Top Trending Remote Jobs from WeWorkRemotely
+        try:
+            from bs4 import BeautifulSoup
+            trend_url = "https://weworkremotely.com/top-trending-remote-jobs"
+            r_trend = self.session.get(trend_url, timeout=7)
+            if r_trend.status_code == 200:
+                soup = BeautifulSoup(r_trend.text, "html.parser")
+                links = soup.find_all("a", href=lambda h: h and "/remote-jobs/" in h)
+                for a in links:
+                    href = a.get("href", "")
+                    if "find-your-plan" in href:
+                        continue
+                    full_link = "https://weworkremotely.com" + href if href.startswith("/") else href
+                    t_elem = a.find(class_=re.compile(r'title', re.I))
+                    c_elem = a.find(class_=re.compile(r'company-name', re.I))
+                    if not t_elem or not c_elem:
+                        continue
+                    title = t_elem.get_text(strip=True)
+                    comp = c_elem.get_text(strip=True)
+                    
+                    full_text = " ".join(a.stripped_strings)
+                    
+                    # Strict zero tolerance for Israel
+                    if any(ex in full_text.lower() for ex in EXCLUDED_TERMS):
+                        continue
+                    
+                    cats = [c.get_text(strip=True) for c in a.find_all(class_=re.compile(r'category', re.I))]
+                    sal_match = re.search(r'\$[\d,]+(?:\s*-\s*\$[\d,]+|\s*or more|\s*/\s*hr)?\s*USD', full_text)
+                    sal = sal_match.group(0) if sal_match else ""
+                    
+                    is_ww = "anywhere in the world" in full_text.lower() or "worldwide" in full_text.lower()
+                    
+                    combined = f"{title} {comp} {' '.join(cats)}".lower()
+                    if keyword.lower() in combined or not keyword or "engineer" in combined or "developer" in combined or "backend" in combined or "python" in combined:
+                        jobs.append({
+                            "job_id": f"wwr_trend_{abs(hash(full_link)) % 1000000}",
+                            "job_title": title,
+                            "company": comp,
+                            "location": "🌐 Worldwide / Remote" if is_ww else "🌐 Remote",
+                            "salary": sal,
+                            "portal": full_link,
+                            "apply_url": full_link,
+                            "job_url": full_link,
+                            "description": f"Trending remote position at {comp}.\nCategories: {', '.join(cats)}.\nApply via official WeWorkRemotely listing.",
+                            "tags": cats[:5] if cats else ["Trending", "Remote"],
+                            "source": "WWR Trending",
+                            "source_type": "rss",
+                            "date_posted": "Trending Now",
+                            "is_worldwide": is_ww
+                        })
+        except Exception as e:
+            print(f"[WWR Trending Scraper Error]: {e}")
+
         return jobs
 
     # 6. Arbeitnow API
@@ -491,6 +545,11 @@ class GlobalRemoteHunter:
         deduped = []
         seen = set()
         for j in all_jobs:
+            # Strict Israel exclusion across all fields
+            full_check = f"{j.get('company', '')} {j.get('location', '')} {j.get('description', '')}".lower()
+            if any(ex in full_check for ex in EXCLUDED_TERMS):
+                continue
+
             # Check worldwide restriction if requested
             if worldwide_only and not j.get("is_worldwide", True):
                 continue
