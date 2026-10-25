@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail } from "lucide-react";
+import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail, Eye, X, ExternalLink } from "lucide-react";
 import { sendEmail } from "../../lib/api";
 
 interface ColdEmailViewProps {
@@ -26,6 +26,10 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
 
   const [safeMode, setSafeMode] = useState(false);
   const [sending, setSending] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{
+    type: "cv" | "cover_letter";
+    title: string;
+  } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -210,39 +214,129 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
               <Paperclip className="w-3.5 h-3.5" />
               Attached Documents (Physical MIME Attachments Guaranteed)
             </span>
-            <span className="text-[11px] font-mono text-[#bcc9cd]">2 PDFs Attached</span>
+            <span className="text-[11px] font-mono text-[#4edea3]">2 PDFs Attached &amp; Ready</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Europass CV Badge */}
-            <div className="flex items-center justify-between p-2.5 rounded-md bg-[#1a1b22] border border-[#3d494c]/50">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between p-3 rounded-md bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#4cd7f6]/40 transition-all">
+              <div className="flex items-center gap-2.5">
                 <FileText className="w-4 h-4 text-[#4cd7f6]" />
                 <div>
                   <div className="text-xs font-mono font-semibold text-[#e3e1ec]">{expectedCvName}</div>
                   <div className="text-[10px] text-[#869296]">Official Europass A4 • Moratuwa Credentials</div>
                 </div>
               </div>
-              <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
-                Attached
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc({ type: "cv", title: expectedCvName })}
+                  className="flex items-center gap-1 text-[11px] font-mono text-[#4cd7f6] bg-[#4cd7f6]/10 hover:bg-[#4cd7f6]/20 px-2 py-1 rounded border border-[#4cd7f6]/30 transition-all cursor-pointer"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Preview</span>
+                </button>
+                <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
+                  Ready
+                </span>
+              </div>
             </div>
 
             {/* Cover Letter Badge */}
-            <div className="flex items-center justify-between p-2.5 rounded-md bg-[#1a1b22] border border-[#3d494c]/50">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between p-3 rounded-md bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#a8c7fa]/40 transition-all">
+              <div className="flex items-center gap-2.5">
                 <FileText className="w-4 h-4 text-[#a8c7fa]" />
                 <div>
                   <div className="text-xs font-mono font-semibold text-[#e3e1ec]">{expectedCoverName}</div>
                   <div className="text-[10px] text-[#869296]">Executive Letterhead A4 PDF</div>
                 </div>
               </div>
-              <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
-                Attached
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc({ type: "cover_letter", title: expectedCoverName })}
+                  className="flex items-center gap-1 text-[11px] font-mono text-[#a8c7fa] bg-[#a8c7fa]/10 hover:bg-[#a8c7fa]/20 px-2 py-1 rounded border border-[#a8c7fa]/30 transition-all cursor-pointer"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Preview</span>
+                </button>
+                <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
+                  Ready
+                </span>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Document Preview Lightbox Modal with Blurred Backdrop */}
+        {previewDoc && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => setPreviewDoc(null)}
+          >
+            <div
+              className="relative w-full max-w-4xl max-h-[92vh] bg-[#0d0e15] border border-[#3d494c]/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden specular-border"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#3d494c]/30 bg-[#14151e]">
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-5 h-5 text-[#4cd7f6]" />
+                  <div>
+                    <div className="text-sm font-semibold text-[#e3e1ec] font-mono">
+                      {previewDoc.title}
+                    </div>
+                    <div className="text-[10px] text-[#869296]">
+                      {previewDoc.type === "cv"
+                        ? "European Union Europass CV • Official A4 Layout"
+                        : `Executive Tailored Cover Letter for ${company}`}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-[#4cd7f6] hover:brightness-125 px-2.5 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open in New Tab</span>
+                  </a>
+                  <button
+                    onClick={() => setPreviewDoc(null)}
+                    className="p-1.5 rounded-lg text-[#869296] hover:text-[#e3e1ec] hover:bg-[#1a1b22] transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* PDF Viewport */}
+              <div className="flex-1 bg-[#1a1b22] p-2 overflow-hidden flex items-center justify-center">
+                <iframe
+                  src={`/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`}
+                  className="w-full h-[72vh] rounded-lg border border-[#3d494c]/30 bg-white"
+                  title={previewDoc.title}
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-5 py-3 border-t border-[#3d494c]/30 bg-[#14151e] text-xs text-[#bcc9cd]">
+                <span className="font-mono text-[11px] text-[#869296]">
+                  ✓ Verified: This document is physically attached into the SMTP payload when dispatched.
+                </span>
+                <button
+                  onClick={() => setPreviewDoc(null)}
+                  className="px-4 py-1.5 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:bg-[#3d494c]/40 text-xs text-[#e3e1ec] font-medium transition-all"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status Message */}
         {statusMessage && (

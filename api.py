@@ -410,6 +410,53 @@ def generate_pdf(req: PDFGenRequest):
         filename=os.path.basename(out_file)
     )
 
+@app.get("/api/documents/preview")
+def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer"):
+    """Returns or generates on the fly the Europass CV or Cover Letter PDF for preview."""
+    import re
+    from pathlib import Path
+    from generators.pdf_builder import PDFResumeBuilder
+    from ingestion.persona_builder import PersonaBuilder
+    
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
+    pb = PersonaBuilder()
+    pdf_gen = PDFResumeBuilder()
+
+    if type == "cv":
+        out_file = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
+        if not out_file.exists():
+            pdf_gen.build_resume_pdf(pb.profile, out_file)
+        return FileResponse(
+            out_file,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={out_file.name}"}
+        )
+    else:
+        out_file = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+        if not out_file.exists():
+            cl_text = (
+                f"Dear {company} Hiring Team,\n\n"
+                f"I am writing to express my enthusiastic interest in the {job_title} opening at {company}.\n\n"
+                f"As a production-tested Backend Software Engineer with a BScEngHons from the University of Moratuwa "
+                f"(Sri Lanka's premier engineering institution), I specialize in high-throughput microservices, "
+                f"distributed data architectures, and PostgreSQL/TimescaleDB optimization.\n\n"
+                f"In my current engineering role at Blue Brand IP Institute, I overhauled asynchronous data pipelines, "
+                f"reducing polling failures from 80% to 0% and slashing system startup times by 90%.\n\n"
+                f"I am based in Sri Lanka and 100% prepared for immediate international relocation with zero onboarding delay.\n\n"
+                f"Please find my attached Europass CV for your review. I look forward to discussing how my experience will add value to {company}.\n\n"
+                f"Sincerely,\n"
+                f"M.S. Mohamed Sujahath\n"
+                f"+971 50 229 1865 | sujahathmhmd@gmail.com\n"
+                f"linkedin.com/in/mohamed-sujahath | github.com/SujahathMSM"
+            )
+            pdf_gen.build_cover_letter_pdf(cl_text, pb.profile, out_file)
+        return FileResponse(
+            out_file,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={out_file.name}"}
+        )
+
 
 # --- OUTREACH & EMAIL DISPATCHER ---
 @app.post("/api/outreach/draft")

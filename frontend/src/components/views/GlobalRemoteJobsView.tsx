@@ -10,16 +10,16 @@ import {
   Sparkles,
   Send,
   Building2,
-  MapPin,
   DollarSign,
-  ChevronDown,
-  ChevronUp,
   Tag,
   CheckCircle2,
   Users,
-  Filter,
   RefreshCw,
   Zap,
+  X,
+  FileText,
+  Calendar,
+  AlertCircle,
 } from "lucide-react";
 import { GlobalRemoteJob, JobItem } from "../../types";
 import { fetchGlobalRemoteJobs } from "../../lib/api";
@@ -76,7 +76,7 @@ export default function GlobalRemoteJobsView({
   const [jobs, setJobs] = useState<GlobalRemoteJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [activeModalJob, setActiveModalJob] = useState<GlobalRemoteJob | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Auto-load initial batch on mount
@@ -92,7 +92,7 @@ export default function GlobalRemoteJobsView({
     setLoading(true);
     setHasSearched(true);
     setErrorMsg(null);
-    setExpandedJobId(null);
+    setActiveModalJob(null);
 
     try {
       const data = await fetchGlobalRemoteJobs(kw, worldwide, limit, src);
@@ -105,11 +105,8 @@ export default function GlobalRemoteJobsView({
     }
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedJobId((prev) => (prev === id ? null : id));
-  };
-
   const handleTailorBridge = (job: GlobalRemoteJob) => {
+    const applyLink = job.apply_url || job.portal || job.job_url || "";
     const jobItem: JobItem = {
       id: job.id,
       job_title: job.job_title,
@@ -117,8 +114,8 @@ export default function GlobalRemoteJobsView({
       location: job.location || "Remote (Worldwide)",
       description: job.description,
       full_description: job.description,
-      job_url: job.apply_url,
-      portal: job.apply_url,
+      job_url: applyLink,
+      portal: applyLink,
       salary: job.salary,
       fit_analysis: {
         match_score: job.match_score || 85,
@@ -133,6 +130,7 @@ export default function GlobalRemoteJobsView({
   };
 
   const handleOutreachBridge = (job: GlobalRemoteJob) => {
+    const applyLink = job.apply_url || job.portal || job.job_url || "";
     const jobItem: JobItem = {
       id: job.id,
       job_title: job.job_title,
@@ -140,8 +138,8 @@ export default function GlobalRemoteJobsView({
       location: job.location || "Remote (Worldwide)",
       description: job.description,
       full_description: job.description,
-      job_url: job.apply_url,
-      portal: job.apply_url,
+      job_url: applyLink,
+      portal: applyLink,
       salary: job.salary,
     };
     onSelectForOutreach(jobItem);
@@ -183,8 +181,8 @@ export default function GlobalRemoteJobsView({
               </span>
             </h1>
             <p className="text-[13px] text-[#bcc9cd] mt-1">
-              Curated 100% remote positions open to engineers worldwide — bypassing US/EU geo-restrictions.
-              Direct unauthenticated ATS boards &amp; remote feeds with zero rate limits.
+              Curated 100% remote positions open to engineers worldwide — strictly eliminating US/EU/Canada geo-restrictions.
+              Direct unauthenticated ATS boards &amp; remote feeds with direct application links.
             </p>
           </div>
 
@@ -308,7 +306,7 @@ export default function GlobalRemoteJobsView({
               className="w-4 h-4 accent-[#4cd7f6] rounded cursor-pointer"
             />
             <span className="text-[12px] font-medium text-[#e3e1ec]">
-              Worldwide Only (Discard US/EU-restricted)
+              Worldwide Only (Discard US/EU/Canada restricted)
             </span>
           </label>
         </div>
@@ -339,8 +337,7 @@ export default function GlobalRemoteJobsView({
       {/* Jobs Grid / List */}
       <div className="flex flex-col gap-3">
         {jobs.map((job) => {
-          const isExpanded = expandedJobId === job.id;
-          const cleanDesc = formatCleanText(job.description);
+          const applyLink = job.apply_url || job.portal || job.job_url || "";
 
           return (
             <div
@@ -351,7 +348,10 @@ export default function GlobalRemoteJobsView({
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="flex flex-col gap-1.5 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-semibold text-[#e3e1ec] tracking-tight hover:text-[#4cd7f6] transition-colors">
+                    <h3
+                      onClick={() => setActiveModalJob(job)}
+                      className="text-base font-semibold text-[#e3e1ec] tracking-tight hover:text-[#4cd7f6] transition-colors cursor-pointer"
+                    >
                       {job.job_title}
                     </h3>
 
@@ -427,6 +427,23 @@ export default function GlobalRemoteJobsView({
               {/* Action Buttons Row */}
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#3d494c]/20 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* Direct Official Apply Link - PROMINENT */}
+                  {applyLink ? (
+                    <a
+                      href={applyLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4cd7f6]/15 border border-[#4cd7f6]/60 hover:bg-[#4cd7f6]/25 text-xs font-semibold text-[#4cd7f6] transition-all shadow-sm"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                      <span>Official Job Link ↗</span>
+                    </a>
+                  ) : (
+                    <span className="text-xs text-[#869296] italic px-2 py-1">
+                      Direct application on company board
+                    </span>
+                  )}
+
                   {/* Tailor CV */}
                   <button
                     onClick={() => handleTailorBridge(job)}
@@ -455,43 +472,17 @@ export default function GlobalRemoteJobsView({
                       <span>Find Recruiters</span>
                     </button>
                   )}
-
-                  {/* Direct Apply Link */}
-                  {job.apply_url && (
-                    <a
-                      href={job.apply_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#4cd7f6]/40 text-xs font-medium text-[#bcc9cd] hover:text-[#4cd7f6] transition-all"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Apply on {job.source}</span>
-                    </a>
-                  )}
                 </div>
 
-                {/* Accordion Expand Description */}
-                {cleanDesc && (
-                  <button
-                    onClick={() => toggleExpand(job.id)}
-                    className="flex items-center gap-1 text-xs text-[#879396] hover:text-[#e3e1ec] transition-colors py-1 px-2"
-                  >
-                    <span>{isExpanded ? "Hide Details" : "View Description"}</span>
-                    {isExpanded ? (
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    ) : (
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                )}
+                {/* View Description Dialog Trigger */}
+                <button
+                  onClick={() => setActiveModalJob(job)}
+                  className="flex items-center gap-1.5 text-xs text-[#bcc9cd] hover:text-[#4cd7f6] transition-colors py-1 px-2.5 rounded-md hover:bg-[#1a1b22]"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                  <span>View Description</span>
+                </button>
               </div>
-
-              {/* Expanded Description Accordion */}
-              {isExpanded && cleanDesc && (
-                <div className="mt-2 p-4 rounded-lg bg-[#1a1b22] border border-[#3d494c]/40 text-xs text-[#bcc9cd] leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {cleanDesc}
-                </div>
-              )}
             </div>
           );
         })}
@@ -509,6 +500,130 @@ export default function GlobalRemoteJobsView({
           </div>
         )}
       </div>
+
+      {/* User-Friendly Centered Description Modal with Blurred Backdrop */}
+      {activeModalJob && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setActiveModalJob(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl max-h-[88vh] bg-[#0d0e15] border border-[#3d494c]/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden specular-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between p-5 border-b border-[#3d494c]/30 bg-[#14151e]">
+              <div className="flex flex-col gap-1.5 pr-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6]">
+                    🌐 {activeModalJob.location || "Worldwide"}
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${getSourceBadgeColor(
+                      activeModalJob.source,
+                      activeModalJob.source_type
+                    )}`}
+                  >
+                    {activeModalJob.source}
+                  </span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6] font-bold">
+                    ✓ {activeModalJob.match_score || 85}% ATS FIT
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-[#e3e1ec] tracking-tight">
+                  {activeModalJob.job_title}
+                </h2>
+                <div className="flex items-center gap-3 text-xs text-[#bcc9cd]">
+                  <span className="font-semibold text-[#e3e1ec] flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                    {activeModalJob.company}
+                  </span>
+                  {activeModalJob.salary && (
+                    <span className="text-[#81e6d9] font-mono">
+                      💰 {activeModalJob.salary}
+                    </span>
+                  )}
+                  {activeModalJob.posted_at && (
+                    <span className="text-[#879396]">
+                      📅 {activeModalJob.posted_at}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setActiveModalJob(null)}
+                className="p-1.5 rounded-lg text-[#869296] hover:text-[#e3e1ec] hover:bg-[#1a1b22] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Action Bar at top of modal */}
+            <div className="flex items-center justify-between px-5 py-3 bg-[#1a1b22] border-b border-[#3d494c]/20 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {activeModalJob.apply_url || activeModalJob.portal ? (
+                  <a
+                    href={activeModalJob.apply_url || activeModalJob.portal}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-[#00687a] to-[#4cd7f6] text-[#003640] font-bold text-xs hover:brightness-110 transition-all shadow-md"
+                  >
+                    <ExternalLink className="w-4 h-4 text-[#003640]" />
+                    <span>Open Application on Official Site ↗</span>
+                  </a>
+                ) : null}
+
+                <button
+                  onClick={() => {
+                    handleTailorBridge(activeModalJob);
+                    setActiveModalJob(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#4cd7f6]/40 hover:border-[#4cd7f6] text-xs font-semibold text-[#4cd7f6] transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                  <span>Tailor CV with this JD</span>
+                </button>
+
+                {onSelectForRecruiters && (
+                  <button
+                    onClick={() => {
+                      onSelectForRecruiters(activeModalJob.company, activeModalJob.job_title);
+                      setActiveModalJob(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:border-[#bcc9cd] text-xs font-medium text-[#bcc9cd] hover:text-[#e3e1ec] transition-all"
+                  >
+                    <Users className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                    <span>Find Recruiters at {activeModalJob.company}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Description Body */}
+            <div className="flex-1 p-6 overflow-y-auto max-h-[55vh] text-[13px] text-[#e3e1ec] leading-relaxed whitespace-pre-wrap font-sans bg-[#0d0e15]">
+              {formatCleanText(activeModalJob.description) || (
+                <div className="text-center text-[#879396] py-8">
+                  No full description text was returned by this public feed. Please visit the official job link above for complete requirements.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-[#3d494c]/30 bg-[#14151e]">
+              <div className="text-[11px] font-mono text-[#869296]">
+                Targeting worldwide engineering talent with Moratuwa stack match.
+              </div>
+              <button
+                onClick={() => setActiveModalJob(null)}
+                className="px-4 py-1.5 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:bg-[#3d494c]/40 text-xs text-[#e3e1ec] font-medium transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

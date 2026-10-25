@@ -16,7 +16,7 @@ import { fetchProfile, fetchApplications } from "../lib/api";
 import { JobItem } from "../types";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("recruiters");
+  const [activeTab, setActiveTab] = useState("remote");
   const [candidateName, setCandidateName] = useState("M.S. Mohamed Sujahath");
   const [stats, setStats] = useState({
     matched: 74,
@@ -24,9 +24,51 @@ export default function Home() {
     sent: 12,
   });
 
+  const VALID_TABS = ["profile", "hunter", "remote", "portals", "tailor", "outreach", "recruiters", "tracker", "settings"];
+
+  const navigateToTab = (tab: string, pushHistory = true) => {
+    if (!VALID_TABS.includes(tab)) return;
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const targetHash = `#${tab}`;
+      if (window.location.hash !== targetHash) {
+        if (pushHistory) {
+          window.history.pushState({ tab }, "", targetHash);
+        } else {
+          window.history.replaceState({ tab }, "", targetHash);
+        }
+      }
+    }
+  };
+
   // Cross-tab pipeline state
   const [selectedJobForTailor, setSelectedJobForTailor] = useState<any>(null);
   const [selectedOutreachData, setSelectedOutreachData] = useState<any>(null);
+
+  useEffect(() => {
+    // Synchronize browser history / URL hash with active tab so browser back/forward stays in app
+    if (typeof window !== "undefined") {
+      const initialHash = window.location.hash.replace("#", "");
+      if (initialHash && VALID_TABS.includes(initialHash)) {
+        setActiveTab(initialHash);
+      } else {
+        window.history.replaceState({ tab: "remote" }, "", "#remote");
+        setActiveTab("remote");
+      }
+
+      const onPopState = (e: PopStateEvent) => {
+        const curHash = window.location.hash.replace("#", "");
+        if (curHash && VALID_TABS.includes(curHash)) {
+          setActiveTab(curHash);
+        } else if (e.state?.tab && VALID_TABS.includes(e.state.tab)) {
+          setActiveTab(e.state.tab);
+        }
+      };
+
+      window.addEventListener("popstate", onPopState);
+      return () => window.removeEventListener("popstate", onPopState);
+    }
+  }, []);
 
   useEffect(() => {
     fetchProfile()
@@ -63,7 +105,7 @@ export default function Home() {
       hr_email: job.hr_email || "",
       description: job.full_description || job.description,
     });
-    setActiveTab("tailor");
+    navigateToTab("tailor");
   };
 
   const handleSelectForOutreach = (job: JobItem) => {
@@ -78,7 +120,7 @@ export default function Home() {
       hrEmail: job.hr_email || "",
       context: pitch,
     });
-    setActiveTab("outreach");
+    navigateToTab("outreach");
   };
 
   const handleRecruiterOutreach = (jobTitle: string, company: string, email: string, portal: string, desc: string) => {
@@ -89,7 +131,7 @@ export default function Home() {
       hrEmail: email || "",
       context: pitch,
     });
-    setActiveTab("outreach");
+    navigateToTab("outreach");
   };
 
   const handleTailorToOutreach = (jobTitle: string, company: string, context: string, hrEmail?: string) => {
@@ -100,11 +142,11 @@ export default function Home() {
       hrEmail: finalHrEmail,
       context: context,
     });
-    setActiveTab("outreach");
+    navigateToTab("outreach");
   };
 
   const handlePortalRecruiters = (companyName: string) => {
-    setActiveTab("recruiters");
+    navigateToTab("recruiters");
   };
 
   const handlePortalTailor = (companyName: string, location: string) => {
@@ -115,13 +157,13 @@ export default function Home() {
       hr_email: "",
       description: `Targeting engineering, IoT telemetry, and Python backend microservices at ${companyName}.`,
     });
-    setActiveTab("tailor");
+    navigateToTab("tailor");
   };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#12131a] text-[#e3e1ec]">
       {/* Sidebar (Fixed 256px) */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} stats={stats} />
+      <Sidebar activeTab={activeTab} setActiveTab={navigateToTab} stats={stats} />
 
       {/* Main Workspace */}
       <div className="pl-64 flex flex-col flex-1 h-screen overflow-hidden">

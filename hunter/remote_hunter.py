@@ -28,6 +28,13 @@ RESTRICTED_LOCATION_PATTERNS = [
     r"\bmust\s*reside\s*in\s*the\s*us\b",
     r"\bmust\s*be\s*located\s*in\s*us\b",
     r"\bus\s*citizenship\s*required\b",
+    r"\bus\s*work\s*authorization\b",
+]
+
+COUNTRY_RESTRICTIONS = [
+    r"\bcanada\b", r"\busa\b", r"\bunited\s*states\b", r"\bu\.s\.", r"\buk\b",
+    r"\bunited\s*kingdom\b", r"\bgermany\b", r"\bfrance\b", r"\baustralia\b",
+    r"\beurope\b", r"\bnorth\s*america\b", r"\blatam\b", r"\blatin\s*america\b"
 ]
 
 def clean_html(raw_html: str) -> str:
@@ -50,10 +57,10 @@ def clean_html(raw_html: str) -> str:
     return text.strip()
 
 def is_worldwide_open(location_str: str, description_str: str = "") -> bool:
-    """Checks whether a remote job is open worldwide rather than restricted to US/EU."""
+    """Checks whether a remote job is open worldwide rather than restricted to US/EU/Canada."""
     combined = f"{location_str} {description_str}".lower()
 
-    # Zero tolerance for Israel
+    # Strict zero tolerance for Israel
     if any(ex in combined for ex in EXCLUDED_TERMS):
         return False
 
@@ -62,14 +69,31 @@ def is_worldwide_open(location_str: str, description_str: str = "") -> bool:
         if re.search(pat, combined, re.IGNORECASE):
             return False
 
-    # Strong positive signals
-    positives = ["worldwide", "anywhere", "global", "remote", "apac", "emea", "work from anywhere", "open globally", "home based"]
-    loc_lower = location_str.lower().strip()
+    loc_lower = (location_str or "").lower().strip()
+    loc_clean = re.sub(r"[🌐\s]+", " ", loc_lower).strip()
 
-    if not loc_lower or any(p in loc_lower for p in positives):
+    # Explicit positive signals for worldwide openness
+    positives = [
+        "worldwide", "anywhere", "global", "work from anywhere", 
+        "open globally", "home based", "apac", "emea", "any location", 
+        "all countries", "remote - anywhere"
+    ]
+    if any(p in loc_clean for p in positives):
         return True
 
-    return True
+    # If location explicitly specifies countries (e.g. 'Canada, USA', 'United States', 'UK') without Worldwide
+    for cr in COUNTRY_RESTRICTIONS:
+        if re.search(cr, loc_clean):
+            return False
+
+    # If it is simply 'remote' or empty, inspect description
+    if loc_clean in ["remote", "", "full remote", "remote / flexible"]:
+        for pat in RESTRICTED_LOCATION_PATTERNS:
+            if re.search(pat, description_str.lower(), re.IGNORECASE):
+                return False
+        return True
+
+    return False
 
 class GlobalRemoteHunter:
     """Concurrently scrapes and aggregates 100% remote job listings open worldwide
@@ -478,9 +502,29 @@ class GlobalRemoteHunter:
 
             # Calculate match score based on candidate's Moratuwa credentials
             match_score = self._calc_match_score(j["job_title"], j.get("description", ""))
-            j["match_score"] = match_score
+            
+            clean_url = j.get("portal") or j.get("apply_url") or j.get("url") or ""
+            norm_id = j.get("job_id") or j.get("id") or f"job_{abs(hash(j['company'] + j['job_title'])) % 10000000}"
 
-            deduped.append(j)
+            normalized_job = {
+                "id": str(norm_id),
+                "job_id": str(norm_id),
+                "job_title": j.get("job_title", "").strip(),
+                "company": j.get("company", "").strip(),
+                "location": j.get("location", "🌐 Worldwide / Remote"),
+                "salary": j.get("salary") or "",
+                "apply_url": clean_url,
+                "portal": clean_url,
+                "job_url": clean_url,
+                "description": j.get("description") or "",
+                "tags": j.get("tags") or [],
+                "source": j.get("source", "Remote Board"),
+                "source_type": j.get("source_type") or ("ats" if "Greenhouse" in j.get("source", "") or "Ashby" in j.get("source", "") else "public_api"),
+                "date_posted": j.get("date_posted") or "Recently",
+                "is_worldwide": j.get("is_worldwide", True),
+                "match_score": match_score,
+            }
+            deduped.append(normalized_job)
 
         # Sort by match score descending
         deduped.sort(key=lambda x: x.get("match_score", 70), reverse=True)

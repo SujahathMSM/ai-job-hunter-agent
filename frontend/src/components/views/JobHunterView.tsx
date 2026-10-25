@@ -16,7 +16,8 @@ import {
   Users,
   CheckCircle2,
   Building2,
-  MapPin
+  MapPin,
+  X,
 } from "lucide-react";
 import { JobItem } from "../../types";
 
@@ -45,6 +46,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [expandedJobKey, setExpandedJobKey] = useState<string | null>(null);
+  const [modalJob, setModalJob] = useState<JobItem | null>(null);
   const sseRef = React.useRef<EventSource | null>(null);
 
   React.useEffect(() => {
@@ -416,7 +418,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                   <div className="flex items-start justify-between">
                     <div>
                       <h3
-                        onClick={() => toggleExpand(jobKey)}
+                        onClick={() => setModalJob(job)}
                         className="text-[16px] font-semibold text-[#e3e1ec] group-hover:text-[#4cd7f6] transition-colors cursor-pointer"
                       >
                         {job.job_title}
@@ -463,9 +465,9 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                     {formatCleanText(job.description || "Active engineering opening in the production platform team.")}
                   </div>
 
-                  {/* View Full Description Toggle */}
+                  {/* View Full Description Trigger */}
                   <button
-                    onClick={() => toggleExpand(jobKey)}
+                    onClick={() => setModalJob(job)}
                     className="text-[11px] text-[#4cd7f6] hover:underline mt-2 flex items-center gap-1 font-mono"
                   >
                     <span>View Full Job Details &amp; Requirements</span>
@@ -529,6 +531,123 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* User-Friendly Centered Description Modal with Blurred Backdrop */}
+      {modalJob && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setModalJob(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl max-h-[88vh] bg-[#0d0e15] border border-[#3d494c]/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden specular-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between p-5 border-b border-[#3d494c]/30 bg-[#14151e]">
+              <div className="flex flex-col gap-1.5 pr-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6]">
+                    📍 {modalJob.location}
+                  </span>
+                  {modalJob.site && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-[#3d494c]/40 bg-[#1e1f26] text-[#869397]">
+                      via {modalJob.site}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6] font-bold">
+                    ✓ {modalJob.fit_analysis?.match_score || 70}% ATS MATCH
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-[#e3e1ec] tracking-tight">
+                  {modalJob.job_title}
+                </h2>
+                <div className="flex items-center gap-3 text-xs text-[#bcc9cd]">
+                  <span className="font-semibold text-[#e3e1ec] flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                    {modalJob.company}
+                  </span>
+                  {modalJob.salary && (
+                    <span className="text-[#81e6d9] font-mono">
+                      💰 {modalJob.salary}
+                    </span>
+                  )}
+                  <span className="text-[#879396]">
+                    📅 {modalJob.posted_label || modalJob.date_posted || "Recently Listed"}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setModalJob(null)}
+                className="p-1.5 rounded-lg text-[#869296] hover:text-[#e3e1ec] hover:bg-[#1a1b22] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Action Bar at top of modal */}
+            <div className="flex items-center justify-between px-5 py-3 bg-[#1a1b22] border-b border-[#3d494c]/20 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {modalJob.portal || modalJob.job_url ? (
+                  <a
+                    href={modalJob.portal || modalJob.job_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-[#00687a] to-[#4cd7f6] text-[#003640] font-bold text-xs hover:brightness-110 transition-all shadow-md"
+                  >
+                    <ExternalLink className="w-4 h-4 text-[#003640]" />
+                    <span>Apply on Portal ↗</span>
+                  </a>
+                ) : null}
+
+                <button
+                  onClick={() => {
+                    onSelectForTailor(modalJob);
+                    setModalJob(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#4cd7f6]/40 hover:border-[#4cd7f6] text-xs font-semibold text-[#4cd7f6] transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                  <span>Tailor CV with this JD</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onSelectForOutreach(modalJob);
+                    setModalJob(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:border-[#bcc9cd] text-xs font-medium text-[#e3e1ec] transition-all"
+                >
+                  <Send className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                  <span>Outreach Pitch</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Description Body */}
+            <div className="flex-1 p-6 overflow-y-auto max-h-[55vh] text-[13px] text-[#e3e1ec] leading-relaxed whitespace-pre-wrap font-sans bg-[#0d0e15]">
+              {formatCleanText(modalJob.full_description || modalJob.description) || (
+                <div className="text-center text-[#879396] py-8">
+                  No full description text was returned. Please visit the official portal link above for complete requirements.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-[#3d494c]/30 bg-[#14151e]">
+              <div className="text-[11px] font-mono text-[#869296]">
+                Targeting verified engineering roles with zero Israel tolerance.
+              </div>
+              <button
+                onClick={() => setModalJob(null)}
+                className="px-4 py-1.5 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:bg-[#3d494c]/40 text-xs text-[#e3e1ec] font-medium transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
