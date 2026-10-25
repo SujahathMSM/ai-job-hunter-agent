@@ -203,15 +203,13 @@ class HRFinder:
         return f"{clean_slug}.com"
 
     @classmethod
-    def find_companies_and_hr_by_role(
+    def stream_companies_and_hr_by_role(
         cls,
         role: str,
         region: str = "GULF",
         max_companies: int = 10
-    ) -> List[Dict[str, Any]]:
-        """Automatically searches for active engineering postings matching a specific job role,
-        extracts hiring companies, resolves authentic corporate domains, discovers verified HR emails
-        via Hunter.io/Apollo.io or job posting text, and builds 1-click recruiter reach-out intelligence."""
+    ):
+        """Streams discovered hiring companies and resolved HR intelligence in real time."""
         from matcher.geo_rules import GeoLocationEngine
 
         if region == "GULF":
@@ -237,14 +235,15 @@ class HRFinder:
                 "Berlin, Germany"
             ]
 
-        results: List[Dict[str, Any]] = []
         seen_companies = set()
+        count = 0
+        role_terms = [t.lower().strip() for t in re.split(r"[\s/,-]+", role) if len(t.strip()) > 1]
 
         try:
             from jobspy import scrape_jobs
 
             for loc in target_locs:
-                if len(results) >= max_companies:
+                if count >= max_companies:
                     break
                 try:
                     df = scrape_jobs(
@@ -273,6 +272,23 @@ class HRFinder:
                         comp_key = comp.lower().strip()
                         if comp_key in seen_companies:
                             continue
+
+                        title_l = title.lower()
+                        desc_l = desc.lower()
+
+                        # Role relevance filtering (rejects unrelated roles like Java for Python searches)
+                        if "python" in role_terms:
+                            if any(w in title_l for w in ["java full stack", "salesforce", "payment acceptance", "hr manager"]):
+                                continue
+                            if "python" not in title_l and "python" not in desc_l[:400]:
+                                continue
+                        elif "iot" in role_terms:
+                            if not any(w in title_l or w in desc_l[:400] for w in ["iot", "embedded", "firmware", "hardware", "telemetry", "sensor"]):
+                                continue
+                        elif role_terms:
+                            if not any(t in title_l for t in role_terms):
+                                if not any(t in desc_l[:350] for t in role_terms):
+                                    continue
 
                         # Check Geo Rules (strictly excludes Israel and unapproved regions)
                         is_el, reason, meta = GeoLocationEngine.evaluate_location(job_loc, f"{title} {desc}")
@@ -313,7 +329,6 @@ class HRFinder:
                             except Exception:
                                 pass
 
-                        # Primary contact decision: verified HR email > posting email > empty
                         primary_email = ""
                         if verified_contacts:
                             primary_email = verified_contacts[0]["email"]
@@ -325,7 +340,7 @@ class HRFinder:
                         recruiter_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Technical+Recruiter'+OR+'Talent+Acquisition'+OR+'HR')+{encoded_comp}"
                         eng_lead_dork = f"https://www.google.com/search?q=site:linkedin.com/in+('Engineering+Manager'+OR+'Head+of+Engineering'+OR+'Tech+Lead')+{encoded_comp}"
 
-                        results.append({
+                        lead_item = {
                             "company": comp,
                             "job_title": title,
                             "location": job_loc,
@@ -339,9 +354,12 @@ class HRFinder:
                             "eng_lead_dork": eng_lead_dork,
                             "description": desc[:300] + "..." if len(desc) > 300 else desc,
                             "geo_meta": meta
-                        })
+                        }
 
-                        if len(results) >= max_companies:
+                        count += 1
+                        yield lead_item
+
+                        if count >= max_companies:
                             break
                 except Exception as loc_e:
                     print(f"[Role HR Search Warn for {loc}]: {loc_e}")
@@ -349,4 +367,11 @@ class HRFinder:
         except Exception as e:
             print(f"[Role HR Search Error]: {e}")
 
-        return results
+    @classmethod
+    def find_companies_and_hr_by_role(
+        cls,
+        role: str,
+        region: str = "GULF",
+        max_companies: int = 10
+    ) -> List[Dict[str, Any]]:
+        return list(cls.stream_companies_and_hr_by_role(role=role, region=region, max_companies=max_companies))

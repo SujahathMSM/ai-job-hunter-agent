@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+import json
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -148,8 +149,41 @@ def search_jobs(req: JobSearchRequest):
     scored_jobs.sort(key=lambda x: x.get("fit_analysis", {}).get("match_score", 0), reverse=True)
     return {"count": len(scored_jobs), "jobs": scored_jobs}
 
+@app.get("/api/jobs/stream")
+def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_results: int = 15):
+    def event_stream():
+        hunter = LiveJobHunter()
+        pb = PersonaBuilder()
+        analyzer = JobDescriptionAnalyzer(pb.profile)
+        jobs = hunter.search_live(
+            keyword=keyword,
+            region_filter=region,
+            max_results=max_results
+        )
+        for j in jobs:
+            analysis = analyzer.analyze(
+                job_title=j.get("job_title", ""),
+                company=j.get("company", ""),
+                location=j.get("location", ""),
+                jd_text=j.get("description", "")
+            )
+            j["fit_analysis"] = analysis
+            yield f"data: {json.dumps(j)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
 
 # --- GLOBAL RECRUITER & HR FINDER ---
+@app.get("/api/hr/by-role/stream")
+def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 10):
+    def event_stream():
+        for comp in HRFinder.stream_companies_and_hr_by_role(role=role, region=region, max_companies=limit):
+            yield f"data: {json.dumps(comp)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
 @app.post("/api/hr/by-role")
 def find_hr_by_role(req: RoleHRSearchRequest):
     results = HRFinder.find_companies_and_hr_by_role(

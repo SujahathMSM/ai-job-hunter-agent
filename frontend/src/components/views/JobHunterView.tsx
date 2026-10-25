@@ -18,17 +18,38 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = async () => {
+  const handleSearch = () => {
     setLoading(true);
     setHasSearched(true);
-    try {
-      const data = await searchLiveJobs(keyword, region, maxResults);
-      setJobs(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
+    setJobs([]);
+
+    const url = `/api/jobs/stream?keyword=${encodeURIComponent(keyword)}&region=${region}&max_results=${maxResults}`;
+    const sse = new EventSource(url);
+
+    sse.onmessage = (event) => {
+      if (event.data === "[DONE]") {
+        sse.close();
+        setLoading(false);
+        return;
+      }
+      try {
+        const item = JSON.parse(event.data);
+        setJobs((prev) => {
+          if (prev.some((j) => j.job_title === item.job_title && j.company === item.company)) {
+            return prev;
+          }
+          return [...prev, item];
+        });
+      } catch (err) {
+        console.error("Job SSE parse err:", err);
+      }
+    };
+
+    sse.onerror = (err) => {
+      console.warn("Job stream ended or closed", err);
+      sse.close();
       setLoading(false);
-    }
+    };
   };
 
   return (

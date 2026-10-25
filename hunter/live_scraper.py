@@ -81,17 +81,17 @@ class LiveJobHunter:
         if not any(term in kw_lower for term in ["engineer", "developer", "software", "architect", "specialist"]):
             queries.append(f"{kw} Engineer")
 
-        # Broad technical domain expansions
+        # Focused domain expansions without polluting other languages/stacks
         if any(term in kw_lower for term in ["rag", "llm", "genai", "generative ai", "langgraph", "agent"]):
-            queries.extend(["AI Engineer", "LLM Engineer", "Machine Learning Engineer", "Generative AI Engineer"])
-        elif any(term in kw_lower for term in ["embedded", "firmware", "iot", "hardware"]):
-            queries.extend(["Embedded Systems Engineer", "Firmware Engineer", "IoT Systems Engineer"])
-        elif any(term in kw_lower for term in ["python", "fastapi", "django"]):
-            queries.extend(["Python Engineer", "Backend Developer", "Software Engineer Python"])
-        elif any(term in kw_lower for term in ["backend", "distributed", "systems"]):
-            queries.extend(["Backend Engineer", "Systems Engineer", "Cloud Infrastructure Engineer"])
-        elif any(term in kw_lower for term in ["data", "postgres", "sql", "pipeline"]):
-            queries.extend(["Data Engineer", "Database Engineer", "Data Platform Engineer"])
+            queries.extend(["AI Engineer", "LLM Engineer", "Generative AI Engineer"])
+        elif any(term in kw_lower for term in ["embedded", "firmware", "iot"]):
+            queries.extend(["IoT Engineer", "Embedded Systems Engineer", "Firmware Engineer"])
+        elif "python" in kw_lower:
+            queries.extend(["Python Engineer", "Python Backend Developer", "Software Engineer Python"])
+        elif "backend" in kw_lower:
+            queries.extend(["Backend Engineer", "API Engineer", "Systems Engineer"])
+        elif "data" in kw_lower:
+            queries.extend(["Data Engineer", "Data Platform Engineer"])
 
         seen = set()
         unique = []
@@ -175,6 +175,20 @@ class LiveJobHunter:
             if not is_el:
                 continue
 
+            # Strict Keyword & Discipline alignment check
+            kw_term = keyword.lower().strip()
+            title_lower = j["job_title"].lower()
+            desc_lower = j.get("description", "").lower()
+
+            if "python" in kw_term:
+                if any(w in title_lower for w in ["java full stack", "salesforce", "payment acceptance", "hr manager"]):
+                    continue
+                if "python" not in title_lower and "python" not in desc_lower[:400]:
+                    continue
+            elif "iot" in kw_term:
+                if not any(w in title_lower or w in desc_lower[:400] for w in ["iot", "embedded", "firmware", "hardware", "telemetry", "sensor"]):
+                    continue
+
             # Region filter check
             if region_filter == "GULF" and meta.get("category") != "GULF":
                 continue
@@ -215,7 +229,7 @@ class LiveJobHunter:
                     "Riyadh, Saudi Arabia",
                     "Doha, Qatar"
                 ]
-                sites = ["bayt", "glassdoor", "indeed", "zip_recruiter", "linkedin"]
+                sites = ["indeed", "glassdoor", "bayt"]
             elif region_filter == "MIGRATABLE":
                 target_locs = [
                     "Singapore",
@@ -223,7 +237,7 @@ class LiveJobHunter:
                     "London, United Kingdom",
                     "Sydney, Australia"
                 ]
-                sites = ["glassdoor", "indeed", "zip_recruiter", "linkedin"]
+                sites = ["indeed", "glassdoor"]
             else:
                 target_locs = [
                     "Dubai, United Arab Emirates",
@@ -232,7 +246,7 @@ class LiveJobHunter:
                     "Berlin, Germany",
                     "London, United Kingdom"
                 ]
-                sites = ["bayt", "glassdoor", "indeed", "zip_recruiter", "linkedin"]
+                sites = ["indeed", "glassdoor", "bayt"]
 
             for loc in target_locs:
                 try:

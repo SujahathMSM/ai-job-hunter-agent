@@ -98,22 +98,24 @@ export default function Home() {
         {/* Top Header */}
         <Header candidateName={candidateName} />
 
-        {/* Scrollable View Container */}
+        {/* Scrollable View Container (Keeps views mounted so tab switching never wipes search state) */}
         <main className="flex-1 overflow-y-auto">
-          {activeTab === "profile" && <ProfileView />}
-          {activeTab === "hunter" && (
+          <div className={activeTab === "profile" ? "block" : "hidden"}>
+            <ProfileView />
+          </div>
+          <div className={activeTab === "hunter" ? "block" : "hidden"}>
             <JobHunterView
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
             />
-          )}
-          {activeTab === "tailor" && (
+          </div>
+          <div className={activeTab === "tailor" ? "block" : "hidden"}>
             <CVTailorView
               initialJob={selectedJobForTailor}
               onProceedToOutreach={handleTailorToOutreach}
             />
-          )}
-          {activeTab === "outreach" && (
+          </div>
+          <div className={activeTab === "outreach" ? "block" : "hidden"}>
             <ColdEmailView
               initialData={selectedOutreachData}
               onSentSuccess={() => {
@@ -123,12 +125,16 @@ export default function Home() {
                 });
               }}
             />
-          )}
-          {activeTab === "recruiters" && (
+          </div>
+          <div className={activeTab === "recruiters" ? "block" : "hidden"}>
             <RecruiterFinderView onSelectForOutreach={handleRecruiterOutreach} />
-          )}
-          {activeTab === "tracker" && <TrackerView />}
-          {activeTab === "settings" && <SettingsView />}
+          </div>
+          <div className={activeTab === "tracker" ? "block" : "hidden"}>
+            <TrackerView />
+          </div>
+          <div className={activeTab === "settings" ? "block" : "hidden"}>
+            <SettingsView />
+          </div>
         </main>
       </div>
     </div>

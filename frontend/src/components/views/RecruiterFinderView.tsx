@@ -32,17 +32,41 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
     { label: "📊 Data Engineer", val: "Data Engineer" },
   ];
 
-  const handleRoleSearch = async (targetRole: string = roleInput) => {
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleRoleSearch = (targetRole: string = roleInput) => {
     setLoading(true);
     setHasSearched(true);
-    try {
-      const data = await findCompaniesByRole(targetRole, regionFilter, maxCompanies);
-      setCompanies(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
+    setCompanies([]);
+    setErrorMsg(null);
+
+    const url = `/api/hr/by-role/stream?role=${encodeURIComponent(targetRole)}&region=${regionFilter}&limit=${maxCompanies}`;
+    const sse = new EventSource(url);
+
+    sse.onmessage = (event) => {
+      if (event.data === "[DONE]") {
+        sse.close();
+        setLoading(false);
+        return;
+      }
+      try {
+        const item = JSON.parse(event.data);
+        setCompanies((prev) => {
+          if (prev.some((c) => c.company.toLowerCase() === item.company.toLowerCase())) {
+            return prev;
+          }
+          return [...prev, item];
+        });
+      } catch (err) {
+        console.error("SSE parse err:", err);
+      }
+    };
+
+    sse.onerror = (err) => {
+      console.warn("SSE stream ended or closed", err);
+      sse.close();
       setLoading(false);
-    }
+    };
   };
 
   const handleCompanySearch = async () => {
