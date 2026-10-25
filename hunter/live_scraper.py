@@ -125,6 +125,126 @@ class LiveJobHunter:
             print(f"[Fetch Desc Error for {url}]: {e}")
         return ""
 
+    def stream_live(
+        self,
+        keyword: str = "engineer",
+        region_filter: str = "ALL",
+        max_results: int = 15,
+        max_days_old: int = 14
+    ):
+        """Yields scraped jobs one by one in real-time as each location returns."""
+        try:
+            from jobspy import scrape_jobs
+        except ImportError:
+            return
+
+        if region_filter == "GULF":
+            target_locs = [
+                "Dubai, United Arab Emirates",
+                "Riyadh, Saudi Arabia",
+                "Abu Dhabi, United Arab Emirates",
+                "Doha, Qatar"
+            ]
+        elif region_filter == "MIGRATABLE":
+            target_locs = [
+                "Singapore",
+                "London, United Kingdom",
+                "Berlin, Germany",
+                "Sydney, Australia"
+            ]
+        else:
+            target_locs = [
+                "Dubai, United Arab Emirates",
+                "Riyadh, Saudi Arabia",
+                "Singapore",
+                "London, United Kingdom",
+                "Berlin, Germany"
+            ]
+
+        seen = set()
+        count = 0
+        kw_term = keyword.lower().strip()
+
+        for loc in target_locs:
+            if count >= max_results:
+                break
+            try:
+                df = scrape_jobs(
+                    site_name=["indeed", "glassdoor"],
+                    search_term=keyword,
+                    location=loc,
+                    results_wanted=min(max_results - count, 8),
+                    hours_old=max_days_old * 24,
+                    fetch_description=True,
+                    linkedin_fetch_description=False,
+                    description_format="markdown"
+                )
+                if df is None or df.empty:
+                    continue
+
+                for _, row in df.iterrows():
+                    t = str(row.get("title", "")).strip()
+                    c = str(row.get("company", "")).strip()
+                    l = str(row.get("location", loc)).strip()
+                    url = str(row.get("job_url", "")).strip()
+                    desc = str(row.get("description", "") or "").strip()
+
+                    if not t or t == "nan" or not c or c.lower() in ["verified employer", "gulf employer", "external job link", "nan"]:
+                        continue
+
+                    key = f"{t.lower().strip()}_{c.lower().strip()}"
+                    if key in seen:
+                        continue
+
+                    # Check Title legitimacy
+                    if not self._is_legitimate_engineering_job(t):
+                        continue
+
+                    # Strict Keyword & Discipline alignment check
+                    title_lower = t.lower()
+                    desc_lower = desc.lower()
+
+                    if "python" in kw_term:
+                        if any(w in title_lower for w in ["java", "salesforce", "payment acceptance", "hr manager", "wordpress", "php", "c#", ".net", "dotnet"]):
+                            continue
+                        if "python" not in title_lower:
+                            compatible_titles = ["backend", "software engineer", "data engineer", "ai engineer", "machine learning", "cloud engineer", "full stack"]
+                            if not any(ct in title_lower for ct in compatible_titles):
+                                continue
+                            if "python" not in desc_lower:
+                                continue
+                    elif "iot" in kw_term:
+                        if not any(w in title_lower or w in desc_lower[:400] for w in ["iot", "embedded", "firmware", "hardware", "telemetry", "sensor"]):
+                            continue
+
+                    # Geo check
+                    is_el, reason, meta = GeoLocationEngine.evaluate_location(l, f"{t} {desc}")
+                    if not is_el:
+                        continue
+                    if region_filter == "GULF" and meta.get("category") != "GULF":
+                        continue
+                    if region_filter == "MIGRATABLE" and meta.get("category") != "MIGRATABLE_GLOBAL":
+                        continue
+
+                    seen.add(key)
+                    count += 1
+                    yield {
+                        "id": f"live-{count}",
+                        "job_title": t,
+                        "company": c,
+                        "location": l,
+                        "portal": url,
+                        "job_url": url,
+                        "description": desc[:350] + "..." if len(desc) > 350 else desc,
+                        "geo_meta": meta
+                    }
+
+                    if count >= max_results:
+                        break
+            except Exception as loc_err:
+                print(f"[Stream Live Warn {loc}]: {loc_err}")
+                continue
+
     def search_live(
         self,
         keyword: str = "engineer",
@@ -181,10 +301,14 @@ class LiveJobHunter:
             desc_lower = j.get("description", "").lower()
 
             if "python" in kw_term:
-                if any(w in title_lower for w in ["java full stack", "salesforce", "payment acceptance", "hr manager"]):
+                if any(w in title_lower for w in ["java", "salesforce", "payment acceptance", "hr manager", "wordpress", "php", "c#", ".net", "dotnet"]):
                     continue
-                if "python" not in title_lower and "python" not in desc_lower[:400]:
-                    continue
+                if "python" not in title_lower:
+                    compatible_titles = ["backend", "software engineer", "data engineer", "ai engineer", "machine learning", "cloud engineer", "full stack"]
+                    if not any(ct in title_lower for ct in compatible_titles):
+                        continue
+                    if "python" not in desc_lower:
+                        continue
             elif "iot" in kw_term:
                 if not any(w in title_lower or w in desc_lower[:400] for w in ["iot", "embedded", "firmware", "hardware", "telemetry", "sensor"]):
                     continue

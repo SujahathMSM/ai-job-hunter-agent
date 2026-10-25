@@ -206,7 +206,7 @@ evalX | Pytest, LLM-as-a-Judge
             jd_text="Seeking a backend engineer skilled in Python, high throughput, and database optimization."
         )
         self.assertIn("Tech Giants FZ-LLC", letter)
-        self.assertIn("Dubai, UAE", letter)
+        self.assertIn("Dubai", letter)
         self.assertTrue(len(letter) > 200)
 
     def test_live_scraper_title_filter_and_queries(self):

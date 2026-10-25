@@ -247,7 +247,7 @@ class HRFinder:
                     break
                 try:
                     df = scrape_jobs(
-                        site_name=["indeed", "glassdoor", "bayt"],
+                        site_name=["indeed", "glassdoor"],
                         search_term=role,
                         location=loc,
                         results_wanted=min(max_companies, 8),
@@ -276,12 +276,16 @@ class HRFinder:
                         title_l = title.lower()
                         desc_l = desc.lower()
 
-                        # Role relevance filtering (rejects unrelated roles like Java for Python searches)
+                        # Role relevance filtering (rejects unrelated roles like Java/PHP for Python searches)
                         if "python" in role_terms:
-                            if any(w in title_l for w in ["java full stack", "salesforce", "payment acceptance", "hr manager"]):
+                            if any(w in title_l for w in ["java", "salesforce", "payment acceptance", "hr manager", "wordpress", "php", "c#", ".net", "dotnet"]):
                                 continue
-                            if "python" not in title_l and "python" not in desc_l[:400]:
-                                continue
+                            if "python" not in title_l:
+                                compatible_titles = ["backend", "software engineer", "data engineer", "ai engineer", "machine learning", "cloud engineer", "full stack"]
+                                if not any(ct in title_l for ct in compatible_titles):
+                                    continue
+                                if "python" not in desc_l:
+                                    continue
                         elif "iot" in role_terms:
                             if not any(w in title_l or w in desc_l[:400] for w in ["iot", "embedded", "firmware", "hardware", "telemetry", "sensor"]):
                                 continue

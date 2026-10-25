@@ -17,18 +17,31 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const sseRef = React.useRef<EventSource | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (sseRef.current) sseRef.current.close();
+    };
+  }, []);
 
   const handleSearch = () => {
     setLoading(true);
     setHasSearched(true);
     setJobs([]);
 
+    if (sseRef.current) {
+      sseRef.current.close();
+    }
+
     const url = `/api/jobs/stream?keyword=${encodeURIComponent(keyword)}&region=${region}&max_results=${maxResults}`;
     const sse = new EventSource(url);
+    sseRef.current = sse;
 
     sse.onmessage = (event) => {
       if (event.data === "[DONE]") {
         sse.close();
+        sseRef.current = null;
         setLoading(false);
         return;
       }
@@ -48,6 +61,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
     sse.onerror = (err) => {
       console.warn("Job stream ended or closed", err);
       sse.close();
+      sseRef.current = null;
       setLoading(false);
     };
   };
@@ -127,15 +141,23 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
         </div>
       </div>
 
-      {/* Results Header */}
+      {/* Results Header & Streaming Status */}
       {jobs.length > 0 && (
-        <div className="text-[14px] text-[#e3e1ec] font-medium">
-          Found <strong className="text-[#4cd7f6]">{jobs.length}</strong> active verified postings:
+        <div className="flex items-center justify-between text-[14px] text-[#e3e1ec] font-medium">
+          <div>
+            Found <strong className="text-[#4cd7f6]">{jobs.length}</strong> active verified postings:
+          </div>
+          {loading && (
+            <span className="text-xs text-[#4cd7f6] font-mono animate-pulse flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#4cd7f6] animate-ping"></span>
+              Streaming live postings...
+            </span>
+          )}
         </div>
       )}
 
-      {/* Loading Skeleton */}
-      {loading && (
+      {/* Loading Skeleton: Only shown while waiting for first job */}
+      {loading && jobs.length === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="p-5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/30 animate-pulse h-48 flex flex-col justify-between">
@@ -147,15 +169,15 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
         </div>
       )}
 
-      {/* Empty State */}
+      {/* Empty State: Only shown if search completed with 0 results */}
       {!loading && hasSearched && jobs.length === 0 && (
         <div className="p-12 text-center rounded-xl bg-[#0d0e15] border border-[#3d494c]/30">
           <p className="text-[#bcc9cd] text-sm">No live jobs found matching "{keyword}". Try expanding your region or keyword.</p>
         </div>
       )}
 
-      {/* Jobs Grid */}
-      {!loading && (
+      {/* Jobs Grid: Renders immediately as each job streams in */}
+      {jobs.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {jobs.map((job, idx) => {
             const score = job.fit_analysis?.match_score || 70;

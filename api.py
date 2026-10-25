@@ -152,15 +152,15 @@ def search_jobs(req: JobSearchRequest):
 @app.get("/api/jobs/stream")
 def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_results: int = 15):
     def event_stream():
+        yield ": ping\n\n"
         hunter = LiveJobHunter()
         pb = PersonaBuilder()
         analyzer = JobDescriptionAnalyzer(pb.profile)
-        jobs = hunter.search_live(
+        for j in hunter.stream_live(
             keyword=keyword,
             region_filter=region,
             max_results=max_results
-        )
-        for j in jobs:
+        ):
             analysis = analyzer.analyze(
                 job_title=j.get("job_title", ""),
                 company=j.get("company", ""),
@@ -171,18 +171,37 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
             yield f"data: {json.dumps(j)}\n\n"
         yield "data: [DONE]\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 # --- GLOBAL RECRUITER & HR FINDER ---
 @app.get("/api/hr/by-role/stream")
 def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 10):
     def event_stream():
+        yield ": ping\n\n"
         for comp in HRFinder.stream_companies_and_hr_by_role(role=role, region=region, max_companies=limit):
             yield f"data: {json.dumps(comp)}\n\n"
         yield "data: [DONE]\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 @app.post("/api/hr/by-role")
 def find_hr_by_role(req: RoleHRSearchRequest):
@@ -282,7 +301,7 @@ def send_outreach(req: SendEmailRequest):
 def list_applications():
     tracker = ApplicationTracker()
     apps = tracker.list_applications(limit=100)
-    metrics = tracker.get_funnel_metrics()
+    metrics = tracker.get_metrics()
     return {"metrics": metrics, "applications": apps}
 
 @app.post("/api/tracker/update-status")

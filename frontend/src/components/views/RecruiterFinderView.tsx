@@ -33,6 +33,13 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
   ];
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const sseRef = React.useRef<EventSource | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (sseRef.current) sseRef.current.close();
+    };
+  }, []);
 
   const handleRoleSearch = (targetRole: string = roleInput) => {
     setLoading(true);
@@ -40,12 +47,18 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
     setCompanies([]);
     setErrorMsg(null);
 
+    if (sseRef.current) {
+      sseRef.current.close();
+    }
+
     const url = `/api/hr/by-role/stream?role=${encodeURIComponent(targetRole)}&region=${regionFilter}&limit=${maxCompanies}`;
     const sse = new EventSource(url);
+    sseRef.current = sse;
 
     sse.onmessage = (event) => {
       if (event.data === "[DONE]") {
         sse.close();
+        sseRef.current = null;
         setLoading(false);
         return;
       }
@@ -65,6 +78,7 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
     sse.onerror = (err) => {
       console.warn("SSE stream ended or closed", err);
       sse.close();
+      sseRef.current = null;
       setLoading(false);
     };
   };
@@ -258,6 +272,12 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
         <div className="flex items-center justify-between">
           <div className="text-[14px] text-[#e3e1ec] font-medium flex items-center gap-2">
             <span>Found <strong className="text-[#4cd7f6]">{companies.length}</strong> hiring companies for "{roleInput}"</span>
+            {loading && (
+              <span className="text-xs text-[#4cd7f6] font-mono animate-pulse flex items-center gap-1.5 ml-2">
+                <span className="w-2 h-2 rounded-full bg-[#4cd7f6] animate-ping"></span>
+                Streaming live companies...
+              </span>
+            )}
           </div>
           <button
             onClick={handleExportCSV}
@@ -269,8 +289,8 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
         </div>
       )}
 
-      {/* Loading Skeleton */}
-      {loading && (
+      {/* Loading Skeleton: Only shown while waiting for first company */}
+      {loading && companies.length === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="p-5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/30 animate-pulse h-48 flex flex-col justify-between">
@@ -290,7 +310,7 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
       )}
 
       {/* Role Results Bento Grid */}
-      {mode === "role" && !loading && (
+      {mode === "role" && companies.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {companies.map((c, idx) => (
             <div
