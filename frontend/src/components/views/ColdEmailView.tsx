@@ -15,7 +15,7 @@ interface ColdEmailViewProps {
 }
 
 export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailViewProps) {
-  const [toEmail, setToEmail] = useState(initialData?.hrEmail || "careers@company.com");
+  const [toEmail, setToEmail] = useState(initialData?.hrEmail || "");
   const [company, setCompany] = useState(initialData?.company || "Target Enterprise");
   const [jobTitle, setJobTitle] = useState(initialData?.jobTitle || "Backend Systems Engineer");
   const [subject, setSubject] = useState(`Application: ${jobTitle} — M.S. Mohamed Sujahath`);
@@ -33,7 +33,22 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
   } | null>(null);
 
   React.useEffect(() => {
-    if (initialData?.hrEmail) setToEmail(initialData.hrEmail);
+    if (initialData?.hrEmail) {
+      setToEmail(initialData.hrEmail);
+    } else if (initialData?.context) {
+      const matches = initialData.context.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
+      const found = matches.find(
+        (e) => !e.includes("sujahath") && !e.includes("example.com") && !e.includes("candidate@")
+      );
+      if (found) {
+        setToEmail(found);
+      } else {
+        setToEmail("");
+      }
+    } else {
+      setToEmail("");
+    }
+
     if (initialData?.company) setCompany(initialData.company);
     if (initialData?.jobTitle) {
       setJobTitle(initialData.jobTitle);
@@ -47,6 +62,13 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
   const expectedCoverName = `Cover_Letter_${cleanComp}.pdf`;
 
   const handleSend = async () => {
+    if (!toEmail || !toEmail.includes("@")) {
+      setStatusMessage({
+        type: "error",
+        text: "Please enter a valid recruiter email address before dispatching.",
+      });
+      return;
+    }
     setSending(true);
     setStatusMessage(null);
     try {
@@ -125,10 +147,18 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
         {/* Inputs */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="text-[11px] font-mono uppercase text-[#bcc9cd] mb-1 block">To Recruiter Email</label>
+            <label className="text-[11px] font-mono uppercase text-[#bcc9cd] mb-1 flex items-center justify-between">
+              <span>To Recruiter Email</span>
+              {toEmail ? (
+                <span className="text-[10px] text-[#4edea3] font-mono">Target Email Set</span>
+              ) : (
+                <span className="text-[10px] text-[#ffb4ab] font-mono">Required</span>
+              )}
+            </label>
             <input
               type="email"
               value={toEmail}
+              placeholder="e.g. DdaT.recruitment@businessandtrade.gov.uk"
               onChange={(e) => setToEmail(e.target.value)}
               className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] text-[13px] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none font-mono"
             />

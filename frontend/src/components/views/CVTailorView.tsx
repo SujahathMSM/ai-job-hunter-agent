@@ -14,6 +14,7 @@ import {
   Check,
   RefreshCw,
   ShieldCheck,
+  Mail,
   UserCheck
 } from "lucide-react";
 import { tailorResume, downloadEuropassPDF, fetchProfile } from "../../lib/api";
@@ -24,9 +25,10 @@ interface CVTailorViewProps {
     job_title: string;
     company: string;
     location: string;
+    hr_email?: string;
     description: string;
   };
-  onProceedToOutreach: (jobTitle: string, company: string, context: string) => void;
+  onProceedToOutreach: (jobTitle: string, company: string, context: string, hrEmail?: string) => void;
 }
 
 function cleanText(text: string): string {
@@ -40,10 +42,22 @@ function cleanText(text: string): string {
     .trim();
 }
 
+function extractEmailFromText(text: string): string {
+  if (!text) return "";
+  const matches = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
+  const found = matches.find(
+    (e) => !e.includes("sujahath") && !e.includes("example.com") && !e.includes("candidate@")
+  );
+  return found || "";
+}
+
 export default function CVTailorView({ initialJob, onProceedToOutreach }: CVTailorViewProps) {
   const [jobTitle, setJobTitle] = useState(initialJob?.job_title || "Python Backend Systems Engineer");
   const [company, setCompany] = useState(initialJob?.company || "Quantum Infotech Solutions");
   const [location, setLocation] = useState(initialJob?.location || "Singapore");
+  const [hrEmail, setHrEmail] = useState(
+    initialJob?.hr_email || extractEmailFromText(initialJob?.description || "")
+  );
   const [jdText, setJdText] = useState(
     initialJob?.description ||
       "Implement secure coding practices to prevent common application vulnerabilities. Identify, analyze, and remediate security vulnerabilities in Python-based applications."
@@ -70,7 +84,14 @@ export default function CVTailorView({ initialJob, onProceedToOutreach }: CVTail
     if (initialJob?.job_title) setJobTitle(initialJob.job_title);
     if (initialJob?.company) setCompany(initialJob.company);
     if (initialJob?.location) setLocation(initialJob.location);
-    if (initialJob?.description) setJdText(cleanText(initialJob.description));
+    if (initialJob?.description) {
+      setJdText(cleanText(initialJob.description));
+      if (!initialJob?.hr_email) {
+        const found = extractEmailFromText(initialJob.description);
+        if (found) setHrEmail(found);
+      }
+    }
+    if (initialJob?.hr_email) setHrEmail(initialJob.hr_email);
   }, [initialJob]);
 
   const handleTailor = async () => {
@@ -255,6 +276,27 @@ export default function CVTailorView({ initialJob, onProceedToOutreach }: CVTail
                   </div>
                 </div>
               </div>
+
+              <div>
+                <label className="text-[11px] font-mono uppercase text-[#869397] mb-1 flex items-center justify-between">
+                  <span>HR / Recruiter Email</span>
+                  {hrEmail ? (
+                    <span className="text-[10px] text-[#4edea3] font-mono">Found in job</span>
+                  ) : (
+                    <span className="text-[10px] text-[#ffb4ab] font-mono">Optional</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-[#869397]" />
+                  <input
+                    type="email"
+                    value={hrEmail}
+                    onChange={(e) => setHrEmail(e.target.value)}
+                    placeholder="e.g. recruiter@company.com"
+                    className="w-full pl-9 pr-3 py-2 bg-[#1a1b22] text-[#e3e1ec] text-[13px] rounded-lg border border-[#3d494c]/40 focus:border-[#4cd7f6] focus:outline-none font-mono transition-colors"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -359,7 +401,10 @@ export default function CVTailorView({ initialJob, onProceedToOutreach }: CVTail
               </button>
 
               <button
-                onClick={() => onProceedToOutreach(jobTitle, company, coverLetter || displaySummary)}
+                onClick={() => {
+                  const resolvedEmail = hrEmail || extractEmailFromText(jdText) || extractEmailFromText(coverLetter);
+                  onProceedToOutreach(jobTitle, company, coverLetter || displaySummary, resolvedEmail);
+                }}
                 className="px-3.5 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-semibold text-xs hover:bg-white transition-all flex items-center gap-1.5 cyan-glow"
               >
                 <span>Proceed to Outreach</span>

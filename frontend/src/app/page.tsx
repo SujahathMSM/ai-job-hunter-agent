@@ -58,6 +58,7 @@ export default function Home() {
       job_title: job.job_title,
       company: job.company,
       location: job.location,
+      hr_email: job.hr_email || "",
       description: job.full_description || job.description,
     });
     setActiveTab("tailor");
@@ -72,7 +73,7 @@ export default function Home() {
     setSelectedOutreachData({
       jobTitle: job.job_title,
       company: job.company,
-      hrEmail: job.hr_email || "careers@company.com",
+      hrEmail: job.hr_email || "",
       context: pitch,
     });
     setActiveTab("outreach");
@@ -83,17 +84,18 @@ export default function Home() {
     setSelectedOutreachData({
       jobTitle: jobTitle,
       company: company,
-      hrEmail: email,
+      hrEmail: email || "",
       context: pitch,
     });
     setActiveTab("outreach");
   };
 
-  const handleTailorToOutreach = (jobTitle: string, company: string, context: string) => {
+  const handleTailorToOutreach = (jobTitle: string, company: string, context: string, hrEmail?: string) => {
+    const finalHrEmail = hrEmail || selectedJobForTailor?.hr_email || "";
     setSelectedOutreachData({
       jobTitle: jobTitle,
       company: company,
-      hrEmail: "",
+      hrEmail: finalHrEmail,
       context: context,
     });
     setActiveTab("outreach");
