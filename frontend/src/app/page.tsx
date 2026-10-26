@@ -14,13 +14,13 @@ import TrackerView from "../components/views/TrackerView";
 import SettingsView from "../components/views/SettingsView";
 import AuthModal from "../components/AuthModal";
 import { fetchProfile, fetchApplications } from "../lib/api";
-import { getStoredUser, AuthUser } from "../lib/auth";
+import { getStoredUser, clearSession, AuthUser } from "../lib/auth";
 import { JobItem } from "../types";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("remote");
-  const [currentUser, setCurrentUser] = useState<AuthUser>(getStoredUser());
-  const [candidateName, setCandidateName] = useState(currentUser.full_name || "M.S. Mohamed Sujahath");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(getStoredUser());
+  const [candidateName, setCandidateName] = useState(currentUser?.full_name || "M.S. Mohamed Sujahath");
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [stats, setStats] = useState({
     matched: 74,
@@ -74,31 +74,45 @@ export default function Home() {
     }
   }, []);
 
-  const loadUserData = (user?: AuthUser) => {
-    const active = user || getStoredUser();
+  const loadUserData = (user?: AuthUser | null) => {
+    const active = user !== undefined ? user : getStoredUser();
     setCurrentUser(active);
-    setCandidateName(active.full_name || "Candidate");
 
-    fetchProfile(active.id)
-      .then((p) => {
-        if (p?.identity?.full_name) {
-          setCandidateName(p.identity.full_name);
-        }
-      })
-      .catch(console.error);
+    if (active) {
+      setCandidateName(active.full_name || "Candidate");
+      fetchProfile(active.id)
+        .then((p) => {
+          if (p?.identity?.full_name) {
+            setCandidateName(p.identity.full_name);
+          }
+        })
+        .catch(console.error);
 
-    fetchApplications(active.id)
-      .then((data) => {
-        const apps = data.applications || [];
-        const sent = apps.filter((a) => a.status === "Applied").length;
-        const drafted = apps.filter((a) => a.status === "Drafted").length;
-        setStats({
-          matched: Math.max(apps.length * 3, 25),
-          tailored: Math.max(drafted + sent, 12),
-          sent: sent,
-        });
-      })
-      .catch(console.error);
+      fetchApplications(active.id)
+        .then((data) => {
+          const apps = data.applications || [];
+          const sent = apps.filter((a) => a.status === "Applied").length;
+          const drafted = apps.filter((a) => a.status === "Drafted").length;
+          setStats({
+            matched: Math.max(apps.length * 3, 25),
+            tailored: Math.max(drafted + sent, 12),
+            sent: sent,
+          });
+        })
+        .catch(console.error);
+    } else {
+      setCandidateName("Guest");
+      setStats({
+        matched: 0,
+        tailored: 0,
+        sent: 0,
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    loadUserData(null);
   };
 
   useEffect(() => {
@@ -180,23 +194,28 @@ export default function Home() {
       {/* Main Workspace */}
       <div className="pl-64 flex flex-col flex-1 h-screen overflow-hidden">
         {/* Top Header */}
-        <Header candidateName={candidateName} onOpenAuth={() => setIsAuthOpen(true)} />
+        <Header
+          candidateName={candidateName}
+          currentUser={currentUser}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onLogout={handleLogout}
+        />
 
         {/* Scrollable View Container (Keeps views mounted so tab switching never wipes search state) */}
         <main className="flex-1 overflow-y-auto">
           <div className={activeTab === "profile" ? "block" : "hidden"}>
-            <ProfileView key={currentUser.id} />
+            <ProfileView key={currentUser?.id || "guest"} />
           </div>
           <div className={activeTab === "hunter" ? "block" : "hidden"}>
             <JobHunterView
-              key={currentUser.id}
+              key={currentUser?.id || "guest"}
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
             />
           </div>
           <div className={activeTab === "remote" ? "block" : "hidden"}>
             <GlobalRemoteJobsView
-              key={currentUser.id}
+              key={currentUser?.id || "guest"}
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
               onSelectForRecruiters={(company, title) => {
@@ -212,17 +231,18 @@ export default function Home() {
           </div>
           <div className={activeTab === "tailor" ? "block" : "hidden"}>
             <CVTailorView
-              key={currentUser.id}
+              key={currentUser?.id || "guest"}
               initialJob={selectedJobForTailor}
               onProceedToOutreach={handleTailorToOutreach}
             />
           </div>
           <div className={activeTab === "outreach" ? "block" : "hidden"}>
             <ColdEmailView
-              key={currentUser.id}
+              key={currentUser?.id || "guest"}
               initialData={selectedOutreachData}
               onSentSuccess={() => {
-                fetchApplications(currentUser.id).then((d) => {
+                const uid = currentUser?.id || "default";
+                fetchApplications(uid).then((d) => {
                   const apps = d.applications || [];
                   setStats((prev) => ({ ...prev, sent: prev.sent + 1 }));
                 });
@@ -233,10 +253,10 @@ export default function Home() {
             <RecruiterFinderView onSelectForOutreach={handleRecruiterOutreach} />
           </div>
           <div className={activeTab === "tracker" ? "block" : "hidden"}>
-            <TrackerView key={currentUser.id} />
+            <TrackerView key={currentUser?.id || "guest"} />
           </div>
           <div className={activeTab === "settings" ? "block" : "hidden"}>
-            <SettingsView key={currentUser.id} />
+            <SettingsView key={currentUser?.id || "guest"} />
           </div>
         </main>
       </div>
@@ -244,8 +264,10 @@ export default function Home() {
       {/* Candidate Auth & Session Switcher Modal */}
       <AuthModal
         isOpen={isAuthOpen}
+        currentUser={currentUser}
         onClose={() => setIsAuthOpen(false)}
         onUserChanged={(user) => loadUserData(user)}
+        onLogout={handleLogout}
       />
     </div>
   );

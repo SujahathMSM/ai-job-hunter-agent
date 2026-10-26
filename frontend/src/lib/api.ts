@@ -262,7 +262,7 @@ export interface UserSettings {
 }
 
 export async function fetchUserSettings(userId?: string): Promise<UserSettings> {
-  const targetId = userId || getStoredUser().id || "default";
+  const targetId = userId || getStoredUser()?.id || "default";
   const res = await fetch(`${API_BASE}/settings/user?user_id=${encodeURIComponent(targetId)}`, {
     headers: { ...getAuthHeaders() }
   });
@@ -334,11 +334,18 @@ export async function fetchGoogleConfig(): Promise<{ google_client_id: string }>
   return res.json();
 }
 
-export async function googleAuth(credential: string, clientId?: string): Promise<{ status: string; user: AuthUser; token: string }> {
+export async function googleAuth(
+  payload: { credential?: string; access_token?: string; client_id?: string } | string,
+  clientId?: string
+): Promise<{ status: string; user: AuthUser; token: string }> {
+  const body = typeof payload === "string" 
+    ? { credential: payload, client_id: clientId } 
+    : { ...payload, client_id: payload.client_id || clientId };
+
   const res = await fetch(`${API_BASE}/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ credential, client_id: clientId }),
+    body: JSON.stringify(body),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || "Google authentication failed");
