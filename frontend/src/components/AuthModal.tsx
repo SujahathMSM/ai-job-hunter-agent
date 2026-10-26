@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, User, Lock, Mail, Users, Check, ArrowRight, UserPlus, LogIn, AlertCircle, Sparkles, LogOut, KeyRound, ExternalLink } from "lucide-react";
+import { X, User, Lock, Mail, Users, Check, ArrowRight, UserPlus, LogIn, AlertCircle, LogOut } from "lucide-react";
 import { AuthUser, getStoredUser, setSession } from "../lib/auth";
-import { loginUser, registerUser, fetchUsersList, switchCandidate, googleAuth, fetchGoogleConfig, saveSettings } from "../lib/api";
+import { loginUser, registerUser, fetchUsersList, switchCandidate, googleAuth, fetchGoogleConfig } from "../lib/api";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -18,16 +18,14 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
   const [usersList, setUsersList] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [googleClientId, setGoogleClientId] = useState<string>("");
+  const [googleClientId, setGoogleClientId] = useState<string>(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""
+  );
 
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-
-  // Google Setup Prompt state
-  const [showGooglePrompt, setShowGooglePrompt] = useState(false);
-  const [customClientId, setCustomClientId] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -37,7 +35,6 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
         .then((cfg) => {
           if (cfg.google_client_id) {
             setGoogleClientId(cfg.google_client_id);
-            setCustomClientId(cfg.google_client_id);
           }
         })
         .catch(() => {});
@@ -115,17 +112,17 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
   };
 
   // Launch the real browser Google account selection popup
-  const handleLaunchGooglePopup = (providedClientId?: string) => {
+  const handleLaunchGooglePopup = () => {
     setError(null);
-    const effectiveClientId = (providedClientId || googleClientId || customClientId || "").trim();
+    const effectiveClientId = (googleClientId || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
 
     if (!effectiveClientId) {
-      setShowGooglePrompt(true);
+      setError("GOOGLE_CLIENT_ID is not configured in your environment.");
       return;
     }
 
     if (typeof window === "undefined" || !(window as any).google?.accounts?.oauth2) {
-      setError("Google Sign-In SDK is loading. Please refresh or try again in a few seconds.");
+      setError("Google Sign-In SDK is still loading. Please try again in a few seconds.");
       return;
     }
 
@@ -153,7 +150,6 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
             });
             setSession(res.user, res.token);
             onUserChanged(res.user);
-            setShowGooglePrompt(false);
             onClose();
           } catch (err: any) {
             setError(err.message || "Failed to authenticate Google account with server.");
@@ -168,25 +164,6 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "Failed to launch Google account popup.");
-    }
-  };
-
-  const handleSaveClientIdAndLaunch = async () => {
-    if (!customClientId.trim()) {
-      setError("Please paste a valid Google OAuth Client ID.");
-      return;
-    }
-    try {
-      setLoading(true);
-      await saveSettings({ GOOGLE_CLIENT_ID: customClientId.trim() });
-      setGoogleClientId(customClientId.trim());
-      setShowGooglePrompt(false);
-      setTimeout(() => {
-        handleLaunchGooglePopup(customClientId.trim());
-      }, 400);
-    } catch (err: any) {
-      setError("Failed to save Google Client ID: " + err.message);
-      setLoading(false);
     }
   };
 
@@ -224,7 +201,7 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
         <div className="flex border-b border-[#3d494c]/20 bg-[#11121b] px-6 pt-2 justify-between items-center">
           <div className="flex">
             <button
-              onClick={() => { setActiveTab("switch"); setError(null); setShowGooglePrompt(false); }}
+              onClick={() => { setActiveTab("switch"); setError(null); }}
               className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
                 activeTab === "switch"
                   ? "border-[#4cd7f6] text-[#4cd7f6]"
@@ -235,7 +212,7 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
               <span>Profiles ({usersList.length})</span>
             </button>
             <button
-              onClick={() => { setActiveTab("login"); setError(null); setShowGooglePrompt(false); }}
+              onClick={() => { setActiveTab("login"); setError(null); }}
               className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
                 activeTab === "login"
                   ? "border-[#4cd7f6] text-[#4cd7f6]"
@@ -246,7 +223,7 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
               <span>Sign In</span>
             </button>
             <button
-              onClick={() => { setActiveTab("register"); setError(null); setShowGooglePrompt(false); }}
+              onClick={() => { setActiveTab("register"); setError(null); }}
               className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
                 activeTab === "register"
                   ? "border-[#4cd7f6] text-[#4cd7f6]"
@@ -389,7 +366,7 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>Continue with Google (Choose Signed-In Account)</span>
+                <span>Continue with Google</span>
               </button>
 
               <div className="flex items-center my-0.5">
@@ -540,73 +517,6 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
             </div>
           )}
         </div>
-
-        {/* GOOGLE CLIENT ID SETUP OVERLAY IF NOT CONFIGURED */}
-        {showGooglePrompt && (
-          <div className="absolute inset-0 bg-[#0d0e15]/95 backdrop-blur-md z-20 flex flex-col p-6 animate-fadeIn justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-[#3d494c]/30">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="w-5 h-5 text-[#4cd7f6]" />
-                  <h3 className="text-sm font-semibold text-[#e3e1ec]">Connect Google OAuth Client</h3>
-                </div>
-                <button
-                  onClick={() => setShowGooglePrompt(false)}
-                  className="p-1 rounded-lg text-[#869397] hover:text-[#e3e1ec]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="mt-4 p-3 rounded-xl bg-[#14151f] border border-[#3d494c]/40 text-xs text-[#bcc9cd] flex flex-col gap-2">
-                <p>
-                  To trigger the official Google account chooser popup, Google requires an OAuth 2.0 Client ID for your domain (<span className="text-[#4cd7f6] font-mono">http://localhost:3000</span>).
-                </p>
-                <div className="flex items-center gap-1.5 text-[11px] text-[#4cd7f6]">
-                  <ExternalLink className="w-3 h-3" />
-                  <a
-                    href="https://console.cloud.google.com/apis/credentials"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                  >
-                    Get free Google OAuth Client ID in Google Cloud Console &rarr;
-                  </a>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-col gap-2">
-                <label className="text-[11px] font-mono uppercase text-[#bcc9cd]">Paste your Google OAuth Client ID</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 123456789-xxxx.apps.googleusercontent.com"
-                  value={customClientId}
-                  onChange={(e) => setCustomClientId(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] text-xs rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4 border-t border-[#3d494c]/20">
-              <button
-                type="button"
-                onClick={() => setShowGooglePrompt(false)}
-                className="w-1/3 py-2 rounded-lg bg-[#292931] text-[#bcc9cd] text-xs font-medium hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={loading || !customClientId.trim()}
-                onClick={handleSaveClientIdAndLaunch}
-                className="w-2/3 py-2 rounded-lg bg-[#4cd7f6] text-[#003640] text-xs font-semibold hover:bg-white flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{loading ? "Connecting..." : "Save & Open Google Popup"}</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
