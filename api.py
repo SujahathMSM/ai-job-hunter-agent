@@ -2,7 +2,9 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from datetime import datetime, timedelta
+import jwt
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -129,25 +131,142 @@ class SynthesizeProfileRequest(BaseModel):
     website_data: Optional[Dict[str, Any]] = None
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class SwitchUserRequest(BaseModel):
+    user_id: str
+
+JWT_SECRET = os.getenv("JWT_SECRET", "nexushunt-production-jwt-auth-secret-key-2026-secure-32chars")
+JWT_ALGORITHM = "HS256"
+
+def create_access_token(user_id: str, email: str) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(days=14)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def get_current_user_id(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None),
+    user_id: Optional[str] = None
+) -> str:
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ")[1].strip()
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            if payload.get("sub"):
+                return payload["sub"]
+        except Exception:
+            pass
+    if x_user_id:
+        return x_user_id.strip()
+    if user_id:
+        return user_id.strip()
+    return "default"
+
+
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "app": "NexusHunt AI", "version": "2.4"}
 
 
+# --- AUTHENTICATION & MULTI-USER SESSIONS ---
+@app.post("/api/auth/register")
+def register(req: RegisterRequest):
+    if not req.email or "@" not in req.email:
+        raise HTTPException(status_code=400, detail="A valid email is required.")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    if not req.full_name or len(req.full_name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Full name is required.")
+
+    tracker = ApplicationTracker()
+    try:
+        user = tracker.create_user(
+            email=req.email,
+            password=req.password,
+            full_name=req.full_name
+        )
+        token = create_access_token(user["id"], user["email"])
+        return {
+            "status": "success",
+            "message": "Candidate account created successfully.",
+            "user": user,
+            "token": token
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    tracker = ApplicationTracker()
+    user = tracker.authenticate_user(req.email, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    
+    token = create_access_token(user["id"], user["email"])
+    return {
+        "status": "success",
+        "message": "Logged in successfully.",
+        "user": user,
+        "token": token
+    }
+
+@app.get("/api/auth/me")
+def get_current_user(current_user_id: str = Depends(get_current_user_id)):
+    tracker = ApplicationTracker()
+    user = tracker.get_user_by_id(current_user_id)
+    if not user:
+        user = tracker.get_user_by_id("default") or {
+            "id": "default",
+            "email": "sujahathmhmd@gmail.com",
+            "full_name": "M.S. Mohamed Sujahath",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    return {"user": user}
+
+@app.get("/api/auth/users")
+def list_available_users():
+    tracker = ApplicationTracker()
+    return {"users": tracker.list_users()}
+
+@app.post("/api/auth/switch")
+def switch_user(req: SwitchUserRequest):
+    tracker = ApplicationTracker()
+    user = tracker.get_user_by_id(req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Candidate account not found.")
+    token = create_access_token(user["id"], user["email"])
+    return {
+        "status": "success",
+        "user": user,
+        "token": token
+    }
+
+
 # --- PROFILE & CV INTAKE ---
 @app.get("/api/profile")
-def get_profile(user_id: str = "default"):
+def get_profile(user_id: str = Depends(get_current_user_id)):
     pb = PersonaBuilder(user_id=user_id)
     return pb.profile
 
 @app.post("/api/profile")
-def update_profile(profile_data: Dict[str, Any], user_id: str = "default"):
+def update_profile(profile_data: Dict[str, Any], user_id: str = Depends(get_current_user_id)):
     pb = PersonaBuilder(user_id=user_id)
     pb.update_profile(profile_data)
     return {"status": "success", "profile": pb.profile}
 
 @app.post("/api/profile/upload-cv")
-async def upload_cv(file: UploadFile = File(...), user_id: str = "default"):
+async def upload_cv(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(file.filename or "cv.pdf").name)
     save_path = UPLOADS_DIR / clean_name
     with open(save_path, "wb") as f:
@@ -239,7 +358,7 @@ def synthesize_profile(req: SynthesizeProfileRequest):
 
 @app.get("/api/profile/download-europass-cv")
 @app.get("/api/cv/download-europass")
-def download_default_europass_cv(user_id: str = "default"):
+def download_default_europass_cv(user_id: str = Depends(get_current_user_id)):
     pb = PersonaBuilder(user_id=user_id)
     builder = PDFResumeBuilder()
     clean_user = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
@@ -435,7 +554,7 @@ def generate_pdf(req: PDFGenRequest):
     )
 
 @app.get("/api/documents/preview")
-def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer", user_id: str = "default"):
+def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer", user_id: str = Depends(get_current_user_id)):
     """Returns or generates on the fly the Europass CV or Cover Letter PDF for preview."""
     import re
     from pathlib import Path
@@ -528,7 +647,7 @@ def send_outreach(req: SendEmailRequest):
 
 # --- APPLICATION TRACKER ---
 @app.get("/api/tracker/applications")
-def list_applications(user_id: str = "default"):
+def list_applications(user_id: str = Depends(get_current_user_id)):
     tracker = ApplicationTracker()
     apps = tracker.list_applications(limit=100, user_id=user_id)
     metrics = tracker.get_metrics(user_id=user_id)
@@ -592,7 +711,7 @@ def update_settings(req: SettingsUpdateRequest):
     return {"status": "success", "updated": list(req.settings.keys())}
 
 @app.get("/api/settings/user")
-def get_user_settings(user_id: str = "default"):
+def get_user_settings(user_id: str = Depends(get_current_user_id)):
     tracker = ApplicationTracker()
     settings = tracker.get_user_settings(user_id)
     has_pw = bool(settings.get("smtp_password"))

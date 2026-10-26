@@ -1,5 +1,9 @@
 import sqlite3
 import json
+import hashlib
+import secrets
+import hmac
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -19,6 +23,15 @@ class ApplicationTracker:
         conn.execute("PRAGMA busy_timeout=5000;")
         return conn
 
+    @staticmethod
+    def _hash_password(password: str, salt: str) -> str:
+        return hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            100000
+        ).hex()
+
     def _init_db(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -32,6 +45,17 @@ class ApplicationTracker:
                     created_at TEXT
                 )
             """)
+
+            # Safe migrations: add password_hash and salt to users
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+            except sqlite3.OperationalError:
+                pass
+
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN salt TEXT")
+            except sqlite3.OperationalError:
+                pass
 
             # 2. Profiles Table (Multi-tenant candidate persona store)
             cursor.execute("""
@@ -94,6 +118,104 @@ class ApplicationTracker:
                 """, (now,))
 
             conn.commit()
+
+    # --- USER AUTHENTICATION & MANAGEMENT ---
+    def create_user(self, email: str, password: str, full_name: str) -> Dict[str, Any]:
+        email = email.strip().lower()
+        full_name = full_name.strip()
+        user_id = f"user_{uuid.uuid4().hex[:8]}"
+        salt = secrets.token_hex(16)
+        pw_hash = self._hash_password(password, salt)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE lower(email) = ?", (email,))
+            if cursor.fetchone():
+                raise ValueError("A candidate account with this email already exists.")
+
+            cursor.execute("""
+                INSERT INTO users (id, email, full_name, password_hash, salt, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (user_id, email, full_name, pw_hash, salt, now))
+            conn.commit()
+
+        # Initialize candidate profile template for this user
+        from ingestion.persona_builder import PersonaBuilder
+        pb = PersonaBuilder(user_id=user_id)
+        prof = pb.get_profile()
+        prof.setdefault("identity", {})
+        prof["identity"]["full_name"] = full_name
+        prof["identity"]["email"] = email
+        pb.update_profile(prof)
+
+        return {
+            "id": user_id,
+            "email": email,
+            "full_name": full_name,
+            "created_at": now
+        }
+
+    def authenticate_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        email = email.strip().lower()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, email, full_name, password_hash, salt, created_at FROM users WHERE lower(email) = ?",
+                (email,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            
+            uid, u_email, name, stored_hash, salt, created_at = row
+            # If user has no password set (e.g. legacy default seed), allow login
+            if not stored_hash or not salt:
+                return {
+                    "id": uid,
+                    "email": u_email,
+                    "full_name": name or "Candidate",
+                    "created_at": created_at
+                }
+
+            calculated_hash = self._hash_password(password, salt)
+            if hmac.compare_digest(calculated_hash, stored_hash):
+                return {
+                    "id": uid,
+                    "email": u_email,
+                    "full_name": name or "Candidate",
+                    "created_at": created_at
+                }
+            return None
+
+    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, email, full_name, created_at FROM users WHERE id = ?", (user_id,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row[0],
+                    "email": row[1],
+                    "full_name": row[2] or "Candidate",
+                    "created_at": row[3]
+                }
+            return None
+
+    def list_users(self) -> List[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, email, full_name, created_at FROM users ORDER BY created_at ASC")
+            rows = cursor.fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "email": r[1],
+                    "full_name": r[2] or "Candidate",
+                    "created_at": r[3]
+                }
+                for r in rows
+            ]
 
     # --- MULTI-TENANT PROFILE CRUD ---
     def get_profile(self, user_id: str = "default") -> Optional[Dict[str, Any]]:

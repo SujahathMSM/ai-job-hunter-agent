@@ -1,17 +1,22 @@
 import { CandidateProfile, JobItem, HiringCompanyLead, ApplicationItem, GlobalRemoteJob } from "../types";
+import { getAuthHeaders, getStoredUser, AuthUser } from "./auth";
 
 const API_BASE = "/api";
 
-export async function fetchProfile(): Promise<CandidateProfile> {
-  const res = await fetch(`${API_BASE}/profile`);
+export async function fetchProfile(userId?: string): Promise<CandidateProfile> {
+  const url = userId ? `${API_BASE}/profile?user_id=${encodeURIComponent(userId)}` : `${API_BASE}/profile`;
+  const res = await fetch(url, {
+    headers: { ...getAuthHeaders() }
+  });
   if (!res.ok) throw new Error("Failed to fetch profile");
   return res.json();
 }
 
-export async function saveProfile(profile: CandidateProfile): Promise<any> {
-  const res = await fetch(`${API_BASE}/profile`, {
+export async function saveProfile(profile: CandidateProfile, userId?: string): Promise<any> {
+  const url = userId ? `${API_BASE}/profile?user_id=${encodeURIComponent(userId)}` : `${API_BASE}/profile`;
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(profile),
   });
   if (!res.ok) throw new Error("Failed to save profile");
@@ -209,8 +214,11 @@ export async function sendEmail(payload: {
   return data;
 }
 
-export async function fetchApplications(): Promise<{ metrics: any; applications: ApplicationItem[] }> {
-  const res = await fetch(`${API_BASE}/tracker/applications`);
+export async function fetchApplications(userId?: string): Promise<{ metrics: any; applications: ApplicationItem[] }> {
+  const url = userId ? `${API_BASE}/tracker/applications?user_id=${encodeURIComponent(userId)}` : `${API_BASE}/tracker/applications`;
+  const res = await fetch(url, {
+    headers: { ...getAuthHeaders() }
+  });
   if (!res.ok) throw new Error("Failed to fetch applications");
   return res.json();
 }
@@ -218,7 +226,7 @@ export async function fetchApplications(): Promise<{ metrics: any; applications:
 export async function updateAppStatus(id: number, newStatus: string): Promise<any> {
   const res = await fetch(`${API_BASE}/tracker/update-status`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ application_id: id, new_status: newStatus }),
   });
   if (!res.ok) throw new Error("Failed to update status");
@@ -226,7 +234,9 @@ export async function updateAppStatus(id: number, newStatus: string): Promise<an
 }
 
 export async function fetchSettings(): Promise<any> {
-  const res = await fetch(`${API_BASE}/settings`);
+  const res = await fetch(`${API_BASE}/settings`, {
+    headers: { ...getAuthHeaders() }
+  });
   if (!res.ok) throw new Error("Failed to fetch settings");
   return res.json();
 }
@@ -234,7 +244,7 @@ export async function fetchSettings(): Promise<any> {
 export async function saveSettings(settings: Record<string, string>): Promise<any> {
   const res = await fetch(`${API_BASE}/settings`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ settings }),
   });
   if (!res.ok) throw new Error("Failed to update settings");
@@ -251,8 +261,11 @@ export interface UserSettings {
   sender_name?: string;
 }
 
-export async function fetchUserSettings(userId: string = "default"): Promise<UserSettings> {
-  const res = await fetch(`${API_BASE}/settings/user?user_id=${encodeURIComponent(userId)}`);
+export async function fetchUserSettings(userId?: string): Promise<UserSettings> {
+  const targetId = userId || getStoredUser().id || "default";
+  const res = await fetch(`${API_BASE}/settings/user?user_id=${encodeURIComponent(targetId)}`, {
+    headers: { ...getAuthHeaders() }
+  });
   if (!res.ok) throw new Error("Failed to fetch user settings");
   return res.json();
 }
@@ -260,11 +273,59 @@ export async function fetchUserSettings(userId: string = "default"): Promise<Use
 export async function saveUserSettings(settings: UserSettings): Promise<any> {
   const res = await fetch(`${API_BASE}/settings/user`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(settings),
   });
   if (!res.ok) throw new Error("Failed to save user settings");
   return res.json();
+}
+
+// --- AUTHENTICATION & MULTI-USER API ---
+export async function loginUser(email: string, password: string): Promise<{ status: string; user: AuthUser; token: string }> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Invalid login credentials");
+  return data;
+}
+
+export async function registerUser(email: string, password: string, fullName: string): Promise<{ status: string; user: AuthUser; token: string }> {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, full_name: fullName }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Registration failed");
+  return data;
+}
+
+export async function fetchMe(): Promise<{ user: AuthUser }> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch current user");
+  return res.json();
+}
+
+export async function fetchUsersList(): Promise<{ users: AuthUser[] }> {
+  const res = await fetch(`${API_BASE}/auth/users`);
+  if (!res.ok) throw new Error("Failed to fetch user list");
+  return res.json();
+}
+
+export async function switchCandidate(userId: string): Promise<{ status: string; user: AuthUser; token: string }> {
+  const res = await fetch(`${API_BASE}/auth/switch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Failed to switch candidate");
+  return data;
 }
 
 export interface CareerPortalItem {

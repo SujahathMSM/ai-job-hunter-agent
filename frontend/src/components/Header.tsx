@@ -1,14 +1,15 @@
 "use client";
 
 import React from "react";
-import { Search, StopCircle, Rocket, Bell, SlidersHorizontal } from "lucide-react";
+import { Search, StopCircle, Rocket, Users, ChevronDown } from "lucide-react";
 
 interface HeaderProps {
   onSearch?: (term: string) => void;
   candidateName: string;
+  onOpenAuth?: () => void;
 }
 
-export default function Header({ candidateName }: HeaderProps) {
+export default function Header({ candidateName, onOpenAuth }: HeaderProps) {
   return (
     <header className="sticky top-0 right-0 w-full z-30 flex justify-between items-center h-14 px-6 border-b border-[#3d494c]/30 bg-[#0d0e15]/90 backdrop-blur-md specular-border">
       {/* Search Bar */}
@@ -40,15 +41,25 @@ export default function Header({ candidateName }: HeaderProps) {
 
         <div className="h-4 w-px bg-[#3d494c]/40 mx-1"></div>
 
-        {/* Candidate Profile Avatar */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#06b6d4] to-[#00a572] flex items-center justify-center font-bold text-xs text-[#003640]">
+        {/* Candidate Profile Avatar & Account Switcher */}
+        <button
+          onClick={onOpenAuth}
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[#14151f] border border-[#3d494c]/40 hover:border-[#4cd7f6]/60 hover:bg-[#1a1b26] transition-all group"
+          title="Switch candidate profile or sign in"
+        >
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#06b6d4] to-[#00a572] flex items-center justify-center font-bold text-xs text-[#003640] shadow-sm">
             {candidateName.split(" ").map((n) => n[0]).slice(0, 2).join("") || "MS"}
           </div>
-          <span className="text-[12px] text-[#e3e1ec] font-medium hidden sm:inline">
-            {candidateName || "Candidate"}
-          </span>
-        </div>
+          <div className="flex flex-col text-left">
+            <span className="text-[12px] text-[#e3e1ec] font-medium group-hover:text-[#4cd7f6] transition-colors line-clamp-1 max-w-[130px]">
+              {candidateName || "Candidate"}
+            </span>
+            <span className="text-[9px] text-[#869397] font-mono flex items-center gap-1">
+              <Users className="w-2.5 h-2.5" /> Switch
+            </span>
+          </div>
+          <ChevronDown className="w-3.5 h-3.5 text-[#869397] group-hover:text-[#4cd7f6] transition-colors ml-0.5" />
+        </button>
       </div>
     </header>
   );
