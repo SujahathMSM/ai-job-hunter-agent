@@ -13,6 +13,7 @@ interface HeaderProps {
 }
 
 export default function Header({ candidateName, currentUser, onOpenAuth, onLogout }: HeaderProps) {
+  const isDev = process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_APP_ENV !== "production";
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -87,23 +88,27 @@ export default function Header({ candidateName, currentUser, onOpenAuth, onLogou
                 </div>
 
                 <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setDropdownOpen(false);
-                      onOpenAuth?.();
-                    }}
-                    className="w-full px-3.5 py-2 text-left text-xs text-[#e3e1ec] hover:bg-[#1f212f] hover:text-[#4cd7f6] flex items-center gap-2 transition-colors"
-                  >
-                    <Users className="w-3.5 h-3.5 text-[#4cd7f6]" />
-                    <span>Switch Candidate Account</span>
-                  </button>
+                  {isDev && (
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        onOpenAuth?.();
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-xs text-[#e3e1ec] hover:bg-[#1f212f] hover:text-[#4cd7f6] flex items-center gap-2 transition-colors"
+                    >
+                      <Users className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                      <span>Dev: Switch Profile</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {
                       setDropdownOpen(false);
                       onLogout?.();
                     }}
-                    className="w-full px-3.5 py-2 text-left text-xs text-[#ffb4ab] hover:bg-[#93000a]/20 flex items-center gap-2 transition-colors border-t border-[#3d494c]/20"
+                    className={`w-full px-3.5 py-2 text-left text-xs text-[#ffb4ab] hover:bg-[#93000a]/20 flex items-center gap-2 transition-colors ${
+                      isDev ? "border-t border-[#3d494c]/20" : ""
+                    }`}
                   >
                     <LogOut className="w-3.5 h-3.5 text-[#ffb4ab]" />
                     <span>Log Out</span>

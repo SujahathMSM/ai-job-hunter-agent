@@ -14,7 +14,8 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged, onLogout }: AuthModalProps) {
-  const [activeTab, setActiveTab] = useState<"switch" | "login" | "register">("switch");
+  const isDev = process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_APP_ENV !== "production";
+  const [activeTab, setActiveTab] = useState<"login" | "register" | "switch">("login");
   const [usersList, setUsersList] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,9 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
 
   useEffect(() => {
     if (isOpen) {
-      loadUsers();
+      if (isDev) {
+        loadUsers();
+      }
       setError(null);
       fetchGoogleConfig()
         .then((cfg) => {
@@ -39,7 +42,7 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
         })
         .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, isDev]);
 
   const loadUsers = async () => {
     try {
@@ -182,11 +185,23 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#3d494c]/30 bg-[#14151f]">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#06b6d4] to-[#00a572] flex items-center justify-center text-[#003640] font-bold text-xs shadow-md">
-              <User className="w-4 h-4" />
+              {activeTab === "login" ? <LogIn className="w-4 h-4" /> : activeTab === "register" ? <UserPlus className="w-4 h-4" /> : <Users className="w-4 h-4" />}
             </div>
             <div>
-              <h2 className="text-[16px] font-semibold text-[#e3e1ec]">Candidate Session &amp; Accounts</h2>
-              <p className="text-[11px] text-[#869397]">Multi-tenant profile switcher, real Google popup &amp; login</p>
+              <h2 className="text-[16px] font-semibold text-[#e3e1ec]">
+                {activeTab === "login"
+                  ? "Sign In"
+                  : activeTab === "register"
+                  ? "Create Candidate Account"
+                  : "Dev Candidate Switcher"}
+              </h2>
+              <p className="text-[11px] text-[#869397]">
+                {activeTab === "login"
+                  ? "Sign in with Google or your candidate credentials"
+                  : activeTab === "register"
+                  ? "Instant 1-click Google sign up or email registration"
+                  : "Local development multi-candidate switcher"}
+              </p>
             </div>
           </div>
           <button
@@ -199,21 +214,10 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
 
         {/* Navigation Tabs */}
         <div className="flex border-b border-[#3d494c]/20 bg-[#11121b] px-6 pt-2 justify-between items-center">
-          <div className="flex">
-            <button
-              onClick={() => { setActiveTab("switch"); setError(null); }}
-              className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
-                activeTab === "switch"
-                  ? "border-[#4cd7f6] text-[#4cd7f6]"
-                  : "border-transparent text-[#869397] hover:text-[#bcc9cd]"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Profiles ({usersList.length})</span>
-            </button>
+          <div className="flex items-center">
             <button
               onClick={() => { setActiveTab("login"); setError(null); }}
-              className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
+              className={`pb-2.5 px-3.5 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
                 activeTab === "login"
                   ? "border-[#4cd7f6] text-[#4cd7f6]"
                   : "border-transparent text-[#869397] hover:text-[#bcc9cd]"
@@ -224,15 +228,34 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
             </button>
             <button
               onClick={() => { setActiveTab("register"); setError(null); }}
-              className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
+              className={`pb-2.5 px-3.5 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
                 activeTab === "register"
                   ? "border-[#4cd7f6] text-[#4cd7f6]"
                   : "border-transparent text-[#869397] hover:text-[#bcc9cd]"
               }`}
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>New Candidate</span>
+              <span>Create Account</span>
             </button>
+
+            {/* Development-Only Switcher Tab */}
+            {isDev && (
+              <button
+                onClick={() => { setActiveTab("switch"); setError(null); }}
+                className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition-all flex items-center gap-1.5 ${
+                  activeTab === "switch"
+                    ? "border-[#f2a33a] text-[#f2a33a]"
+                    : "border-transparent text-[#869397] hover:text-[#bcc9cd]"
+                }`}
+                title="Visible in local development environment only"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Dev Profiles ({usersList.length})</span>
+                <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-[#f2a33a]/20 text-[#f2a33a] border border-[#f2a33a]/30">
+                  DEV
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Direct Log Out Button */}
@@ -258,11 +281,16 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
 
         {/* Content Body */}
         <div className="p-6">
-          {/* TAB 1: QUICK SWITCH CANDIDATE PROFILE */}
-          {activeTab === "switch" && (
+          {/* TAB 1: QUICK SWITCH CANDIDATE PROFILE (LOCAL DEV ONLY) */}
+          {isDev && activeTab === "switch" && (
             <div className="flex flex-col gap-3">
+              <div className="p-2.5 rounded-xl bg-[#f2a33a]/10 border border-[#f2a33a]/30 text-[#f2a33a] text-xs flex items-center justify-between">
+                <span className="font-medium">Local Dev Mode Active</span>
+                <span className="text-[10px] font-mono opacity-80">Hidden in production</span>
+              </div>
+
               <p className="text-xs text-[#bcc9cd] mb-1">
-                Select an active candidate account. Applications, Europass CVs, and SMTP credentials remain completely isolated per candidate:
+                Local test accounts. In production, this switcher is disabled and candidates are completely isolated:
               </p>
 
               <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
@@ -332,7 +360,7 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
                   className="text-[#869397] hover:text-[#e3e1ec] flex items-center gap-1 text-xs"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  <span>Register new account</span>
+                  <span>Create new account</span>
                 </button>
               </div>
             </div>
@@ -417,6 +445,17 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
                   </button>
                 </div>
               </form>
+
+              <div className="pt-2 border-t border-[#3d494c]/20 text-center text-xs text-[#869397]">
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab("register"); setError(null); }}
+                  className="text-[#4cd7f6] hover:underline font-semibold ml-1 cursor-pointer"
+                >
+                  Create one here &rarr;
+                </button>
+              </div>
             </div>
           )}
 
@@ -514,6 +553,17 @@ export default function AuthModal({ isOpen, currentUser, onClose, onUserChanged,
                   </button>
                 </div>
               </form>
+
+              <div className="pt-2 border-t border-[#3d494c]/20 text-center text-xs text-[#869397]">
+                Already registered?{" "}
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab("login"); setError(null); }}
+                  className="text-[#4cd7f6] hover:underline font-semibold ml-1 cursor-pointer"
+                >
+                  Sign in &rarr;
+                </button>
+              </div>
             </div>
           )}
         </div>

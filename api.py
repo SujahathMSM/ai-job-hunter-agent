@@ -151,6 +151,10 @@ class SwitchUserRequest(BaseModel):
 JWT_SECRET = os.getenv("JWT_SECRET", "nexushunt-production-jwt-auth-secret-key-2026-secure-32chars")
 JWT_ALGORITHM = "HS256"
 
+def is_production_mode() -> bool:
+    env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").lower().strip()
+    return env in ["production", "prod"]
+
 def create_access_token(user_id: str, email: str) -> str:
     payload = {
         "sub": user_id,
@@ -164,6 +168,7 @@ def get_current_user_id(
     x_user_id: Optional[str] = Header(None),
     user_id: Optional[str] = None
 ) -> str:
+    # 1. Primary: Cryptographically verified JWT token
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ")[1].strip()
         try:
@@ -171,7 +176,17 @@ def get_current_user_id(
             if payload.get("sub"):
                 return payload["sub"]
         except Exception:
-            pass
+            if is_production_mode():
+                raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in again.")
+
+    # 2. In production, unauthenticated clients cannot spoof or read another candidate's private data
+    if is_production_mode():
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please sign in to access candidate profile and records."
+        )
+
+    # 3. Development Fallback (Local Dev Only)
     if x_user_id:
         return x_user_id.strip()
     if user_id:
@@ -241,11 +256,21 @@ def get_current_user(current_user_id: str = Depends(get_current_user_id)):
 
 @app.get("/api/auth/users")
 def list_available_users():
+    if is_production_mode():
+        raise HTTPException(
+            status_code=403,
+            detail="Candidate directory listing is strictly disabled in production for candidate privacy."
+        )
     tracker = ApplicationTracker()
     return {"users": tracker.list_users()}
 
 @app.post("/api/auth/switch")
 def switch_user(req: SwitchUserRequest):
+    if is_production_mode():
+        raise HTTPException(
+            status_code=403,
+            detail="Arbitrary candidate switching is strictly disabled in production. Please sign in with your credentials."
+        )
     tracker = ApplicationTracker()
     user = tracker.get_user_by_id(req.user_id)
     if not user:
@@ -815,9 +840,10 @@ def get_user_settings(user_id: str = Depends(get_current_user_id)):
     }
 
 @app.post("/api/settings/user")
-def save_user_settings(req: UserSettingsRequest):
+def save_user_settings(req: UserSettingsRequest, current_user_id: str = Depends(get_current_user_id)):
+    target_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
     tracker = ApplicationTracker()
-    existing = tracker.get_user_settings(req.user_id)
+    existing = tracker.get_user_settings(target_id)
     pw_to_save = (req.smtp_password or "").strip()
     if not pw_to_save or pw_to_save.startswith("****"):
         pw_to_save = existing.get("smtp_password", "")
@@ -829,10 +855,10 @@ def save_user_settings(req: UserSettingsRequest):
         "smtp_password": pw_to_save,
         "sender_name": (req.sender_name or "").strip()
     }
-    tracker.save_user_settings(req.user_id, data)
+    tracker.save_user_settings(target_id, data)
     return {
         "status": "success",
-        "user_id": req.user_id,
+        "user_id": target_id,
         "settings": {
             **data,
             "smtp_password": ("*" * 8) if pw_to_save else "",
