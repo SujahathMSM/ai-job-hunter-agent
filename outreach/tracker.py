@@ -217,6 +217,46 @@ class ApplicationTracker:
                 for r in rows
             ]
 
+    def get_or_create_google_user(self, email: str, full_name: str, google_id: str = "") -> Dict[str, Any]:
+        email = email.strip().lower()
+        full_name = full_name.strip() or email.split("@")[0]
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, email, full_name, created_at FROM users WHERE lower(email) = ?", (email,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": row[0],
+                    "email": row[1],
+                    "full_name": row[2] or full_name,
+                    "created_at": row[3]
+                }
+
+            user_id = f"user_{uuid.uuid4().hex[:8]}"
+            cursor.execute("""
+                INSERT INTO users (id, email, full_name, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, email, full_name, now))
+            conn.commit()
+
+        # Seed initial candidate profile
+        from ingestion.persona_builder import PersonaBuilder
+        pb = PersonaBuilder(user_id=user_id)
+        prof = pb.get_profile()
+        prof.setdefault("identity", {})
+        prof["identity"]["full_name"] = full_name
+        prof["identity"]["email"] = email
+        pb.update_profile(prof)
+
+        return {
+            "id": user_id,
+            "email": email,
+            "full_name": full_name,
+            "created_at": now
+        }
+
     # --- MULTI-TENANT PROFILE CRUD ---
     def get_profile(self, user_id: str = "default") -> Optional[Dict[str, Any]]:
         with self._get_connection() as conn:

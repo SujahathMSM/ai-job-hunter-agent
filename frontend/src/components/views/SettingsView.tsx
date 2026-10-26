@@ -11,6 +11,7 @@ export default function SettingsView() {
   const [anthropicKey, setAnthropicKey] = useState("");
   const [hunterKey, setHunterKey] = useState("");
   const [apolloKey, setApolloKey] = useState("");
+  const [googleClientId, setGoogleClientId] = useState("");
   const [provider, setProvider] = useState("gemini");
   const [safeMode, setSafeMode] = useState("True");
 
@@ -55,6 +56,7 @@ export default function SettingsView() {
     if (anthropicKey) payload["ANTHROPIC_API_KEY"] = anthropicKey;
     if (hunterKey) payload["HUNTER_API_KEY"] = hunterKey;
     if (apolloKey) payload["APOLLO_API_KEY"] = apolloKey;
+    if (googleClientId) payload["GOOGLE_CLIENT_ID"] = googleClientId;
 
     await saveSettings(payload);
 
@@ -173,6 +175,20 @@ export default function SettingsView() {
                 onChange={(e) => setApolloKey(e.target.value)}
                 className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none font-mono"
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-[#bcc9cd] block mb-1">Google OAuth Client ID (Optional for Google Sign In)</label>
+              <input
+                type="text"
+                placeholder="e.g. 123456789-xxxxxx.apps.googleusercontent.com"
+                value={googleClientId}
+                onChange={(e) => setGoogleClientId(e.target.value)}
+                className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-[#869397] mt-1 block">
+                From Google Cloud Console &gt; APIs &amp; Services &gt; Credentials &gt; OAuth 2.0 Client IDs.
+              </span>
             </div>
           </div>
         </div>

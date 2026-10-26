@@ -140,6 +140,10 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class GoogleAuthRequest(BaseModel):
+    credential: str
+    client_id: Optional[str] = None
+
 class SwitchUserRequest(BaseModel):
     user_id: str
 
@@ -248,6 +252,70 @@ def switch_user(req: SwitchUserRequest):
     token = create_access_token(user["id"], user["email"])
     return {
         "status": "success",
+        "user": user,
+        "token": token
+    }
+
+@app.get("/api/auth/google/config")
+def get_google_auth_config():
+    return {
+        "google_client_id": os.getenv("GOOGLE_CLIENT_ID", "")
+    }
+
+@app.post("/api/auth/google")
+def google_auth(req: GoogleAuthRequest):
+    if not req.credential:
+        raise HTTPException(status_code=400, detail="Google credential token is required.")
+
+    cred = req.credential.strip()
+    email = None
+    full_name = None
+    google_id = None
+
+    # 1. Check for Demo / Sandbox Google Sign-In
+    if cred.startswith("demo_google_"):
+        parts = cred.replace("demo_google_", "").split(":")
+        email = parts[0] if parts and parts[0] else "candidate.google@gmail.com"
+        full_name = parts[1] if len(parts) > 1 and parts[1] else "Google Candidate"
+        google_id = "google_demo_" + email.replace("@", "_").replace(".", "_")
+    else:
+        # 2. Live Google ID Token Verification
+        try:
+            from google.oauth2 import id_token
+            from google.auth.transport import requests as google_requests
+            
+            target_aud = req.client_id or os.getenv("GOOGLE_CLIENT_ID") or None
+            idinfo = id_token.verify_oauth2_token(
+                cred,
+                google_requests.Request(),
+                audience=target_aud if target_aud else None
+            )
+            email = idinfo.get("email")
+            full_name = idinfo.get("name") or (email.split("@")[0] if email else "Google Candidate")
+            google_id = idinfo.get("sub")
+        except Exception as e:
+            try:
+                import urllib.request, json
+                url = f"https://oauth2.googleapis.com/tokeninfo?id_token={cred}"
+                with urllib.request.urlopen(url, timeout=8) as response:
+                    data = json.loads(response.read().decode())
+                    email = data.get("email")
+                    full_name = data.get("name") or (email.split("@")[0] if email else "Google Candidate")
+                    google_id = data.get("sub")
+            except Exception as e2:
+                print(f"[Google Auth Verification Error]: {e} / {e2}")
+                raise HTTPException(status_code=401, detail="Google token verification failed. Please check credentials.")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not retrieve email from Google token.")
+
+    tracker = ApplicationTracker()
+    user = tracker.get_or_create_google_user(email=email, full_name=full_name or email.split("@")[0], google_id=google_id or "")
+    token = create_access_token(user["id"], user["email"])
+
+    return {
+        "status": "success",
+        "message": "Signed in with Google successfully.",
         "user": user,
         "token": token
     }

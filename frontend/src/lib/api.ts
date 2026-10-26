@@ -328,6 +328,23 @@ export async function switchCandidate(userId: string): Promise<{ status: string;
   return data;
 }
 
+export async function fetchGoogleConfig(): Promise<{ google_client_id: string }> {
+  const res = await fetch(`${API_BASE}/auth/google/config`);
+  if (!res.ok) throw new Error("Failed to fetch Google auth config");
+  return res.json();
+}
+
+export async function googleAuth(credential: string, clientId?: string): Promise<{ status: string; user: AuthUser; token: string }> {
+  const res = await fetch(`${API_BASE}/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential, client_id: clientId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Google authentication failed");
+  return data;
+}
+
 export interface CareerPortalItem {
   id: number;
   name: string;
