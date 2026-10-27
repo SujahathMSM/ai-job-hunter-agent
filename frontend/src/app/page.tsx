@@ -20,7 +20,7 @@ import { JobItem } from "../types";
 export default function Home() {
   const [activeTab, setActiveTab] = useState("remote");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(getStoredUser());
-  const [candidateName, setCandidateName] = useState(currentUser?.full_name || "M.S. Mohamed Sujahath");
+  const [candidateName, setCandidateName] = useState(currentUser?.full_name || "Candidate");
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [stats, setStats] = useState({
     matched: 74,
@@ -120,7 +120,9 @@ export default function Home() {
   }, []);
 
   const buildDefaultPitch = (jobTitle: string, company: string): string => {
-    return `Dear ${company} Hiring Team,\n\nI am writing to express my enthusiastic interest in the ${jobTitle} opening at ${company}.\n\nAs a production-tested Backend Software Engineer with a BScEngHons from the University of Moratuwa (Sri Lanka's premier engineering institution), I specialize in high-throughput microservices, distributed data architectures, and PostgreSQL/TimescaleDB optimization. In my current engineering role at Blue Brand IP Institute, I overhauled asynchronous data pipelines, reducing polling failures from 80% to 0% and slashing system startup times by 90%.\n\nI am based in Sri Lanka and 100% prepared for immediate international relocation with zero onboarding delay.\n\nPlease find my attached Europass CV for your review. I would welcome the opportunity to discuss how my background can immediately drive value for ${company}.\n\nSincerely,\nM.S. Mohamed Sujahath\n+971 50 229 1865 | sujahathmhmd@gmail.com\nlinkedin.com/in/mohamed-sujahath | github.com/SujahathMSM`;
+    const name = currentUser?.full_name || candidateName || "Candidate";
+    const email = currentUser?.email || "";
+    return `Dear ${company} Hiring Team,\n\nI am writing to express my enthusiastic interest in the ${jobTitle} opening at ${company}.\n\nWith hands-on software engineering experience architecting scalable systems and delivering measurable production results, I am eager to contribute to ${company}'s technical initiatives.\n\nI am prepared for immediate international relocation and seamless onboarding.\n\nPlease find my attached Europass CV for your review. I would welcome the opportunity to discuss how my background can immediately drive value for ${company}.\n\nSincerely,\n${name}${email ? `\n${email}` : ""}`;
   };
 
   const handleSelectForTailor = (job: JobItem) => {

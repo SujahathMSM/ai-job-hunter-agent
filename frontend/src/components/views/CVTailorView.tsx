@@ -325,10 +325,10 @@ export default function CVTailorView({ initialJob, onProceedToOutreach }: CVTail
               <span className="text-[11px] font-mono uppercase text-[#4edea3] flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-[#4edea3]" /> Master Candidate Credentials
               </span>
-              <span className="text-[10px] font-mono text-[#4cd7f6]">University of Moratuwa</span>
+              <span className="text-[10px] font-mono text-[#4cd7f6]">{baseProfile?.education?.[0]?.details || "Engineering Profile"}</span>
             </div>
             <div className="text-[12px] text-[#bcc9cd] leading-normal">
-              Candidate: <strong className="text-[#e3e1ec]">{candidateIdentity.full_name}</strong> (BScEngHons). Specializes in high-throughput Python/FastAPI microservices, TimescaleDB, and RAG architectures.
+              Candidate: <strong className="text-[#e3e1ec]">{candidateIdentity.full_name}</strong>. {displayTitle ? `Role alignment: ${displayTitle}.` : "Tailored for production software engineering."}
             </div>
           </div>
 

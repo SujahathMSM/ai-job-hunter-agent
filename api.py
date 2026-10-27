@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -396,9 +397,9 @@ async def upload_cv(file: UploadFile = File(...), user_id: str = Depends(get_cur
     return {"status": "success", "extracted": extracted, "profile": pb.profile}
 
 @app.post("/api/profile/upload-multiple-cvs")
-async def upload_multiple_cvs(files: List[UploadFile] = File(...)):
+async def upload_multiple_cvs(files: List[UploadFile] = File(...), user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     saved_paths = []
     for idx, f in enumerate(files):
         clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(f.filename or f"cv_{idx}.pdf").name)
@@ -411,9 +412,9 @@ async def upload_multiple_cvs(files: List[UploadFile] = File(...)):
     return {"status": "success", "count": len(parsed), "cvs": parsed}
 
 @app.post("/api/profile/upload-chat-history")
-async def upload_chat_history(files: List[UploadFile] = File(...)):
+async def upload_chat_history(files: List[UploadFile] = File(...), user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     all_insights = []
     for idx, f in enumerate(files):
         clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(f.filename or f"chat_{idx}.json").name)
@@ -425,23 +426,23 @@ async def upload_chat_history(files: List[UploadFile] = File(...)):
     return {"status": "success", "count": len(all_insights), "insights": all_insights}
 
 @app.post("/api/profile/parse-github")
-def parse_github(req: GitHubParseRequest):
+def parse_github(req: GitHubParseRequest, user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     data = engine.parse_github_profile(req.url_or_username)
     return {"status": "success", "github": data}
 
 @app.post("/api/profile/parse-linkedin")
-def parse_linkedin(req: LinkedInParseRequest):
+def parse_linkedin(req: LinkedInParseRequest, user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     data = engine.parse_linkedin_text_or_url(req.linkedin_url, req.raw_text or "")
     return {"status": "success", "linkedin": data, "profile": engine.persona_builder.profile}
 
 @app.post("/api/profile/upload-linkedin-pdf")
-async def upload_linkedin_pdf(file: UploadFile = File(...)):
+async def upload_linkedin_pdf(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', Path(file.filename or "export.pdf").name)
     save_path = UPLOADS_DIR / f"linkedin_{clean_name}"
     with open(save_path, "wb") as out:
@@ -450,16 +451,16 @@ async def upload_linkedin_pdf(file: UploadFile = File(...)):
     return {"status": "success", "linkedin": data, "profile": engine.persona_builder.profile}
 
 @app.post("/api/profile/parse-website")
-def parse_website(req: WebsiteParseRequest):
+def parse_website(req: WebsiteParseRequest, user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     data = engine.scrape_personal_website(req.website_url)
     return {"status": "success", "website": data}
 
 @app.post("/api/profile/synthesize")
-def synthesize_profile(req: SynthesizeProfileRequest):
+def synthesize_profile(req: SynthesizeProfileRequest, user_id: str = Depends(get_current_user_id)):
     from ingestion.intake_engine import IntakeEngine
-    engine = IntakeEngine()
+    engine = IntakeEngine(user_id=user_id)
     updated = engine.synthesize_master_profile(
         cv_data_list=req.cv_sources or [],
         chat_insights=req.chat_sources or [],
@@ -612,8 +613,8 @@ def find_hr_by_company(req: CompanyHRSearchRequest):
 
 # --- AI CV & COVER LETTER TAILOR ---
 @app.post("/api/cv/tailor")
-def tailor_cv(req: TailorRequest):
-    user_id = req.user_id or "default"
+def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
     pb = PersonaBuilder(user_id=user_id)
     tailorer = ResumeTailorer(pb.profile)
     cl_gen = CoverLetterGenerator(pb.profile)
@@ -632,7 +633,6 @@ def tailor_cv(req: TailorRequest):
         jd_text=req.jd_text
     )
 
-    import re
     safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', req.company).strip('_') or "Company"
     clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
     try:
@@ -669,11 +669,6 @@ def generate_pdf(req: PDFGenRequest):
 @app.get("/api/documents/preview")
 def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer", user_id: str = Depends(get_current_user_id)):
     """Returns or generates on the fly the Europass CV or Cover Letter PDF for preview."""
-    import re
-    from pathlib import Path
-    from generators.pdf_builder import PDFResumeBuilder
-    from ingestion.persona_builder import PersonaBuilder
-    
     try:
         GENERATED_DIR.mkdir(parents=True, exist_ok=True)
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
@@ -692,28 +687,12 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
             )
         else:
             out_file = GENERATED_DIR / f"Cover_Letter_{clean_uid}_{safe_comp}.pdf"
-            # Always build fresh tailored cover letter for company and job title
-            ident = pb.profile.get("identity", {})
-            full_name = ident.get("full_name") or "M.S. Mohamed Sujahath"
-            phone = ident.get("phone") or "+971 50 229 1865"
-            email = ident.get("email") or "sujahathmhmd@gmail.com"
-            linkedin = ident.get("linkedin") or "linkedin.com/in/mohamed-sujahath"
-            github = ident.get("github") or "github.com/SujahathMSM"
-            
-            cl_text = (
-                f"Dear {company} Hiring Team,\n\n"
-                f"I am writing to express my enthusiastic interest in the {job_title} opening at {company}.\n\n"
-                f"As a production-tested Backend Software Engineer with a BScEngHons from the University of Moratuwa "
-                f"(Sri Lanka's premier engineering institution), I specialize in high-throughput microservices, "
-                f"distributed data architectures, and PostgreSQL/TimescaleDB optimization.\n\n"
-                f"In my current engineering role at Blue Brand IP Institute, I overhauled asynchronous data pipelines, "
-                f"reducing polling failures from 80% to 0% and slashing system startup times by 90%.\n\n"
-                f"I am based in Sri Lanka and 100% prepared for immediate international relocation with zero onboarding delay.\n\n"
-                f"Please find my attached Europass CV for your review. I look forward to discussing how my experience will add value to {company}.\n\n"
-                f"Sincerely,\n"
-                f"{full_name}\n"
-                f"{phone} | {email}\n"
-                f"{linkedin} | {github}"
+            cl_gen = CoverLetterGenerator(pb.profile)
+            cl_text = cl_gen.generate(
+                job_title=job_title,
+                company=company,
+                location="International / Remote",
+                jd_text=""
             )
             pdf_gen.build_cover_letter_pdf(cl_text, pb.profile, out_file)
             return FileResponse(
@@ -728,8 +707,9 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
 
 # --- OUTREACH & EMAIL DISPATCHER ---
 @app.post("/api/outreach/draft")
-def draft_outreach(req: OutreachDraftRequest):
-    pb = PersonaBuilder(user_id=req.user_id or "default")
+def draft_outreach(req: OutreachDraftRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+    pb = PersonaBuilder(user_id=user_id)
     cl_gen = CoverLetterGenerator(pb.profile)
     subject, body = cl_gen.generate_recruiter_email(
         job_title=req.job_title,
@@ -740,7 +720,8 @@ def draft_outreach(req: OutreachDraftRequest):
     return {"subject": subject, "body": body, "to_email": req.hr_email}
 
 @app.post("/api/outreach/send")
-def send_outreach(req: SendEmailRequest):
+def send_outreach(req: SendEmailRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
     dispatcher = EmailDispatcher()
     result = dispatcher.dispatch(
         to_email=req.to_email,
@@ -753,7 +734,7 @@ def send_outreach(req: SendEmailRequest):
         location=req.location,
         portal_link=req.portal_link,
         dry_run=req.dry_run,
-        user_id=req.user_id or "default"
+        user_id=user_id
     )
     return result
 
@@ -767,9 +748,10 @@ def list_applications(user_id: str = Depends(get_current_user_id)):
     return {"metrics": metrics, "applications": apps}
 
 @app.post("/api/tracker/update-status")
-def update_application_status(req: StatusUpdateRequest):
+def update_application_status(req: StatusUpdateRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
     tracker = ApplicationTracker()
-    ok = tracker.update_status(req.application_id, req.new_status, user_id=req.user_id or "default")
+    ok = tracker.update_status(req.application_id, req.new_status, user_id=user_id)
     return {"status": "success" if ok else "error"}
 
 

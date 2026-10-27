@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail, Eye, X, ExternalLink } from "lucide-react";
 import { sendEmail } from "../../lib/api";
+import { getStoredUser } from "../../lib/auth";
 
 interface ColdEmailViewProps {
   initialData?: {
@@ -15,13 +16,17 @@ interface ColdEmailViewProps {
 }
 
 export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailViewProps) {
+  const user = getStoredUser();
+  const candidateName = user?.full_name || "Candidate";
+  const candidateEmail = user?.email || "";
+
   const [toEmail, setToEmail] = useState(initialData?.hrEmail || "");
   const [company, setCompany] = useState(initialData?.company || "Target Enterprise");
   const [jobTitle, setJobTitle] = useState(initialData?.jobTitle || "Backend Systems Engineer");
-  const [subject, setSubject] = useState(`Application: ${jobTitle} — M.S. Mohamed Sujahath`);
+  const [subject, setSubject] = useState(`Application: ${jobTitle} — ${candidateName}`);
   const [body, setBody] = useState(
     initialData?.context ||
-      `Dear Hiring Team,\n\nI am writing to express my strong interest in the ${jobTitle} opening at ${company}.\n\nAs a Backend Software Engineer with 2+ years of production experience owning Python/FastAPI architectures, distributed telemetry, and PostgreSQL/TimescaleDB systems, I eliminated polling failures from ~80% to 0% and reduced controller cold-start latency by 90%.\n\nI am based in Sri Lanka and 100% prepared for immediate international relocation with zero visa or onboarding friction.\n\nPlease find my attached official Europass CV and Cover Letter for your review.\n\nBest regards,\nM.S. Mohamed Sujahath\n+971 50 229 1865 | sujahathmhmd@gmail.com`
+      `Dear Hiring Team,\n\nI am writing to express my strong interest in the ${jobTitle} opening at ${company}.\n\nWith production-tested software engineering experience building scalable backend microservices and reliable data workflows, I look forward to contributing immediate technical value to your team.\n\nI am prepared for international relocation with seamless onboarding.\n\nPlease find my attached official Europass CV and Cover Letter for your review.\n\nBest regards,\n${candidateName}${candidateEmail ? `\n${candidateEmail}` : ""}`
   );
 
   const [safeMode, setSafeMode] = useState(false);
@@ -56,7 +61,7 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
     if (initialData?.company) setCompany(initialData.company);
     if (initialData?.jobTitle) {
       setJobTitle(initialData.jobTitle);
-      setSubject(`Application: ${initialData.jobTitle} — M.S. Mohamed Sujahath`);
+      setSubject(`Application: ${initialData.jobTitle} — ${candidateName}`);
     }
     if (initialData?.context) setBody(initialData.context);
   }, [initialData]);

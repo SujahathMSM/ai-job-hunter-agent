@@ -28,6 +28,7 @@ export async function uploadCVFile(file: File): Promise<any> {
   formData.append("file", file);
   const res = await fetch(`${API_BASE}/profile/upload-cv`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
   if (!res.ok) throw new Error("Failed to parse and upload CV");
@@ -39,6 +40,7 @@ export async function uploadMultipleCVs(files: File[]): Promise<any> {
   files.forEach((f) => formData.append("files", f));
   const res = await fetch(`${API_BASE}/profile/upload-multiple-cvs`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
   if (!res.ok) throw new Error("Failed to upload and parse multiple CVs");
@@ -50,6 +52,7 @@ export async function uploadChatHistory(files: File[]): Promise<any> {
   files.forEach((f) => formData.append("files", f));
   const res = await fetch(`${API_BASE}/profile/upload-chat-history`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
   if (!res.ok) throw new Error("Failed to upload chat history");
@@ -59,7 +62,7 @@ export async function uploadChatHistory(files: File[]): Promise<any> {
 export async function parseGitHub(urlOrUsername: string): Promise<any> {
   const res = await fetch(`${API_BASE}/profile/parse-github`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ url_or_username: urlOrUsername }),
   });
   if (!res.ok) throw new Error("Failed to parse GitHub profile");
@@ -69,7 +72,7 @@ export async function parseGitHub(urlOrUsername: string): Promise<any> {
 export async function parseLinkedIn(linkedinUrl: string, rawText?: string): Promise<any> {
   const res = await fetch(`${API_BASE}/profile/parse-linkedin`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ linkedin_url: linkedinUrl, raw_text: rawText || "" }),
   });
   if (!res.ok) throw new Error("Failed to parse LinkedIn profile");
@@ -81,6 +84,7 @@ export async function uploadLinkedInPDF(file: File): Promise<any> {
   formData.append("file", file);
   const res = await fetch(`${API_BASE}/profile/upload-linkedin-pdf`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
   if (!res.ok) throw new Error("Failed to parse LinkedIn PDF");
@@ -90,7 +94,7 @@ export async function uploadLinkedInPDF(file: File): Promise<any> {
 export async function parsePersonalWebsite(websiteUrl: string): Promise<any> {
   const res = await fetch(`${API_BASE}/profile/parse-website`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ website_url: websiteUrl }),
   });
   if (!res.ok) throw new Error("Failed to scrape personal website");
@@ -106,7 +110,7 @@ export async function synthesizeMasterProfile(payload: {
 }): Promise<any> {
   const res = await fetch(`${API_BASE}/profile/synthesize`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Failed to synthesize master profile");
@@ -114,7 +118,9 @@ export async function synthesizeMasterProfile(payload: {
 }
 
 export async function downloadDefaultEuropassCV(): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/profile/download-europass-cv`);
+  const res = await fetch(`${API_BASE}/profile/download-europass-cv`, {
+    headers: { ...getAuthHeaders() }
+  });
   if (!res.ok) throw new Error("Failed to generate default Europass CV PDF");
   return res.blob();
 }
@@ -154,7 +160,7 @@ export async function searchCompanyHR(company: string, domain?: string, region: 
 export async function tailorResume(jobTitle: string, company: string, location: string, jdText: string): Promise<any> {
   const res = await fetch(`${API_BASE}/cv/tailor`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({
       job_title: jobTitle,
       company: company,
@@ -169,7 +175,7 @@ export async function tailorResume(jobTitle: string, company: string, location: 
 export async function downloadEuropassPDF(tailoredResume: any): Promise<Blob> {
   const res = await fetch(`${API_BASE}/cv/generate-pdf`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ tailored_resume: tailoredResume }),
   });
   if (!res.ok) throw new Error("Failed to generate Europass PDF");
@@ -179,7 +185,7 @@ export async function downloadEuropassPDF(tailoredResume: any): Promise<Blob> {
 export async function draftEmail(jobTitle: string, company: string, hrEmail: string, hrName?: string, context?: string): Promise<any> {
   const res = await fetch(`${API_BASE}/outreach/draft`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({
       job_title: jobTitle,
       company: company,
@@ -204,7 +210,7 @@ export async function sendEmail(payload: {
 }): Promise<any> {
   const res = await fetch(`${API_BASE}/outreach/send`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));

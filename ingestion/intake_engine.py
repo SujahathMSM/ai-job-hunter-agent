@@ -19,9 +19,10 @@ class IntakeEngine:
     - Personal Portfolio Website (Scraped bio, projects, tech stack)
     """
 
-    def __init__(self):
+    def __init__(self, user_id: str = "default"):
+        self.user_id = user_id
         self.cv_parser = CVParser()
-        self.persona_builder = PersonaBuilder()
+        self.persona_builder = PersonaBuilder(user_id=user_id)
 
     def parse_multiple_cvs(self, file_paths: List[Path]) -> List[Dict[str, Any]]:
         results = []
