@@ -97,9 +97,9 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
 
   const handleExportCSV = () => {
     if (!companies.length) return;
-    const headers = ["Company,Job Title,Location,Domain,Email Pattern,Direct HR Email,Portal URL\n"];
+    const headers = ["Company,Job Title,Location,Domain,Direct HR Email,Portal URL\n"];
     const rows = companies.map((c) =>
-      `"${c.company}","${c.job_title}","${c.location}","${c.domain}","${c.email_pattern}","${c.primary_email || ""}","${c.portal}"`
+      `"${c.company}","${c.job_title}","${c.location}","${c.domain}","${c.primary_email || ""}","${c.portal}"`
     );
     const blob = new Blob([...headers, ...rows.map((r) => r + "\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -342,7 +342,7 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
                     💼 Opening: <span className="text-[#4cd7f6]">{c.job_title}</span>
                   </div>
                   <div className="text-[11px] font-mono text-[#869397] mt-1">
-                    Domain: <code className="text-[#bcc9cd]">{c.domain}</code> | Pattern: <code className="text-[#bcc9cd]">{c.email_pattern}</code>
+                    Domain: <code className="text-[#bcc9cd]">{c.domain}</code>
                   </div>
 
                   {/* Primary Email Badge */}
@@ -384,21 +384,34 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
                   </a>
                 </div>
 
-                <button
-                  onClick={() =>
-                    onSelectForOutreach(
-                      c.job_title,
-                      c.company,
-                      c.primary_email || `careers@${c.domain}`,
-                      c.portal,
-                      c.description
-                    )
-                  }
-                  className="px-3 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-medium text-xs hover:bg-white transition-all flex items-center gap-1 active:scale-[0.98] cyan-glow"
-                >
-                  <span>Outreach</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
+                {c.primary_email ? (
+                  <button
+                    onClick={() =>
+                      onSelectForOutreach(
+                        c.job_title,
+                        c.company,
+                        c.primary_email,
+                        c.portal,
+                        c.description
+                      )
+                    }
+                    className="px-3 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] font-medium text-xs hover:bg-white transition-all flex items-center gap-1.5 active:scale-[0.98] cyan-glow shadow-sm"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Outreach</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <a
+                    href={c.portal}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#4cd7f6]/60 text-[#e3e1ec] hover:text-[#4cd7f6] font-medium text-xs transition-all flex items-center gap-1.5 active:scale-[0.98]"
+                  >
+                    <span>Apply via Portal</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -411,9 +424,6 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
           <div className="flex items-center justify-between">
             <h2 className="text-[18px] font-semibold text-[#e3e1ec]">{singleResult.company}</h2>
             <span className="text-xs font-mono text-[#4cd7f6]">{singleResult.domain}</span>
-          </div>
-          <div className="text-xs text-[#bcc9cd]">
-            Email Pattern: <code className="text-[#4cd7f6]">{singleResult.email_pattern || `{first}.{last}@${singleResult.domain}`}</code>
           </div>
 
           {singleResult.verified_contacts && singleResult.verified_contacts.length > 0 ? (
