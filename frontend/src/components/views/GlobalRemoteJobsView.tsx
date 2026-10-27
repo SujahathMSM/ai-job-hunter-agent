@@ -129,8 +129,18 @@ export default function GlobalRemoteJobsView({
     onSelectForTailor(jobItem);
   };
 
-  const handleOutreachBridge = (job: GlobalRemoteJob) => {
+  const extractEmailFromText = (text?: string): string => {
+    if (!text) return "";
+    const matches = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
+    const found = matches.find(
+      (e) => !e.includes("example.com") && !e.includes("candidate@") && !e.endsWith(".png") && !e.endsWith(".jpg")
+    );
+    return found || "";
+  };
+
+  const handleOutreachBridge = (job: GlobalRemoteJob, email?: string) => {
     const applyLink = job.apply_url || job.portal || job.job_url || "";
+    const resolvedEmail = email || (job as any).hr_email || extractEmailFromText(job.description);
     const jobItem: JobItem = {
       id: job.id,
       job_title: job.job_title,
@@ -141,6 +151,7 @@ export default function GlobalRemoteJobsView({
       job_url: applyLink,
       portal: applyLink,
       salary: job.salary,
+      hr_email: resolvedEmail || undefined,
     };
     onSelectForOutreach(jobItem);
   };
@@ -338,6 +349,8 @@ export default function GlobalRemoteJobsView({
       <div className="flex flex-col gap-3">
         {jobs.map((job) => {
           const applyLink = job.apply_url || job.portal || job.job_url || "";
+          const jobEmail = (job as any).hr_email || extractEmailFromText(job.description);
+          const hasEmail = Boolean(jobEmail && jobEmail.includes("@"));
 
           return (
             <div
@@ -453,14 +466,17 @@ export default function GlobalRemoteJobsView({
                     <span>Tailor CV</span>
                   </button>
 
-                  {/* Cold Outreach */}
-                  <button
-                    onClick={() => handleOutreachBridge(job)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#bcc9cd] hover:bg-[#292931] text-xs font-medium text-[#e3e1ec] transition-all"
-                  >
-                    <Send className="w-3.5 h-3.5 text-[#4cd7f6]" />
-                    <span>Outreach Pitch</span>
-                  </button>
+                  {/* Cold Outreach - only shown if a real email address exists */}
+                  {hasEmail && (
+                    <button
+                      onClick={() => handleOutreachBridge(job, jobEmail)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4cd7f6] text-[#003640] hover:bg-white text-xs font-semibold transition-all cyan-glow shadow-sm"
+                      title={`Send outreach directly to ${jobEmail}`}
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Outreach Pitch</span>
+                    </button>
+                  )}
 
                   {/* Find Recruiters */}
                   {onSelectForRecruiters && (

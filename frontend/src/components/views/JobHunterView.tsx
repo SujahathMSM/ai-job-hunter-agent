@@ -613,16 +613,18 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                   <span>Tailor CV with this JD</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    onSelectForOutreach(modalJob);
-                    setModalJob(null);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:border-[#bcc9cd] text-xs font-medium text-[#e3e1ec] transition-all"
-                >
-                  <Send className="w-3.5 h-3.5 text-[#4cd7f6]" />
-                  <span>Outreach Pitch</span>
-                </button>
+                {Boolean(modalJob.hr_email) && (
+                  <button
+                    onClick={() => {
+                      onSelectForOutreach(modalJob);
+                      setModalJob(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#4cd7f6] text-[#003640] hover:bg-white text-xs font-semibold transition-all cyan-glow shadow-sm"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Outreach Pitch</span>
+                  </button>
+                )}
               </div>
             </div>
 
