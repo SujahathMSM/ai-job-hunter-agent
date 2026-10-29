@@ -1,11 +1,12 @@
 import os
 import sys
 import re
+import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import jwt
-from fastapi import FastAPI, HTTPException, UploadFile, File, Header, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -705,10 +706,34 @@ def generate_pdf(req: PDFGenRequest):
     )
 
 @app.get("/api/documents/preview")
-def preview_document(type: str = "cv", company: str = "Company", job_title: str = "Software Engineer", user_id: str = Depends(get_current_user_id)):
-    """Returns or generates on the fly the Europass CV or Cover Letter PDF for preview."""
+def preview_document(
+    type: str = "cv",
+    company: str = "Company",
+    job_title: str = "Software Engineer",
+    custom_file: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Returns or generates on the fly the Europass CV or Cover Letter PDF for preview.
+    Supports previewing user-uploaded custom manual documents."""
     try:
         GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 1. Custom uploaded document preview
+        if custom_file:
+            safe_name = os.path.basename(custom_file)
+            target = UPLOADS_DIR / safe_name
+            if not target.exists():
+                target = GENERATED_DIR / safe_name
+            if target.exists():
+                media_type = "application/pdf" if target.suffix.lower() == ".pdf" else "application/octet-stream"
+                return FileResponse(
+                    target,
+                    media_type=media_type,
+                    headers={"Content-Disposition": f"inline; filename={target.name}"}
+                )
+
+        # 2. Standard generated document preview
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
         clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
         pb = PersonaBuilder(user_id=user_id)
@@ -741,6 +766,42 @@ def preview_document(type: str = "cv", company: str = "Company", job_title: str 
     except Exception as e:
         print(f"[Document Preview Generation Error]: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to compile PDF document: {str(e)}")
+
+@app.post("/api/outreach/upload-attachment")
+async def upload_outreach_attachment(
+    file: UploadFile = File(...),
+    doc_type: str = Form("cv"),  # "cv" or "cover_letter"
+    user_id: str = Depends(get_current_user_id)
+):
+    """Saves candidate's manual CV or Cover Letter to replace generated documents."""
+    try:
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        raw_name = file.filename or f"custom_{doc_type}.pdf"
+        clean_ext = Path(raw_name).suffix or ".pdf"
+        clean_base = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(raw_name).stem)[:40]
+        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
+
+        saved_filename = f"manual_{clean_uid}_{doc_type}_{int(time.time())}_{clean_base}{clean_ext}"
+        saved_path = UPLOADS_DIR / saved_filename
+
+        content = await file.read()
+        with open(saved_path, "wb") as f:
+            f.write(content)
+
+        file_size_kb = round(len(content) / 1024, 1)
+
+        return {
+            "status": "success",
+            "doc_type": doc_type,
+            "filename": raw_name,
+            "saved_filename": saved_filename,
+            "saved_path": str(saved_path.resolve()),
+            "file_size_kb": file_size_kb,
+            "preview_url": f"/api/documents/preview?custom_file={saved_filename}"
+        }
+    except Exception as e:
+        print(f"[Outreach Attachment Upload Error]: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload {doc_type}: {str(e)}")
 
 
 # --- OUTREACH & EMAIL DISPATCHER ---

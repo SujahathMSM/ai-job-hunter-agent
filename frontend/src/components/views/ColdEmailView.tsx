@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail, Eye, X, ExternalLink } from "lucide-react";
-import { sendEmail } from "../../lib/api";
+import React, { useState, useRef } from "react";
+import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail, Eye, X, ExternalLink, Upload, RotateCcw, FileCheck } from "lucide-react";
+import { sendEmail, uploadOutreachAttachment } from "../../lib/api";
 import { getStoredUser } from "../../lib/auth";
 
 interface ColdEmailViewProps {
@@ -34,12 +34,65 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
   const [previewDoc, setPreviewDoc] = useState<{
     type: "cv" | "cover_letter";
     title: string;
+    custom_file?: string;
   } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
     attachments?: string[];
   } | null>(null);
+
+  // Manual custom upload state
+  const [customCv, setCustomCv] = useState<{
+    filename: string;
+    saved_filename: string;
+    saved_path: string;
+    file_size_kb: number;
+  } | null>(null);
+
+  const [customCoverLetter, setCustomCoverLetter] = useState<{
+    filename: string;
+    saved_filename: string;
+    saved_path: string;
+    file_size_kb: number;
+  } | null>(null);
+
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const cvInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (file: File, docType: "cv" | "cover_letter") => {
+    if (docType === "cv") setUploadingCv(true);
+    else setUploadingCover(true);
+    try {
+      const res = await uploadOutreachAttachment(file, docType);
+      if (docType === "cv") {
+        setCustomCv({
+          filename: res.filename,
+          saved_filename: res.saved_filename,
+          saved_path: res.saved_path,
+          file_size_kb: res.file_size_kb,
+        });
+      } else {
+        setCustomCoverLetter({
+          filename: res.filename,
+          saved_filename: res.saved_filename,
+          saved_path: res.saved_path,
+          file_size_kb: res.file_size_kb,
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setStatusMessage({
+        type: "error",
+        text: `Failed to upload ${docType === "cv" ? "CV" : "Cover Letter"}: ${err.message || "Upload error"}`,
+      });
+    } finally {
+      if (docType === "cv") setUploadingCv(false);
+      else setUploadingCover(false);
+    }
+  };
 
   React.useEffect(() => {
     if (initialData?.hrEmail) {
@@ -87,6 +140,8 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
         body,
         company,
         job_title: jobTitle,
+        cv_path: customCv?.saved_path,
+        cover_letter_path: customCoverLetter?.saved_path,
         dry_run: safeMode,
       });
 
@@ -96,7 +151,10 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
           text: safeMode
             ? `[Safe Mode] Outreach email drafted & logged in database (ID: ${res.application_id || res.app_id}).`
             : `Email dispatched successfully to ${toEmail} via SMTP!`,
-          attachments: res.attachments || [expectedCvName, expectedCoverName],
+          attachments: res.attachments || [
+            customCv ? `[Custom] ${customCv.filename}` : expectedCvName,
+            customCoverLetter ? `[Custom] ${customCoverLetter.filename}` : expectedCoverName,
+          ],
         });
         if (onSentSuccess) onSentSuccess();
       } else {
@@ -212,62 +270,187 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
           />
         </div>
 
+        {/* Hidden inputs for custom manual CV and Cover Letter upload */}
+        <input
+          ref={cvInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file, "cv");
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file, "cover_letter");
+            e.target.value = "";
+          }}
+        />
+
         {/* Confirmed Attached Documents Card */}
-        <div className="p-3.5 rounded-lg bg-[#14151e] border border-[#3d494c]/40 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-[#14151e] border border-[#3d494c]/40 flex flex-col gap-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-[11px] font-mono uppercase text-[#4cd7f6] tracking-wider flex items-center gap-1.5 font-bold">
               <Paperclip className="w-3.5 h-3.5" />
               Attached Documents (Physical MIME Attachments Guaranteed)
             </span>
-            <span className="text-[11px] font-mono text-[#4edea3]">2 PDFs Attached &amp; Ready</span>
+            <span className="text-[11px] font-mono text-[#4edea3]">
+              2 PDFs Attached &amp; Ready{" "}
+              {customCv || customCoverLetter
+                ? `(${[customCv && "Custom CV", customCoverLetter && "Custom Cover Letter"].filter(Boolean).join(" + ")})`
+                : ""}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Europass CV Badge */}
-            <div className="flex items-center justify-between p-3 rounded-md bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#4cd7f6]/40 transition-all">
-              <div className="flex items-center gap-2.5">
-                <FileText className="w-4 h-4 text-[#4cd7f6]" />
-                <div>
-                  <div className="text-xs font-mono font-semibold text-[#e3e1ec]">{expectedCvName}</div>
-                  <div className="text-[10px] text-[#869296]">Official Europass A4 • Moratuwa Credentials</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* Europass / Custom CV Badge */}
+            <div className="flex flex-col justify-between p-3.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#4cd7f6]/40 transition-all gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  {customCv ? (
+                    <FileCheck className="w-4 h-4 text-[#4edea3] shrink-0 mt-0.5" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-[#4cd7f6] shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <div className="text-xs font-mono font-semibold text-[#e3e1ec] line-clamp-1">
+                      {customCv ? customCv.filename : expectedCvName}
+                    </div>
+                    <div className="text-[10px] text-[#869296]">
+                      {customCv
+                        ? `Manual Custom Upload • ${customCv.file_size_kb} KB`
+                        : "Official Europass A4 • Moratuwa Credentials"}
+                    </div>
+                  </div>
                 </div>
+                {customCv ? (
+                  <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/30">
+                    Custom File
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
+                    Auto-Generated
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#3d494c]/30 gap-2">
                 <button
                   type="button"
-                  onClick={() => setPreviewDoc({ type: "cv", title: expectedCvName })}
+                  onClick={() =>
+                    setPreviewDoc({
+                      type: "cv",
+                      title: customCv ? customCv.filename : expectedCvName,
+                      custom_file: customCv?.saved_filename,
+                    })
+                  }
                   className="flex items-center gap-1 text-[11px] font-mono text-[#4cd7f6] bg-[#4cd7f6]/10 hover:bg-[#4cd7f6]/20 px-2 py-1 rounded border border-[#4cd7f6]/30 transition-all cursor-pointer"
                 >
                   <Eye className="w-3 h-3" />
                   <span>Preview</span>
                 </button>
-                <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
-                  Ready
-                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => cvInputRef.current?.click()}
+                    disabled={uploadingCv}
+                    className="flex items-center gap-1 text-[11px] font-mono text-[#bcc9cd] hover:text-[#e3e1ec] bg-[#292931]/60 hover:bg-[#292931] px-2 py-1 rounded border border-[#3d494c]/50 transition-all cursor-pointer"
+                  >
+                    <Upload className="w-3 h-3 text-[#4cd7f6]" />
+                    <span>{uploadingCv ? "Uploading..." : customCv ? "Replace CV" : "Upload Custom CV"}</span>
+                  </button>
+
+                  {customCv && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomCv(null)}
+                      title="Revert to auto-generated Europass CV"
+                      className="p-1 rounded bg-[#292931]/60 hover:bg-[#93000a]/20 text-[#869296] hover:text-[#ffb4ab] border border-[#3d494c]/40 transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Cover Letter Badge */}
-            <div className="flex items-center justify-between p-3 rounded-md bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#a8c7fa]/40 transition-all">
-              <div className="flex items-center gap-2.5">
-                <FileText className="w-4 h-4 text-[#a8c7fa]" />
-                <div>
-                  <div className="text-xs font-mono font-semibold text-[#e3e1ec]">{expectedCoverName}</div>
-                  <div className="text-[10px] text-[#869296]">Executive Letterhead A4 PDF</div>
+            {/* Cover Letter / Custom Letter Badge */}
+            <div className="flex flex-col justify-between p-3.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 hover:border-[#a8c7fa]/40 transition-all gap-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5">
+                  {customCoverLetter ? (
+                    <FileCheck className="w-4 h-4 text-[#4edea3] shrink-0 mt-0.5" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-[#a8c7fa]" />
+                  )}
+                  <div>
+                    <div className="text-xs font-mono font-semibold text-[#e3e1ec] line-clamp-1">
+                      {customCoverLetter ? customCoverLetter.filename : expectedCoverName}
+                    </div>
+                    <div className="text-[10px] text-[#869296]">
+                      {customCoverLetter
+                        ? `Manual Custom Upload • ${customCoverLetter.file_size_kb} KB`
+                        : "Executive Letterhead A4 PDF"}
+                    </div>
+                  </div>
                 </div>
+                {customCoverLetter ? (
+                  <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/30">
+                    Custom File
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
+                    Auto-Generated
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center justify-between pt-2 border-t border-[#3d494c]/30 gap-2">
                 <button
                   type="button"
-                  onClick={() => setPreviewDoc({ type: "cover_letter", title: expectedCoverName })}
+                  onClick={() =>
+                    setPreviewDoc({
+                      type: "cover_letter",
+                      title: customCoverLetter ? customCoverLetter.filename : expectedCoverName,
+                      custom_file: customCoverLetter?.saved_filename,
+                    })
+                  }
                   className="flex items-center gap-1 text-[11px] font-mono text-[#a8c7fa] bg-[#a8c7fa]/10 hover:bg-[#a8c7fa]/20 px-2 py-1 rounded border border-[#a8c7fa]/30 transition-all cursor-pointer"
                 >
                   <Eye className="w-3 h-3" />
                   <span>Preview</span>
                 </button>
-                <span className="text-[10px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-1.5 py-0.5 rounded border border-[#4edea3]/20">
-                  Ready
-                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={uploadingCover}
+                    className="flex items-center gap-1 text-[11px] font-mono text-[#bcc9cd] hover:text-[#e3e1ec] bg-[#292931]/60 hover:bg-[#292931] px-2 py-1 rounded border border-[#3d494c]/50 transition-all cursor-pointer"
+                  >
+                    <Upload className="w-3 h-3 text-[#a8c7fa]" />
+                    <span>{uploadingCover ? "Uploading..." : customCoverLetter ? "Replace Letter" : "Upload Custom Letter"}</span>
+                  </button>
+
+                  {customCoverLetter && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomCoverLetter(null)}
+                      title="Revert to auto-generated Cover Letter"
+                      className="p-1 rounded bg-[#292931]/60 hover:bg-[#93000a]/20 text-[#869296] hover:text-[#ffb4ab] border border-[#3d494c]/40 transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -292,7 +475,9 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
                       {previewDoc.title}
                     </div>
                     <div className="text-[10px] text-[#869296]">
-                      {previewDoc.type === "cv"
+                      {previewDoc.custom_file
+                        ? "Manual Custom Document Upload • Verified for Physical MIME Attachment"
+                        : previewDoc.type === "cv"
                         ? "European Union Europass CV • Official A4 Layout"
                         : `Executive Tailored Cover Letter for ${company}`}
                     </div>
@@ -301,7 +486,11 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
 
                 <div className="flex items-center gap-2">
                   <a
-                    href={`/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`}
+                    href={
+                      previewDoc.custom_file
+                        ? `/api/documents/preview?custom_file=${encodeURIComponent(previewDoc.custom_file)}`
+                        : `/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs text-[#4cd7f6] hover:brightness-125 px-2.5 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 transition-colors"
@@ -321,7 +510,11 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
               {/* PDF Viewport */}
               <div className="flex-1 bg-[#1a1b22] p-2 overflow-hidden flex items-center justify-center">
                 <iframe
-                  src={`/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`}
+                  src={
+                    previewDoc.custom_file
+                      ? `/api/documents/preview?custom_file=${encodeURIComponent(previewDoc.custom_file)}`
+                      : `/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`
+                  }
                   className="w-full h-[72vh] rounded-lg border border-[#3d494c]/30 bg-white"
                   title={previewDoc.title}
                 />

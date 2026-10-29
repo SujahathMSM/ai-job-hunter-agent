@@ -206,6 +206,8 @@ export async function sendEmail(payload: {
   job_title: string;
   location?: string;
   portal_link?: string;
+  cv_path?: string;
+  cover_letter_path?: string;
   dry_run?: boolean;
 }): Promise<any> {
   const res = await fetch(`${API_BASE}/outreach/send`, {
@@ -216,6 +218,34 @@ export async function sendEmail(payload: {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data.detail || data.message || "Failed to dispatch email");
+  }
+  return data;
+}
+
+export async function uploadOutreachAttachment(
+  file: File,
+  docType: "cv" | "cover_letter" = "cv"
+): Promise<{
+  status: string;
+  doc_type: string;
+  filename: string;
+  saved_filename: string;
+  saved_path: string;
+  file_size_kb: number;
+  preview_url: string;
+}> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("doc_type", docType);
+
+  const res = await fetch(`${API_BASE}/outreach/upload-attachment`, {
+    method: "POST",
+    headers: { ...getAuthHeaders() },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || `Failed to upload ${docType}`);
   }
   return data;
 }
