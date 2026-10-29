@@ -633,6 +633,213 @@ class PDFResumeBuilder:
         doc.build(story)
         return output_path
 
+    def build_ats_clean_pdf(self, resume_data: Dict[str, Any], output_path: Path) -> Path:
+        """Renders a pure, 100% ATS-compliant single-column text-layer PDF (LaTeX / Typst style).
+        Strictly avoids non-standard tables or graphics to guarantee 100% parsing on Workday,
+        Greenhouse, Taleo, and Lever."""
+        doc = SimpleDocTemplate(
+            str(output_path),
+            pagesize=A4,
+            leftMargin=36,
+            rightMargin=36,
+            topMargin=32,
+            bottomMargin=32
+        )
+        story = []
+
+        ident = resume_data.get("identity", {})
+        c_name = sanitize_pdf_text(ident.get("full_name", "M.S. MOHAMED SUJAHATH"))
+        title = sanitize_pdf_text(resume_data.get("tailored_title", "Software Engineer"))
+        
+        c_phone = ident.get("phone", "+971 50 229 1865")
+        c_email = ident.get("email", "sujahathmhmd@gmail.com")
+        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
+        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
+        c_gh = ident.get("github", "github.com/SujahathMSM")
+
+        # ATS Styles
+        ats_name_style = ParagraphStyle(
+            name="ATSName",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=16,
+            leading=19,
+            textColor=colors.HexColor("#111827"),
+            alignment=1,
+            spaceAfter=2
+        )
+        ats_title_style = ParagraphStyle(
+            name="ATSTitle",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=13,
+            textColor=colors.HexColor("#2563EB"),
+            alignment=1,
+            spaceAfter=4
+        )
+        ats_contact_style = ParagraphStyle(
+            name="ATSContact",
+            parent=self.styles["Normal"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#4B5563"),
+            alignment=1,
+            spaceAfter=8
+        )
+        ats_h1_style = ParagraphStyle(
+            name="ATSH1",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=13,
+            textColor=colors.HexColor("#111827"),
+            spaceBefore=8,
+            spaceAfter=2,
+            keepWithNext=True
+        )
+        ats_body_style = ParagraphStyle(
+            name="ATSBody",
+            parent=self.styles["Normal"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11.5,
+            textColor=colors.HexColor("#1F2937"),
+            spaceAfter=4
+        )
+        ats_bullet_style = ParagraphStyle(
+            name="ATSBullet",
+            parent=self.styles["Normal"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11.5,
+            leftIndent=12,
+            firstLineIndent=-8,
+            textColor=colors.HexColor("#1F2937"),
+            spaceAfter=2
+        )
+
+        # Header Block
+        story.append(Paragraph(f"<b>{c_name.upper()}</b>", ats_name_style))
+        story.append(Paragraph(f"<b>{title.upper()}</b>", ats_title_style))
+        contact_str = f"{c_email} | {c_phone} | {c_loc} | {c_li} | {c_gh}"
+        story.append(Paragraph(sanitize_pdf_text(contact_str), ats_contact_style))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#111827"), spaceBefore=1, spaceAfter=6))
+
+        # 1. PROFESSIONAL SUMMARY
+        summary = resume_data.get("summary") or resume_data.get("tailored_summary", "")
+        if summary:
+            story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            story.append(Paragraph(sanitize_pdf_text(summary), ats_body_style))
+
+        # 2. CORE TECHNICAL SKILLS
+        skills_cat = resume_data.get("core_skills_categorized", [])
+        if skills_cat:
+            story.append(Paragraph("<b>CORE TECHNICAL COMPETENCIES</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for cat in skills_cat:
+                c_name_cat = sanitize_pdf_text(cat.get("category", "Technical"))
+                c_skills = sanitize_pdf_text(cat.get("skills", ""))
+                story.append(Paragraph(f"&bull; <b>{c_name_cat}:</b> {c_skills}", ats_bullet_style))
+
+        # 3. WORK EXPERIENCE
+        work_hist = resume_data.get("work_history", [])
+        if work_hist:
+            story.append(Paragraph("<b>PROFESSIONAL WORK EXPERIENCE</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for job in work_hist:
+                j_title = sanitize_pdf_text(job.get("title", ""))
+                j_comp = sanitize_pdf_text(job.get("company", ""))
+                j_dur = sanitize_pdf_text(job.get("duration", ""))
+                story.append(Paragraph(f"<b>{j_title}</b> &mdash; <i>{j_comp}</i> ({j_dur})", ats_body_style))
+                for b in job.get("bullets", []):
+                    clean_b = sanitize_pdf_text(b)
+                    if clean_b:
+                        story.append(Paragraph(f"&bull; {clean_b}", ats_bullet_style))
+                story.append(Spacer(1, 2))
+
+        # 4. KEY TECHNICAL PROJECTS
+        projects = resume_data.get("projects", [])
+        if projects:
+            story.append(Paragraph("<b>KEY TECHNICAL &amp; PRODUCTION PROJECTS</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for proj in projects[:4]:
+                p_title = sanitize_pdf_text(proj.get("title", ""))
+                p_tech = sanitize_pdf_text(proj.get("technologies", ""))
+                p_header = f"<b>{p_title}</b> &mdash; <i>Tech: {p_tech}</i>" if p_tech else f"<b>{p_title}</b>"
+                story.append(Paragraph(p_header, ats_body_style))
+                for b in proj.get("bullets", []):
+                    clean_b = sanitize_pdf_text(b)
+                    if clean_b:
+                        story.append(Paragraph(f"&bull; {clean_b}", ats_bullet_style))
+                story.append(Spacer(1, 2))
+
+        # 5. EDUCATION
+        story.append(Paragraph("<b>EDUCATION &amp; ACADEMIC CREDENTIALS</b>", ats_h1_style))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+        story.append(Paragraph("<b>BScEngHons (Bachelor of the Science of Engineering Honours)</b>", ats_body_style))
+        story.append(Paragraph("University of Moratuwa &mdash; Sri Lanka's Premier Engineering Institution", ats_body_style))
+
+        doc.build(story)
+        return output_path
+
+    def generate_ats_plaintext(self, resume_data: Dict[str, Any]) -> str:
+        """Generates pure plaintext formatted specifically for ATS text input boxes."""
+        ident = resume_data.get("identity", {})
+        c_name = ident.get("full_name", "M.S. Mohamed Sujahath")
+        title = resume_data.get("tailored_title", "Software Engineer")
+        c_phone = ident.get("phone", "+971 50 229 1865")
+        c_email = ident.get("email", "sujahathmhmd@gmail.com")
+        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
+        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
+        c_gh = ident.get("github", "github.com/SujahathMSM")
+
+        lines = [
+            f"{c_name.upper()}",
+            f"{title}",
+            f"Email: {c_email} | Phone: {c_phone} | Location: {c_loc}",
+            f"LinkedIn: {c_li} | GitHub: {c_gh}",
+            "=" * 70,
+            "",
+            "PROFESSIONAL SUMMARY",
+            "-" * 40,
+            resume_data.get("summary") or resume_data.get("tailored_summary", ""),
+            "",
+            "TECHNICAL COMPETENCIES",
+            "-" * 40,
+        ]
+
+        for cat in resume_data.get("core_skills_categorized", []):
+            lines.append(f"* {cat.get('category', 'Technical')}: {cat.get('skills', '')}")
+
+        lines.extend(["", "PROFESSIONAL EXPERIENCE", "-" * 40])
+        for job in resume_data.get("work_history", []):
+            lines.append(f"\n{job.get('title', '')} - {job.get('company', '')} ({job.get('duration', '')})")
+            for b in job.get("bullets", []):
+                lines.append(f"  * {b}")
+
+        lines.extend(["", "KEY TECHNICAL PROJECTS", "-" * 40])
+        for proj in resume_data.get("projects", []):
+            lines.append(f"\n{proj.get('title', '')} | Tech: {proj.get('technologies', '')}")
+            for b in proj.get("bullets", []):
+                lines.append(f"  * {b}")
+
+        lines.extend([
+            "",
+            "EDUCATION",
+            "-" * 40,
+            "BScEngHons (Bachelor of the Science of Engineering Honours)",
+            "University of Moratuwa - Sri Lanka's Premier Engineering Institution",
+            "",
+            "LANGUAGES",
+            "-" * 40,
+            "English (Professional Working Proficiency - C1/C2), Tamil (Native), Sinhala (Professional)"
+        ])
+
+        return "\n".join(lines)
+
     def build_cover_letter_pdf(self, cover_letter_text: str, candidate_name: Any, output_path: Path) -> Path:
         """Renders an executive Europass-style cover letter in A4 format."""
         doc = SimpleDocTemplate(
@@ -683,3 +890,210 @@ class PDFResumeBuilder:
 
         doc.build(story)
         return output_path
+
+    def build_ats_clean_pdf(self, resume_data: Dict[str, Any], output_path: Path) -> Path:
+        """Renders a pure, 100% ATS-compliant single-column text-layer PDF (LaTeX / Typst style).
+        Strictly avoids non-standard tables or graphics to guarantee 100% parsing on Workday,
+        Greenhouse, Taleo, and Lever."""
+        doc = SimpleDocTemplate(
+            str(output_path),
+            pagesize=A4,
+            leftMargin=36,
+            rightMargin=36,
+            topMargin=32,
+            bottomMargin=32
+        )
+        story = []
+
+        ident = resume_data.get("identity", {})
+        c_name = sanitize_pdf_text(ident.get("full_name", "M.S. MOHAMED SUJAHATH"))
+        title = sanitize_pdf_text(resume_data.get("tailored_title", "Software Engineer"))
+        
+        c_phone = ident.get("phone", "+971 50 229 1865")
+        c_email = ident.get("email", "sujahathmhmd@gmail.com")
+        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
+        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
+        c_gh = ident.get("github", "github.com/SujahathMSM")
+
+        # ATS Styles
+        ats_name_style = ParagraphStyle(
+            name="ATSName",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=16,
+            leading=19,
+            textColor=colors.HexColor("#111827"),
+            alignment=1,
+            spaceAfter=2
+        )
+        ats_title_style = ParagraphStyle(
+            name="ATSTitle",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=13,
+            textColor=colors.HexColor("#2563EB"),
+            alignment=1,
+            spaceAfter=4
+        )
+        ats_contact_style = ParagraphStyle(
+            name="ATSContact",
+            parent=self.styles["Normal"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#4B5563"),
+            alignment=1,
+            spaceAfter=8
+        )
+        ats_h1_style = ParagraphStyle(
+            name="ATSH1",
+            parent=self.styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=13,
+            textColor=colors.HexColor("#111827"),
+            spaceBefore=8,
+            spaceAfter=2,
+            keepWithNext=True
+        )
+        ats_body_style = ParagraphStyle(
+            name="ATSBody",
+            parent=self.styles["Normal"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11.5,
+            textColor=colors.HexColor("#1F2937"),
+            spaceAfter=4
+        )
+        ats_bullet_style = ParagraphStyle(
+            name="ATSBullet",
+            parent=self.styles["Normal"],
+            fontName="Helvetica",
+            fontSize=8.5,
+            leading=11.5,
+            leftIndent=12,
+            firstLineIndent=-8,
+            textColor=colors.HexColor("#1F2937"),
+            spaceAfter=2
+        )
+
+        # Header Block
+        story.append(Paragraph(f"<b>{c_name.upper()}</b>", ats_name_style))
+        story.append(Paragraph(f"<b>{title.upper()}</b>", ats_title_style))
+        contact_str = f"{c_email} | {c_phone} | {c_loc} | {c_li} | {c_gh}"
+        story.append(Paragraph(sanitize_pdf_text(contact_str), ats_contact_style))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#111827"), spaceBefore=1, spaceAfter=6))
+
+        # 1. PROFESSIONAL SUMMARY
+        summary = resume_data.get("summary") or resume_data.get("tailored_summary", "")
+        if summary:
+            story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            story.append(Paragraph(sanitize_pdf_text(summary), ats_body_style))
+
+        # 2. CORE TECHNICAL SKILLS
+        skills_cat = resume_data.get("core_skills_categorized", [])
+        if skills_cat:
+            story.append(Paragraph("<b>CORE TECHNICAL COMPETENCIES</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for cat in skills_cat:
+                c_name_cat = sanitize_pdf_text(cat.get("category", "Technical"))
+                c_skills = sanitize_pdf_text(cat.get("skills", ""))
+                story.append(Paragraph(f"&bull; <b>{c_name_cat}:</b> {c_skills}", ats_bullet_style))
+
+        # 3. WORK EXPERIENCE
+        work_hist = resume_data.get("work_history", [])
+        if work_hist:
+            story.append(Paragraph("<b>PROFESSIONAL WORK EXPERIENCE</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for job in work_hist:
+                j_title = sanitize_pdf_text(job.get("title", ""))
+                j_comp = sanitize_pdf_text(job.get("company", ""))
+                j_dur = sanitize_pdf_text(job.get("duration", ""))
+                story.append(Paragraph(f"<b>{j_title}</b> &mdash; <i>{j_comp}</i> ({j_dur})", ats_body_style))
+                for b in job.get("bullets", []):
+                    clean_b = sanitize_pdf_text(b)
+                    if clean_b:
+                        story.append(Paragraph(f"&bull; {clean_b}", ats_bullet_style))
+                story.append(Spacer(1, 2))
+
+        # 4. KEY TECHNICAL PROJECTS
+        projects = resume_data.get("projects", [])
+        if projects:
+            story.append(Paragraph("<b>KEY TECHNICAL &amp; PRODUCTION PROJECTS</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for proj in projects[:4]:
+                p_title = sanitize_pdf_text(proj.get("title", ""))
+                p_tech = sanitize_pdf_text(proj.get("technologies", ""))
+                p_header = f"<b>{p_title}</b> &mdash; <i>Tech: {p_tech}</i>" if p_tech else f"<b>{p_title}</b>"
+                story.append(Paragraph(p_header, ats_body_style))
+                for b in proj.get("bullets", []):
+                    clean_b = sanitize_pdf_text(b)
+                    if clean_b:
+                        story.append(Paragraph(f"&bull; {clean_b}", ats_bullet_style))
+                story.append(Spacer(1, 2))
+
+        # 5. EDUCATION
+        story.append(Paragraph("<b>EDUCATION &amp; ACADEMIC CREDENTIALS</b>", ats_h1_style))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+        story.append(Paragraph("<b>BScEngHons (Bachelor of the Science of Engineering Honours)</b>", ats_body_style))
+        story.append(Paragraph("University of Moratuwa &mdash; Sri Lanka's Premier Engineering Institution", ats_body_style))
+
+        doc.build(story)
+        return output_path
+
+    def generate_ats_plaintext(self, resume_data: Dict[str, Any]) -> str:
+        """Generates pure plaintext formatted specifically for ATS text input boxes."""
+        ident = resume_data.get("identity", {})
+        c_name = ident.get("full_name", "M.S. Mohamed Sujahath")
+        title = resume_data.get("tailored_title", "Software Engineer")
+        c_phone = ident.get("phone", "+971 50 229 1865")
+        c_email = ident.get("email", "sujahathmhmd@gmail.com")
+        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
+        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
+        c_gh = ident.get("github", "github.com/SujahathMSM")
+
+        lines = [
+            f"{c_name.upper()}",
+            f"{title}",
+            f"Email: {c_email} | Phone: {c_phone} | Location: {c_loc}",
+            f"LinkedIn: {c_li} | GitHub: {c_gh}",
+            "=" * 70,
+            "",
+            "PROFESSIONAL SUMMARY",
+            "-" * 40,
+            resume_data.get("summary") or resume_data.get("tailored_summary", ""),
+            "",
+            "TECHNICAL COMPETENCIES",
+            "-" * 40,
+        ]
+
+        for cat in resume_data.get("core_skills_categorized", []):
+            lines.append(f"* {cat.get('category', 'Technical')}: {cat.get('skills', '')}")
+
+        lines.extend(["", "PROFESSIONAL EXPERIENCE", "-" * 40])
+        for job in resume_data.get("work_history", []):
+            lines.append(f"\n{job.get('title', '')} - {job.get('company', '')} ({job.get('duration', '')})")
+            for b in job.get("bullets", []):
+                lines.append(f"  * {b}")
+
+        lines.extend(["", "KEY TECHNICAL PROJECTS", "-" * 40])
+        for proj in resume_data.get("projects", []):
+            lines.append(f"\n{proj.get('title', '')} | Tech: {proj.get('technologies', '')}")
+            for b in proj.get("bullets", []):
+                lines.append(f"  * {b}")
+
+        lines.extend([
+            "",
+            "EDUCATION",
+            "-" * 40,
+            "BScEngHons (Bachelor of the Science of Engineering Honours)",
+            "University of Moratuwa - Sri Lanka's Premier Engineering Institution",
+            "",
+            "LANGUAGES",
+            "-" * 40,
+            "English (Professional Working Proficiency - C1/C2), Tamil (Native), Sinhala (Professional)"
+        ])
+
+        return "\n".join(lines)

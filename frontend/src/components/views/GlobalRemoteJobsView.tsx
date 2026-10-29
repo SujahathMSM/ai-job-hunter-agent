@@ -20,6 +20,7 @@ import {
   FileText,
   Calendar,
   AlertCircle,
+  MessageSquareCode,
 } from "lucide-react";
 import { GlobalRemoteJob, JobItem } from "../../types";
 import { fetchGlobalRemoteJobs } from "../../lib/api";
@@ -28,6 +29,7 @@ interface GlobalRemoteJobsViewProps {
   onSelectForTailor: (job: JobItem) => void;
   onSelectForOutreach: (job: JobItem) => void;
   onSelectForRecruiters?: (company: string, jobTitle: string) => void;
+  onSelectForInterview?: (jobTitle: string, company: string, location: string, desc: string) => void;
 }
 
 function formatCleanText(text: string): string {
@@ -93,6 +95,7 @@ export default function GlobalRemoteJobsView({
   onSelectForTailor,
   onSelectForOutreach,
   onSelectForRecruiters,
+  onSelectForInterview,
 }: GlobalRemoteJobsViewProps) {
   const [keyword, setKeyword] = useState("Python");
   const [sourceFilter, setSourceFilter] = useState("ALL");
@@ -490,6 +493,18 @@ export default function GlobalRemoteJobsView({
                     <span>Tailor CV</span>
                   </button>
 
+                  {/* Prep Interview */}
+                  {onSelectForInterview && (
+                    <button
+                      onClick={() => onSelectForInterview(job.job_title, job.company, job.location, job.description)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#4edea3]/40 hover:border-[#4edea3] hover:bg-[#4edea3]/10 text-xs font-medium text-[#4edea3] transition-all"
+                      title="Practice role-specific STAR questions & answers for this opening"
+                    >
+                      <MessageSquareCode className="w-3.5 h-3.5 text-[#4edea3]" />
+                      <span>Prep Interview</span>
+                    </button>
+                  )}
+
                   {/* Cold Outreach - only shown if a real email address exists */}
                   {hasEmail && (
                     <button
@@ -623,6 +638,19 @@ export default function GlobalRemoteJobsView({
                   <Sparkles className="w-3.5 h-3.5 text-[#4cd7f6]" />
                   <span>Tailor CV with this JD</span>
                 </button>
+
+                {onSelectForInterview && (
+                  <button
+                    onClick={() => {
+                      onSelectForInterview(activeModalJob.job_title, activeModalJob.company, activeModalJob.location, activeModalJob.description);
+                      setActiveModalJob(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#4edea3]/40 hover:border-[#4edea3] text-xs font-semibold text-[#4edea3] transition-all"
+                  >
+                    <MessageSquareCode className="w-3.5 h-3.5 text-[#4edea3]" />
+                    <span>Prep Interview</span>
+                  </button>
+                )}
 
                 {onSelectForRecruiters && (
                   <button

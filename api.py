@@ -28,6 +28,8 @@ from matcher.jd_analyzer import JobDescriptionAnalyzer
 from generators.resume_tailorer import ResumeTailorer
 from generators.cover_letter_gen import CoverLetterGenerator
 from generators.pdf_builder import PDFResumeBuilder
+from generators.reviewer_agent import ReviewerAgent
+from generators.interview_engine import InterviewEngine
 from outreach.email_sender import EmailDispatcher
 from outreach.tracker import ApplicationTracker
 
@@ -66,6 +68,28 @@ class TailorRequest(BaseModel):
     user_id: Optional[str] = "default"
 
 class PDFGenRequest(BaseModel):
+    tailored_resume: Dict[str, Any]
+
+class InterviewGenerateRequest(BaseModel):
+    job_title: str
+    company: str
+    location: Optional[str] = "Global / Remote"
+    description: Optional[str] = ""
+    candidate_id: Optional[str] = None
+
+class InterviewEvaluateRequest(BaseModel):
+    question: str
+    question_type: str = "Behavioral (STAR)"
+    candidate_answer: str
+    job_title: str = "Software Engineer"
+    company: str = "Company"
+
+class SkillGapRequest(BaseModel):
+    job_title: str
+    company: str
+    jd_text: Optional[str] = ""
+
+class ATSPlainTextRequest(BaseModel):
     tailored_resume: Dict[str, Any]
 
 class OutreachDraftRequest(BaseModel):
@@ -672,20 +696,41 @@ def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_use
         jd_text=req.jd_text
     )
 
+    # Stage 2: Reviewer Agent Anti-Hallucination Audit Gate
+    reviewer = ReviewerAgent(pb.profile)
+    audit_report = reviewer.audit_and_verify(
+        tailored_resume=tailored_resume,
+        cover_letter=cover_letter,
+        job_title=req.job_title,
+        company=req.company,
+        jd_text=req.jd_text
+    )
+
+    # Calculate Skill Gap & 24-Hour Quick-Study Roadmap
+    skill_gap = reviewer.analyze_skill_gap(
+        job_title=req.job_title,
+        company=req.company,
+        jd_text=req.jd_text
+    )
+
     safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', req.company).strip('_') or "Company"
     clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
     try:
         pdf_gen = PDFResumeBuilder()
         cv_out = GENERATED_DIR / f"Europass_CV_{clean_uid}_{safe_comp}.pdf"
+        ats_out = GENERATED_DIR / f"Clean_ATS_CV_{clean_uid}_{safe_comp}.pdf"
         cl_out = GENERATED_DIR / f"Cover_Letter_{clean_uid}_{safe_comp}.pdf"
         pdf_gen.build_resume_pdf(tailored_resume, cv_out)
+        pdf_gen.build_ats_clean_pdf(tailored_resume, ats_out)
         pdf_gen.build_cover_letter_pdf(cover_letter, pb.profile, cl_out)
     except Exception as e:
         print(f"[Tailor Pre-build Error]: {e}")
     
     return {
         "tailored_resume": tailored_resume,
-        "cover_letter": cover_letter
+        "cover_letter": cover_letter,
+        "reviewer_audit": audit_report,
+        "skill_gap": skill_gap
     }
 
 @app.post("/api/cv/generate-pdf")
@@ -704,6 +749,67 @@ def generate_pdf(req: PDFGenRequest):
         media_type="application/pdf",
         filename=os.path.basename(out_file)
     )
+
+@app.post("/api/cv/generate-ats-pdf")
+def generate_ats_pdf(req: PDFGenRequest):
+    import time
+    pdf_gen = PDFResumeBuilder()
+    out_file = GENERATED_DIR / f"Clean_ATS_CV_{int(time.time())}.pdf"
+    pdf_gen.build_ats_clean_pdf(
+        resume_data=req.tailored_resume,
+        output_path=out_file
+    )
+    if not os.path.exists(out_file):
+        raise HTTPException(status_code=500, detail="ATS PDF generation failed.")
+    return FileResponse(
+        out_file,
+        media_type="application/pdf",
+        filename=os.path.basename(out_file)
+    )
+
+@app.post("/api/cv/ats-plaintext")
+def get_ats_plaintext(req: ATSPlainTextRequest):
+    pdf_gen = PDFResumeBuilder()
+    plaintext = pdf_gen.generate_ats_plaintext(req.tailored_resume)
+    return {"plaintext": plaintext}
+
+@app.post("/api/tailor/skill-gap")
+def get_skill_gap(req: SkillGapRequest, current_user_id: str = Depends(get_current_user_id)):
+    pb = PersonaBuilder(user_id=current_user_id)
+    reviewer = ReviewerAgent(pb.profile)
+    gap = reviewer.analyze_skill_gap(
+        job_title=req.job_title,
+        company=req.company,
+        jd_text=req.jd_text or ""
+    )
+    return gap
+
+@app.post("/api/interview/generate")
+def generate_interview_prep(req: InterviewGenerateRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id if is_production_mode() else (req.candidate_id or current_user_id)
+    pb = PersonaBuilder(user_id=user_id)
+    engine = InterviewEngine(pb.profile)
+    pack = engine.generate_interview_pack(
+        job_title=req.job_title,
+        company=req.company,
+        location=req.location or "Global / Remote",
+        jd_text=req.description or ""
+    )
+    return pack
+
+@app.post("/api/interview/evaluate")
+def evaluate_interview_answer(req: InterviewEvaluateRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id
+    pb = PersonaBuilder(user_id=user_id)
+    engine = InterviewEngine(pb.profile)
+    evaluation = engine.evaluate_candidate_answer(
+        question=req.question,
+        question_type=req.question_type,
+        candidate_answer=req.candidate_answer,
+        job_title=req.job_title,
+        company=req.company
+    )
+    return evaluation
 
 @app.get("/api/documents/preview")
 def preview_document(

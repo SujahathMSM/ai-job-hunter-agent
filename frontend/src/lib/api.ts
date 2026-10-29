@@ -182,6 +182,82 @@ export async function downloadEuropassPDF(tailoredResume: any): Promise<Blob> {
   return res.blob();
 }
 
+export async function downloadATSPDF(tailoredResume: any): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/cv/generate-ats-pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ tailored_resume: tailoredResume }),
+  });
+  if (!res.ok) throw new Error("Failed to generate ATS PDF");
+  return res.blob();
+}
+
+export async function fetchATSPlaintext(tailoredResume: any): Promise<{ plaintext: string }> {
+  const res = await fetch(`${API_BASE}/cv/ats-plaintext`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ tailored_resume: tailoredResume }),
+  });
+  if (!res.ok) throw new Error("Failed to fetch ATS plaintext");
+  return res.json();
+}
+
+export async function fetchSkillGap(jobTitle: string, company: string, jdText: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/tailor/skill-gap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      job_title: jobTitle,
+      company: company,
+      jd_text: jdText,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to analyze skill gap");
+  return res.json();
+}
+
+export async function generateInterviewPrep(
+  jobTitle: string,
+  company: string,
+  location: string,
+  description: string
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/interview/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      job_title: jobTitle,
+      company: company,
+      location: location,
+      description: description,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to generate interview prep pack");
+  return res.json();
+}
+
+export async function evaluateInterviewAnswer(
+  question: string,
+  questionType: string,
+  candidateAnswer: string,
+  jobTitle: string,
+  company: string
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/interview/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      question: question,
+      question_type: questionType,
+      candidate_answer: candidateAnswer,
+      job_title: jobTitle,
+      company: company,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to evaluate interview answer");
+  return res.json();
+}
+
 export async function draftEmail(jobTitle: string, company: string, hrEmail: string, hrName?: string, context?: string): Promise<any> {
   const res = await fetch(`${API_BASE}/outreach/draft`, {
     method: "POST",
