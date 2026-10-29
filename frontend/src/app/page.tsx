@@ -18,9 +18,10 @@ import { getStoredUser, clearSession, AuthUser } from "../lib/auth";
 import { JobItem } from "../types";
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("remote");
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(getStoredUser());
-  const [candidateName, setCandidateName] = useState(currentUser?.full_name || "Candidate");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [candidateName, setCandidateName] = useState("Candidate");
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [stats, setStats] = useState({
     matched: 74,
@@ -50,6 +51,14 @@ export default function Home() {
   const [selectedOutreachData, setSelectedOutreachData] = useState<any>(null);
 
   useEffect(() => {
+    setMounted(true);
+    const u = getStoredUser();
+    if (u) {
+      setCurrentUser(u);
+      setCandidateName(u.full_name || "Candidate");
+      loadUserData(u);
+    }
+
     // Synchronize browser history / URL hash with active tab so browser back/forward stays in app
     if (typeof window !== "undefined") {
       const initialHash = window.location.hash.replace("#", "");
@@ -198,7 +207,7 @@ export default function Home() {
         {/* Top Header */}
         <Header
           candidateName={candidateName}
-          currentUser={currentUser}
+          currentUser={mounted ? currentUser : null}
           onOpenAuth={() => setIsAuthOpen(true)}
           onLogout={handleLogout}
         />
