@@ -38,6 +38,31 @@ function formatCleanText(text: string): string {
     .trim();
 }
 
+function formatDatePosted(dateStr?: string): string {
+  if (!dateStr || dateStr.toLowerCase() === "recently" || dateStr.toLowerCase() === "active") {
+    return dateStr || "Recently Listed";
+  }
+  if (dateStr.includes("ago") || dateStr.includes("Trending") || dateStr.includes("Today")) {
+    return dateStr;
+  }
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const diffMs = Date.now() - d.getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffHours < 1) return "Just now";
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays === 1) return "Yesterday";
+      if (diffDays < 14) return `${diffDays}d ago`;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+  } catch {
+    // fallback
+  }
+  return dateStr;
+}
+
 export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }: JobHunterViewProps) {
   const [keyword, setKeyword] = useState("Python Developer");
   const [region, setRegion] = useState("GULF");
@@ -258,8 +283,8 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                           <MapPin className="w-3.5 h-3.5 text-[#869397]" /> {job.location}
                         </span>
                         <span>•</span>
-                        <span className="flex items-center gap-1 text-[#4cd7f6] font-mono">
-                          <Calendar className="w-3.5 h-3.5" /> {job.posted_label || job.date_posted || "Recently Listed"}
+                        <span className="inline-flex items-center gap-1 text-[#4cd7f6] font-mono bg-[#1a1b22] px-2 py-0.5 rounded border border-[#3d494c]/30">
+                          <Calendar className="w-3.5 h-3.5" /> Posted: {formatDatePosted(job.posted_label || job.date_posted)}
                         </span>
                         {job.salary && (
                           <>
@@ -427,16 +452,13 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                         <strong className="text-[#e3e1ec]">{job.company}</strong> &nbsp;•&nbsp; {job.location}
                       </div>
                       {/* Date Posted & Salary */}
-                      <div className="flex items-center gap-2 text-[11px] text-[#869397] font-mono mt-1">
-                        <span className="flex items-center gap-1 text-[#4cd7f6]">
+                      <div className="flex items-center gap-2 text-[11px] text-[#869397] font-mono mt-1 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-[#4cd7f6] bg-[#1a1b22] px-2 py-0.5 rounded border border-[#3d494c]/30">
                           <Calendar className="w-3 h-3" />
-                          {job.posted_label || job.date_posted || "Recently Listed"}
+                          <span>Posted: {formatDatePosted(job.posted_label || job.date_posted)}</span>
                         </span>
                         {job.salary && (
-                          <>
-                            <span>•</span>
-                            <span className="text-[#4edea3] font-semibold">{job.salary}</span>
-                          </>
+                          <span className="text-[#4edea3] font-semibold">{job.salary}</span>
                         )}
                       </div>
                     </div>
@@ -563,7 +585,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                 <h2 className="text-lg font-bold text-[#e3e1ec] tracking-tight">
                   {modalJob.job_title}
                 </h2>
-                <div className="flex items-center gap-3 text-xs text-[#bcc9cd]">
+                <div className="flex items-center gap-3 text-xs text-[#bcc9cd] flex-wrap mt-1">
                   <span className="font-semibold text-[#e3e1ec] flex items-center gap-1">
                     <Building2 className="w-3.5 h-3.5 text-[#4cd7f6]" />
                     {modalJob.company}
@@ -573,8 +595,9 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                       💰 {modalJob.salary}
                     </span>
                   )}
-                  <span className="text-[#879396]">
-                    📅 {modalJob.posted_label || modalJob.date_posted || "Recently Listed"}
+                  <span className="inline-flex items-center gap-1 text-[11px] font-mono text-[#bcc9cd] bg-[#1a1b22] px-2.5 py-0.5 rounded border border-[#3d494c]/40">
+                    <Calendar className="w-3.5 h-3.5 text-[#4cd7f6]" />
+                    <span>Posted: {formatDatePosted(modalJob.posted_label || modalJob.date_posted)}</span>
                   </span>
                 </div>
               </div>

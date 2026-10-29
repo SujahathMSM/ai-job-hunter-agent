@@ -115,5 +115,6 @@ export interface GlobalRemoteJob {
   job_url?: string;
   description: string;
   match_score: number;
+  date_posted?: string;
   posted_at?: string;
 }
