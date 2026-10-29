@@ -118,3 +118,23 @@ export interface GlobalRemoteJob {
   date_posted?: string;
   posted_at?: string;
 }
+
+export interface DubaiJobItem {
+  id: string;
+  job_title: string;
+  company: string;
+  location: string;
+  category: string;
+  salary: string;
+  portal?: string;
+  apply_url?: string;
+  hr_email?: string;
+  description: string;
+  tags: string[];
+  source: string;
+  date_posted?: string;
+  posted_at?: string;
+  is_dubai: boolean;
+  match_score: number;
+  overqualification_insight?: string;
+}

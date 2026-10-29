@@ -55,7 +55,8 @@ class LiveJobHunter:
         "engineer", "developer", "architect", "programmer", "systems", "software",
         "backend", "frontend", "fullstack", "embedded", "firmware", "hardware",
         "iot", "cloud", "devops", "data", "platform", "technical", "technologies",
-        "qa", "specialist", "controls", "automation", "solutions", "lead", "ai", "ml", "nlp"
+        "qa", "specialist", "controls", "automation", "solutions", "lead", "ai", "ml", "nlp",
+        "analyst", "support", "document", "controller", "coordinator", "administrator", "it", "officer"
     ]
 
     def _is_legitimate_engineering_job(self, title: str) -> bool:
@@ -78,7 +79,7 @@ class LiveJobHunter:
         kw_lower = kw.lower()
         queries = [kw]
 
-        if not any(term in kw_lower for term in ["engineer", "developer", "software", "architect", "specialist"]):
+        if not any(term in kw_lower for term in ["engineer", "developer", "software", "architect", "specialist", "analyst", "support", "controller", "coordinator", "administrator"]):
             queries.append(f"{kw} Engineer")
 
         # Focused domain expansions without polluting other languages/stacks
@@ -90,8 +91,14 @@ class LiveJobHunter:
             queries.extend(["Python Engineer", "Python Backend Developer", "Software Engineer Python"])
         elif "backend" in kw_lower:
             queries.extend(["Backend Engineer", "API Engineer", "Systems Engineer"])
+        elif "business analyst" in kw_lower or kw_lower == "ba":
+            queries.extend(["Business Analyst", "Technical Business Analyst", "Operations Analyst", "Systems Analyst"])
+        elif "it support" in kw_lower or "support" in kw_lower:
+            queries.extend(["IT Support Specialist", "IT Systems Support", "Desktop Support Engineer", "System Administrator"])
+        elif "document" in kw_lower or "controller" in kw_lower:
+            queries.extend(["Document Controller", "Technical Document Controller", "Project Document Controller", "Technical Coordinator"])
         elif "data" in kw_lower:
-            queries.extend(["Data Engineer", "Data Platform Engineer"])
+            queries.extend(["Data Engineer", "Data Analyst", "Data Platform Engineer"])
 
         seen = set()
         unique = []
@@ -380,9 +387,14 @@ class LiveJobHunter:
                     continue
 
             # Region filter check
-            if region_filter == "GULF" and meta.get("category") != "GULF":
+            if region_filter == "DUBAI":
+                dubai_keywords = ["dubai", "uae", "united arab emirates", "abu dhabi", "sharjah", "ajman"]
+                loc_check = f"{j['location']} {j.get('description', '')}".lower()
+                if not any(dk in loc_check for dk in dubai_keywords):
+                    continue
+            elif region_filter == "GULF" and meta.get("category") != "GULF":
                 continue
-            if region_filter == "MIGRATABLE" and meta.get("category") != "MIGRATABLE_GLOBAL":
+            elif region_filter == "MIGRATABLE" and meta.get("category") != "MIGRATABLE_GLOBAL":
                 continue
 
             j["geo_meta"] = meta
@@ -412,7 +424,14 @@ class LiveJobHunter:
         try:
             from jobspy import scrape_jobs
 
-            if region_filter == "GULF":
+            if region_filter == "DUBAI":
+                target_locs = [
+                    "Dubai, United Arab Emirates",
+                    "Abu Dhabi, United Arab Emirates",
+                    "Sharjah, United Arab Emirates"
+                ]
+                sites = ["indeed", "glassdoor", "bayt"]
+            elif region_filter == "GULF":
                 target_locs = [
                     "Dubai, United Arab Emirates",
                     "Abu Dhabi, United Arab Emirates",
@@ -612,7 +631,7 @@ class LiveJobHunter:
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
 
         try:
-            resp = requests.post(url, data={"q": query}, headers=headers, timeout=10)
+            resp = requests.post(url, data={"q": query}, headers=headers, timeout=(2.0, 3.0))
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
                 blocks = soup.select(".result__body")

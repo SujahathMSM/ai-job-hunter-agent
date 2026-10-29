@@ -71,6 +71,13 @@ EXCLUDED_COUNTRIES: List[str] = [
 
 # 4. Structured Regional Scraping Hubs with Localized Indeed Country Domains
 EXPANDED_LOCATION_TARGETS = {
+    "DUBAI": [
+        {"city": "Dubai", "country": "united arab emirates", "display": "Dubai, UAE"},
+        {"city": "Abu Dhabi", "country": "united arab emirates", "display": "Abu Dhabi, UAE"},
+        {"city": "Sharjah", "country": "united arab emirates", "display": "Sharjah, UAE"},
+        {"city": "Dubai Internet City", "country": "united arab emirates", "display": "Dubai Internet City, UAE"},
+        {"city": "DIFC", "country": "united arab emirates", "display": "DIFC Dubai, UAE"},
+    ],
     "GULF": [
         {"city": "Dubai", "country": "united arab emirates", "display": "Dubai, UAE"},
         {"city": "Riyadh", "country": "saudi arabia", "display": "Riyadh, Saudi Arabia"},
@@ -119,7 +126,10 @@ ENGINEERING_KEYWORDS: List[str] = [
     "systems", "devops", "cloud", "data", "electronics", "mechatronics",
     "automation", "embedded", "qa", "quality", "solutions architect",
     "site reliability", "sre", "hardware", "firmware", "ai", "machine learning",
-    "project engineer", "technical lead", "engineering manager", "consultant"
+    "project engineer", "technical lead", "engineering manager", "consultant",
+    "business analyst", "analyst", "it support", "support", "document controller",
+    "documentation", "coordinator", "technical coordinator", "operations",
+    "system administrator", "administrator", "it specialist", "it engineer"
 ]
 
 # Default LLM Settings

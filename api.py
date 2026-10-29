@@ -572,6 +572,44 @@ def get_global_remote_jobs(
         return {"status": "error", "message": str(e), "count": 0, "jobs": []}
 
 
+# --- DUBAI & UAE CAREER HUNTER (HIGH-MATCH & OVERQUALIFIED ROLES) ---
+@app.get("/api/jobs/dubai")
+def get_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40):
+    """Fetches high-fit Dubai & UAE corporate job postings across Business Analyst, 
+    IT Support, Document Controller, Software Engineering, and Operations roles."""
+    try:
+        from hunter.dubai_hunter import DubaiJobHunter
+        hunter = DubaiJobHunter()
+        jobs = hunter.search_dubai_jobs(keyword=keyword, category=category, max_results=limit)
+        return {"status": "success", "count": len(jobs), "jobs": jobs}
+    except Exception as e:
+        print(f"[Dubai Jobs Hunter Error]: {e}")
+        return {"status": "error", "message": str(e), "count": 0, "jobs": []}
+
+@app.get("/api/jobs/dubai/stream")
+def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40):
+    def event_stream():
+        yield ": ping\n\n"
+        from hunter.dubai_hunter import DubaiJobHunter
+        hunter = DubaiJobHunter()
+        jobs = hunter.search_dubai_jobs(keyword=keyword, category=category, max_results=limit)
+        for j in jobs:
+            yield f"data: {json.dumps(j)}\n\n"
+            time.sleep(0.03)
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 # --- GLOBAL RECRUITER & HR FINDER ---
 @app.get("/api/hr/by-role/stream")
 def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 25):

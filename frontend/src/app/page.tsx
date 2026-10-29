@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import ProfileView from "../components/views/ProfileView";
 import JobHunterView from "../components/views/JobHunterView";
+import DubaiJobHunterView from "../components/views/DubaiJobHunterView";
 import GlobalRemoteJobsView from "../components/views/GlobalRemoteJobsView";
 import CareerPortalsView from "../components/views/CareerPortalsView";
 import CVTailorView from "../components/views/CVTailorView";
@@ -29,7 +30,7 @@ export default function Home() {
     sent: 12,
   });
 
-  const VALID_TABS = ["profile", "hunter", "remote", "portals", "tailor", "outreach", "recruiters", "tracker", "settings"];
+  const VALID_TABS = ["profile", "hunter", "dubai", "remote", "portals", "tailor", "outreach", "recruiters", "tracker", "settings"];
 
   const navigateToTab = (tab: string, pushHistory = true) => {
     if (!VALID_TABS.includes(tab)) return;
@@ -222,6 +223,16 @@ export default function Home() {
               key={currentUser?.id || "guest"}
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
+            />
+          </div>
+          <div className={activeTab === "dubai" ? "block" : "hidden"}>
+            <DubaiJobHunterView
+              key={currentUser?.id || "guest"}
+              onSelectForTailor={handleSelectForTailor}
+              onSelectForOutreach={handleSelectForOutreach}
+              onSelectForRecruiters={(company, title) => {
+                setActiveTab("recruiters");
+              }}
             />
           </div>
           <div className={activeTab === "remote" ? "block" : "hidden"}>

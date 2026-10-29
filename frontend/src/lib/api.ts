@@ -1,4 +1,4 @@
-import { CandidateProfile, JobItem, HiringCompanyLead, ApplicationItem, GlobalRemoteJob } from "../types";
+import { CandidateProfile, JobItem, HiringCompanyLead, ApplicationItem, GlobalRemoteJob, DubaiJobItem } from "../types";
 import { getAuthHeaders, getStoredUser, AuthUser } from "./auth";
 
 const API_BASE = "/api";
@@ -423,5 +423,20 @@ export async function fetchGlobalRemoteJobs(
   });
   const res = await fetch(`${API_BASE}/jobs/remote?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch global remote jobs");
+  return res.json();
+}
+
+export async function fetchDubaiJobs(
+  keyword: string = "",
+  category: string = "ALL",
+  limit: number = 40
+): Promise<{ count: number; jobs: DubaiJobItem[] }> {
+  const params = new URLSearchParams({
+    keyword,
+    category,
+    limit: String(limit),
+  });
+  const res = await fetch(`${API_BASE}/jobs/dubai?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to fetch Dubai jobs");
   return res.json();
 }

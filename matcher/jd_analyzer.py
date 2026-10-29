@@ -51,7 +51,10 @@ class JobDescriptionAnalyzer:
         else:
             # 1. Title match (0 - 25 points)
             title_lower = job_title.lower()
-            core_roles = ["software", "backend", "systems", "python", "ai", "data", "platform", "engineer", "developer"]
+            core_roles = [
+                "software", "backend", "systems", "python", "ai", "data", "platform", "engineer", "developer",
+                "analyst", "support", "document", "controller", "coordinator", "administrator", "specialist"
+            ]
             title_hits = sum(1 for r in core_roles if r in title_lower)
             title_score = min(title_hits * 8, 25)
 
