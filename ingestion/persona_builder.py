@@ -39,7 +39,7 @@ class PersonaBuilder:
         return {
             "identity": {
                 "full_name": "M.S. Mohamed Sujahath",
-                "professional_title": "Backend Software Engineer — Python, Data & Energy Systems",
+                "professional_title": "AI/ML, RAG & Backend Systems Engineer | GenAI, LLMs, Python/FastAPI & Distributed Telemetry",
                 "email": "sujahathmhmd@gmail.com",
                 "phone": "+971 50 229 1865 / +94 76 485 8427",
                 "current_location": "Colombo, Sri Lanka",
@@ -48,21 +48,23 @@ class PersonaBuilder:
                 "linkedin": "https://linkedin.com/in/sujahath-siddeek",
                 "github": "https://github.com/SujahathMSM"
             },
-            "summary": "Backend software engineer with 2+ years of commercial experience owning production Python systems end to end — from design and data modelling through deployment, monitoring and incident response — for a live solar-and-battery energy platform. Works daily with high-frequency battery, inverter and smart-meter time-series data in PostgreSQL/TimescaleDB. Proven track record eliminating polling failures (~80% to 0%) and optimizing controller startup (5-6 min to 15-30 sec).",
+            "summary": "Production-tested Backend & Applied AI Systems Engineer with a BScEngHons from the University of Moratuwa. Specializes in building deterministic RAG pipelines (AeroIntel), automated LLM evaluation harnesses (evalX), multimodal document intelligence, and high-throughput Python/FastAPI microservices. Commercial track record eliminating telemetry polling failures (80% to 0%) and slashing startup latency by 90% at Blue Brand IP Institute. Actively builds and validates production GenAI workflows, pgvector hybrid search, and PyTorch federated learning architectures.",
             "core_skills": [
-                "Python & FastAPI Backend Architecture",
-                "PostgreSQL & TimescaleDB (Hypertables & Time-series)",
-                "Distributed Systems & Fault-Tolerant Design",
-                "Docker & AWS Deployment (EC2, S3, RDS, Lambda)",
-                "MQTT, Modbus RTU & IoT Telemetry Ingestion",
-                "Applied AI & VLM Document Extraction Pipelines",
-                "Database Query Optimization & Connection Health",
-                "CI/CD with GitLab, GitHub Actions, Ansible"
+                "AI & LLM Workflows (RAG, pgvector, LangGraph, Ollama)",
+                "AI Evaluation Harnesses & Deterministic CI Gates (evalX, LLM-as-a-Judge)",
+                "Python & FastAPI Backend Architecture (AsyncIO, Pydantic)",
+                "PostgreSQL & TimescaleDB (Hypertables, pgvector & Vector Search)",
+                "Multimodal Document Intelligence (Vision LLMs, Schema Extraction)",
+                "Distributed Systems & Fault-Tolerant Telemetry (MQTT, Modbus RTU)",
+                "Deep Learning & Federated Learning (PyTorch, Flower, TensorFlow)",
+                "Docker & Cloud Deployment (AWS EC2, S3, RDS, GitLab CI/CD)"
             ],
             "technical_stack": [
-                "Python", "FastAPI", "SQLAlchemy 2.0", "Pydantic", "PostgreSQL",
-                "TimescaleDB", "Docker", "AWS", "Node.js", "Java", "MQTT", "Modbus RTU",
-                "pgvector", "Redis", "Linux", "GitLab CI/CD", "GitHub Actions"
+                "Python", "FastAPI", "PyTorch", "RAG (Retrieval-Augmented Generation)", "pgvector",
+                "LangGraph", "LangChain", "LlamaIndex", "Ollama", "Vector Databases", "LLM-as-a-Judge",
+                "evalX", "Vision LLMs", "PostgreSQL", "TimescaleDB", "Docker", "AWS (EC2, S3, RDS, Lambda)",
+                "SQLAlchemy 2.0", "Pydantic", "Node.js", "Java", "Redis", "Linux", "GitLab CI/CD",
+                "GitHub Actions", "MQTT", "Modbus RTU", "Distributed Systems"
             ],
             "work_history": [],
             "projects": [],
@@ -314,9 +316,9 @@ class PersonaBuilder:
 
     def _build_categorized_skills(self, skills: List[str]) -> List[Dict[str, str]]:
         categories = {
+            "AI & Machine Learning": ["pytorch", "tensorflow", "rag", "langgraph", "langchain", "llamaindex", "ollama", "llm", "genai", "flower", "vision", "evalx", "aerointel", "machine learning", "deep learning", "nlp", "vector", "pgvector", "embeddings", "agent", "prompt", "scikit", "vlm", "llm-as-a-judge"],
             "Programming & Backend": ["python", "fastapi", "sql", "java", "c", "c++", "node", "express", "nest", "javascript", "typescript", "rest", "graphql", "websocket", "django", "flask"],
-            "Data & Databases": ["postgres", "postgresql", "timescaledb", "mongodb", "redis", "pgvector", "mysql", "time-series", "pandas", "numpy", "matplotlib", "schema"],
-            "AI & Machine Learning": ["pytorch", "tensorflow", "scikit", "rag", "langgraph", "langchain", "llamaindex", "ollama", "llm", "genai", "flower", "vision", "evalx", "aerointel", "machine learning"],
+            "Data & Databases": ["postgres", "postgresql", "timescaledb", "mongodb", "redis", "mysql", "time-series", "pandas", "numpy", "matplotlib", "schema"],
             "Cloud, DevOps & Systems": ["aws", "docker", "kubernetes", "linux", "ci/cd", "gitlab", "github actions", "jenkins", "ansible", "ec2", "lambda", "s3", "rds"],
             "IoT & Integration": ["mqtt", "modbus", "raspberry", "stm32", "rtu", "rs485", "telemetry", "iot", "edge"],
             "Analysis & Delivery": ["agile", "scrum", "requirements", "root-cause", "code review", "system design", "testing", "regression"],
@@ -343,12 +345,15 @@ class PersonaBuilder:
                 seen.add(s_lower)
 
         # Default fallbacks if empty
+        if not bucketed["AI & Machine Learning"]:
+            bucketed["AI & Machine Learning"] = [
+                "RAG (Retrieval-Augmented Generation)", "LangGraph", "Vector DBs (pgvector)",
+                "Ollama", "Vision LLMs (VLM)", "PyTorch", "LLM-as-a-Judge (evalX)", "Agentic Workflows"
+            ]
         if not bucketed["Programming & Backend"]:
             bucketed["Programming & Backend"] = ["Python", "FastAPI", "REST APIs", "SQL"]
         if not bucketed["Data & Databases"]:
             bucketed["Data & Databases"] = ["PostgreSQL", "TimescaleDB", "Data Validation", "Pandas"]
-        if not bucketed["AI & Machine Learning"]:
-            bucketed["AI & Machine Learning"] = ["Machine Learning", "PyTorch", "LLM Workflows", "Model Evaluation"]
         if not bucketed["Cloud, DevOps & Systems"]:
             bucketed["Cloud, DevOps & Systems"] = ["Docker", "Linux", "AWS (EC2, S3)", "GitLab CI/CD"]
         if not bucketed["IoT & Integration"]:
