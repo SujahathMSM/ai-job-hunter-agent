@@ -92,6 +92,16 @@ class SkillGapRequest(BaseModel):
 class ATSPlainTextRequest(BaseModel):
     tailored_resume: Dict[str, Any]
 
+class CVAnalyzeRequest(BaseModel):
+    raw_text: Optional[str] = None
+    user_id: Optional[str] = None
+
+class CVJobHuntRequest(BaseModel):
+    cv_analysis: Dict[str, Any]
+    region: str = "ALL"
+    min_match: int = 70
+    limit: int = 60
+
 class OutreachDraftRequest(BaseModel):
     job_title: str
     company: str
@@ -633,6 +643,80 @@ def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40)
             "X-Accel-Buffering": "no",
         }
     )
+
+
+# --- UNIVERSAL CV MATCHER & GLOBAL HUNTER ---
+@app.post("/api/cv-hunter/analyze")
+def analyze_cv(
+    req: Optional[CVAnalyzeRequest] = None,
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """Deeply parses and analyzes ANY CV text or candidate profile to extract target roles,
+    competencies, and global search vectors."""
+    try:
+        from hunter.universal_cv_hunter import UniversalCVHunter
+        hunter = UniversalCVHunter()
+        text_to_analyze = req.raw_text if req and req.raw_text else ""
+        if not text_to_analyze:
+            uid = current_user_id if is_production_mode() else (req.user_id if req and req.user_id else current_user_id)
+            pb = PersonaBuilder(user_id=uid)
+            text_to_analyze = json.dumps(pb.profile, indent=2)
+        analysis = hunter.parse_and_analyze_cv(text_to_analyze)
+        return analysis
+    except Exception as e:
+        print(f"[Universal CV Analyze Error]: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cv-hunter/upload")
+async def upload_and_analyze_cv(
+    file: UploadFile = File(...),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """Uploads ANY CV file (PDF, DOCX, TXT), parses it carefully, and immediately hunts matching jobs worldwide."""
+    try:
+        from hunter.universal_cv_hunter import UniversalCVHunter
+        hunter = UniversalCVHunter()
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename or "cv.pdf")
+        temp_path = UPLOADS_DIR / f"cv_match_{int(time.time())}_{safe_name}"
+        contents = await file.read()
+        with open(temp_path, "wb") as f:
+            f.write(contents)
+
+        analysis = hunter.parse_and_analyze_cv(str(temp_path))
+        jobs = hunter.hunt_matching_jobs(analysis, region="ALL", min_match=65, limit=50)
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "analysis": analysis,
+            "jobs": jobs,
+            "count": len(jobs)
+        }
+    except Exception as e:
+        print(f"[Universal CV Upload & Match Error]: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cv-hunter/search")
+def search_jobs_for_cv(req: CVJobHuntRequest):
+    """Hunts live matching jobs worldwide using the extracted CV analysis parameters."""
+    try:
+        from hunter.universal_cv_hunter import UniversalCVHunter
+        hunter = UniversalCVHunter()
+        jobs = hunter.hunt_matching_jobs(
+            cv_analysis=req.cv_analysis,
+            region=req.region,
+            min_match=req.min_match,
+            limit=req.limit
+        )
+        return {
+            "status": "success",
+            "count": len(jobs),
+            "region": req.region,
+            "jobs": jobs
+        }
+    except Exception as e:
+        print(f"[Universal CV Job Search Error]: {e}")
+        return {"status": "error", "message": str(e), "count": 0, "jobs": []}
 
 
 # --- GLOBAL RECRUITER & HR FINDER ---

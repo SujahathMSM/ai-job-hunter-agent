@@ -546,3 +546,45 @@ export async function fetchDubaiJobs(
   if (!res.ok) throw new Error("Failed to fetch Dubai jobs");
   return res.json();
 }
+
+export async function analyzeCV(rawText?: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/cv-hunter/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ raw_text: rawText || "" }),
+  });
+  if (!res.ok) throw new Error("Failed to analyze CV");
+  return res.json();
+}
+
+export async function uploadAndMatchCV(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/cv-hunter/upload`, {
+    method: "POST",
+    headers: { ...getAuthHeaders() },
+    body: formData,
+  });
+  if (!res.ok) throw new Error("Failed to upload and match CV");
+  return res.json();
+}
+
+export async function searchJobsForCV(
+  cvAnalysis: any,
+  region: string = "ALL",
+  minMatch: number = 65,
+  limit: number = 60
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/cv-hunter/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      cv_analysis: cvAnalysis,
+      region,
+      min_match: minMatch,
+      limit,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to search matching jobs for CV");
+  return res.json();
+}
