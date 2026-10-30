@@ -5,7 +5,7 @@ echo        Launching NexusHunt AI (Backend + UI)
 echo ====================================================
 echo.
 
-if "%BACKEND_PORT%"=="" set BACKEND_PORT=8000
+if "%BACKEND_PORT%"=="" set BACKEND_PORT=8005
 
 :: 1. Launch FastAPI Backend
 start "NexusHunt - FastAPI Backend (:%BACKEND_PORT%)" cmd /k "cd /d "%~dp0" && python -m uvicorn api:app --port %BACKEND_PORT% --reload"

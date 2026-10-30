@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   async rewrites() {
-    const backendPort = process.env.BACKEND_PORT || process.env.PORT || "8000";
+    const backendPort = process.env.BACKEND_PORT || process.env.PORT || "8005";
     return [
       {
         source: "/api/:path*",

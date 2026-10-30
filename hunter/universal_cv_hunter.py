@@ -28,14 +28,18 @@ class UniversalCVHunter:
         raw_text = text_or_path.strip()
 
         # Check if text_or_path is a file path
-        if len(raw_text) < 500 and (raw_text.endswith(".pdf") or raw_text.endswith(".docx") or raw_text.endswith(".txt")):
-            p = Path(raw_text)
-            if p.exists():
-                parsed = self.parser.parse_file(p)
-                raw_text = parsed.get("raw_text", "")
+        if len(raw_text) < 500:
+            try:
+                p = Path(raw_text)
+                if p.is_file() or p.suffix.lower() in [".pdf", ".docx", ".doc", ".txt"]:
+                    if p.exists():
+                        parsed = self.parser.parse_file(p)
+                        raw_text = parsed.get("raw_text", "")
+            except Exception:
+                pass
 
         if not raw_text or len(raw_text) < 50:
-            return self._fallback_analysis("Professional", raw_text)
+            return self._heuristic_analysis(raw_text)
 
         prompt = f"""
 You are an expert Principal Executive Recruiter & Global Talent Strategist.

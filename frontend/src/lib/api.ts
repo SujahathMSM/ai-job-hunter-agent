@@ -553,7 +553,10 @@ export async function analyzeCV(rawText?: string): Promise<any> {
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ raw_text: rawText || "" }),
   });
-  if (!res.ok) throw new Error("Failed to analyze CV");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || errData.message || `Analysis failed (${res.status})`);
+  }
   return res.json();
 }
 
@@ -565,7 +568,10 @@ export async function uploadAndMatchCV(file: File): Promise<any> {
     headers: { ...getAuthHeaders() },
     body: formData,
   });
-  if (!res.ok) throw new Error("Failed to upload and match CV");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || errData.message || `Upload failed (${res.status})`);
+  }
   return res.json();
 }
 
@@ -585,6 +591,9 @@ export async function searchJobsForCV(
       limit,
     }),
   });
-  if (!res.ok) throw new Error("Failed to search matching jobs for CV");
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || errData.message || `Job search failed (${res.status})`);
+  }
   return res.json();
 }

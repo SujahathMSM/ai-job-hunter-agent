@@ -1139,5 +1139,5 @@ def save_user_settings(req: UserSettingsRequest, current_user_id: str = Depends(
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("BACKEND_PORT") or os.getenv("PORT") or 8000)
+    port = int(os.getenv("BACKEND_PORT") or os.getenv("PORT") or 8005)
     uvicorn.run("api:app", host="127.0.0.1", port=port, reload=True)
