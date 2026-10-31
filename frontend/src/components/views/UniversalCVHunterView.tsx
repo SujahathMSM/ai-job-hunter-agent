@@ -56,7 +56,7 @@ export default function UniversalCVHunterView({
   const [jobs, setJobs] = useState<any[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<any[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string>("ALL");
-  const [selectedMinMatch, setSelectedMinMatch] = useState<number>(70);
+  const [selectedMinMatch, setSelectedMinMatch] = useState<number>(65);
   const [searchKeyword, setSearchKeyword] = useState<string>("");
   const [activeModalJob, setActiveModalJob] = useState<any | null>(null);
   const [dragOver, setDragOver] = useState(false);

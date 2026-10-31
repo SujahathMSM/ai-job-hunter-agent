@@ -27,6 +27,53 @@ class UniversalCVHunter:
         and multi-dimensional global search queries."""
         raw_text = text_or_path.strip()
 
+        # Direct structured synthesis if raw_text is a JSON profile from PersonaBuilder
+        if raw_text.startswith("{") and ("identity" in raw_text or "professional_title" in raw_text):
+            try:
+                prof_data = json.loads(raw_text)
+                if isinstance(prof_data, dict):
+                    ident = prof_data.get("identity", {})
+                    name = ident.get("full_name") or "Candidate"
+                    title = ident.get("professional_title") or "Software Engineer"
+                    skills = prof_data.get("technical_stack") or prof_data.get("core_skills") or []
+                    summary = prof_data.get("summary") or ""
+
+                    is_ai = any(w in title.lower() for w in ["ai", "ml", "rag", "learning", "data"]) or any("ai" in s.lower() for s in skills)
+                    if is_ai:
+                        domain = "AI/ML, RAG & Backend Systems"
+                        target_roles = [
+                            "AI / Machine Learning Engineer",
+                            "Backend Software Engineer",
+                            "Python & RAG Systems Developer",
+                            "Full Stack Engineer",
+                            "Distributed Systems Engineer",
+                            "API & Cloud Developer"
+                        ]
+                        search_queries = ["Python", "FastAPI", "AI Engineer", "Backend", "Machine Learning", "Software Engineer"]
+                    else:
+                        domain = "Software & Systems Engineering"
+                        target_roles = [
+                            "Backend Software Engineer",
+                            "Python Developer",
+                            "Full Stack Engineer",
+                            "Distributed Systems Engineer",
+                            "API & Cloud Developer"
+                        ]
+                        search_queries = ["Python", "Backend", "FastAPI", "Software Engineer"]
+
+                    return {
+                        "candidate_name": name,
+                        "primary_domain": domain,
+                        "seniority": "Senior" if any(w in title.lower() for w in ["senior", "lead", "staff", "principal"]) else "Mid-Level",
+                        "target_roles": target_roles,
+                        "core_skills": skills[:14] if skills else ["Python", "FastAPI", "PostgreSQL", "Docker", "RAG", "AWS"],
+                        "search_queries": search_queries,
+                        "executive_summary": summary[:320] if summary else f"{name} is an experienced {title}.",
+                        "raw_char_count": len(raw_text)
+                    }
+            except Exception:
+                pass
+
         # Check if text_or_path is a file path
         if len(raw_text) < 500:
             try:
@@ -139,9 +186,12 @@ OUTPUT STRICT JSON ONLY:
         # Extract name if present
         lines = [l.strip() for l in text.split("\n") if l.strip()]
         name = "Candidate"
-        for l in lines[:4]:
-            if len(l.split()) in [2, 3, 4] and not any(w in l.lower() for w in ["resume", "curriculum", "cv", "page", "email", "phone"]):
-                name = l
+        for l in lines[:8]:
+            clean_l = re.sub(r'["\':{},\[\]]', '', l).strip()
+            if 2 <= len(clean_l.split()) <= 4 and not any(w in clean_l.lower() for w in [
+                "resume", "curriculum", "cv", "page", "email", "phone", "identity", "null", "true", "false", "profile", "contact"
+            ]):
+                name = clean_l
                 break
 
         return {
@@ -159,7 +209,7 @@ OUTPUT STRICT JSON ONLY:
         self,
         cv_analysis: Dict[str, Any],
         region: str = "ALL",
-        min_match: int = 70,
+        min_match: int = 65,
         limit: int = 50
     ) -> List[Dict[str, Any]]:
         """Hunts worldwide jobs using queries extracted from the CV and scores each
@@ -268,14 +318,14 @@ OUTPUT STRICT JSON ONLY:
         cv_analysis: Dict[str, Any]
     ) -> tuple[int, List[str], List[str], str]:
         """Calculates 0-100% semantic match score between a job and the candidate's CV."""
-        title = (job.get("job_title") or "").lower()
-        desc = (job.get("description") or "").lower()
+        title = (job.get("job_title") or job.get("title") or "").lower()
+        desc = (job.get("description") or job.get("full_description") or "").lower()
         target_roles = [r.lower() for r in cv_analysis.get("target_roles", [])]
         core_skills = cv_analysis.get("core_skills", [])
         domain = cv_analysis.get("primary_domain", "Engineering")
 
         # 1. Title alignment score (up to 40 pts)
-        title_score = 0
+        title_score = 15
         matching_role = ""
         for role in target_roles:
             role_words = [w for w in role.split() if len(w) > 2]
@@ -284,39 +334,50 @@ OUTPUT STRICT JSON ONLY:
                 title_score = 40
                 matching_role = role
                 break
+            elif len(matched_words) >= 2:
+                title_score = max(title_score, 35)
+                matching_role = role
             elif len(matched_words) >= 1:
-                pts = int(30 * (len(matched_words) / len(role_words)))
-                if pts > title_score:
-                    title_score = pts
-                    matching_role = role
+                title_score = max(title_score, 25)
+                matching_role = role
 
-        if title_score == 0:
-            # Check domain words in title
-            domain_words = [w.lower() for w in domain.split() if len(w) > 3]
-            if any(dw in title for dw in domain_words):
-                title_score = 20
+        # Boost if standard domain terms match title
+        if any(w in title for w in ["software", "engineer", "developer", "backend", "full stack", "python", "ai", "machine learning", "data", "cloud", "systems", "analyst", "controller", "coordinator"]):
+            title_score = max(title_score, 30)
 
         # 2. Skill overlap score (up to 45 pts)
         matched_skills = []
         missing_skills = []
-
         combined_text = f"{title} {desc}"
+
         for s in core_skills:
             s_clean = s.strip()
             if not s_clean:
                 continue
             if s_clean.lower() in combined_text:
                 matched_skills.append(s_clean)
+            elif len(missing_skills) < 3:
+                missing_skills.append(s_clean)
 
-        total_tested = max(len(core_skills[:10]), 1)
-        skill_ratio = len(matched_skills) / total_tested
-        skill_score = min(int(skill_ratio * 55), 45)
+        n_matched = len(matched_skills)
+        if n_matched >= 5:
+            skill_score = 45
+        elif n_matched == 4:
+            skill_score = 40
+        elif n_matched == 3:
+            skill_score = 35
+        elif n_matched == 2:
+            skill_score = 28
+        elif n_matched == 1:
+            skill_score = 20
+        else:
+            skill_score = 12
 
-        # 3. Base score & domain fit (up to 15 pts)
-        base_score = 15
+        # 3. Base score & domain fit (20 pts)
+        base_score = 20
 
         total_score = min(title_score + skill_score + base_score, 98)
-        total_score = max(total_score, 65)  # Scraped results already passed initial keyword filtering
+        total_score = max(total_score, 65)
 
         # Formulate reason
         comp = job.get("company") or "the employer"
