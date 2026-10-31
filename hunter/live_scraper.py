@@ -667,7 +667,7 @@ class LiveJobHunter:
 
                     portal_name = "Bayt" if "bayt.com" in raw_link else ("GulfTalent" if "gulftalent.com" in raw_link else "Naukrigulf")
                     emails = HRFinder.extract_emails_from_text(snippet)
-                    hr_email = emails[0] if emails else HRFinder.deduce_company_hr_email(comp_name)[0]
+                    hr_email = emails[0] if emails else ""
 
                     results.append({
                         "id": f"gulf-web-{len(results)+1}",

@@ -12,9 +12,12 @@ class GeoLocationEngine:
         Returns:
             (is_allowed, reason, metadata)
         """
-        combined_text = f"{location_str} {job_text}".lower()
+        loc_lower = (location_str or "").lower().strip()
+        text_lower = (job_text or "").lower()
+        combined_text = f"{loc_lower} {text_lower}"
 
         # 1. STRICT EXCLUSION CHECK (Highest Priority Rule)
+        # Check strict city and country exclusions
         for excluded in EXCLUDED_COUNTRIES:
             pattern = rf"\b{re.escape(excluded.lower())}\b"
             if re.search(pattern, combined_text):
@@ -23,10 +26,20 @@ class GeoLocationEngine:
                     "flagged_country": excluded
                 }
 
+        # Check IL country code in location only when NOT US Illinois (e.g., "Chicago, IL", "IL, USA")
+        if re.search(r"\b,\s*il\b", loc_lower) or re.search(r"\bil\b", loc_lower):
+            is_us = any(u in loc_lower or u in text_lower for u in ["usa", "united states", "chicago", "illinois", "peoria", "springfield"])
+            if not is_us and ("israel" in combined_text or "tel aviv" in combined_text):
+                return False, "STRICT_EXCLUSION: Job location matches excluded country 'Israel (IL)'", {
+                    "category": "EXCLUDED",
+                    "flagged_country": "Israel"
+                }
+
         # 2. CHECK GULF COUNTRIES
+        # Location string takes precedence, fallback to text
         for gulf in GULF_COUNTRIES:
             pattern = rf"\b{re.escape(gulf.lower())}\b"
-            if re.search(pattern, combined_text):
+            if re.search(pattern, loc_lower) or re.search(pattern, text_lower):
                 return True, f"Eligible: Matched Gulf country/hub '{gulf}'", {
                     "category": "GULF",
                     "matched_location": gulf
@@ -34,15 +47,25 @@ class GeoLocationEngine:
 
         # 3. CHECK EASILY MIGRATABLE DESTINATIONS FROM SRI LANKA
         for migratable in MIGRATABLE_COUNTRIES:
+            # Special safeguard for Male (capital of Maldives): only match in location or with maldives context
+            if migratable.lower() in ["male", "male, maldives"]:
+                if "maldives" in loc_lower or re.search(r"\bmale,?\s*maldives\b", loc_lower) or (re.search(r"\bmale\b", loc_lower) and "maldives" in combined_text):
+                    return True, "Eligible: Matched preferred migration pathway 'Maldives'", {
+                        "category": "MIGRATABLE_GLOBAL",
+                        "matched_location": "Maldives"
+                    }
+                continue
+
             pattern = rf"\b{re.escape(migratable.lower())}\b"
-            if re.search(pattern, combined_text):
+            # Require matching in location or explicit country in text
+            if re.search(pattern, loc_lower) or (len(migratable) > 3 and re.search(pattern, text_lower)):
                 return True, f"Eligible: Matched preferred migration pathway '{migratable}'", {
                     "category": "MIGRATABLE_GLOBAL",
                     "matched_location": migratable
                 }
 
         # 4. REMOTE POSITIONS (Allowed if not affiliated with excluded countries)
-        if "remote" in combined_text or "worldwide" in combined_text or "anywhere" in combined_text:
+        if any(w in loc_lower for w in ["remote", "worldwide", "anywhere", "global", "work from home"]) or ("remote" in text_lower and len(loc_lower) < 4):
             return True, "Eligible: Remote / Global opportunity", {
                 "category": "REMOTE",
                 "matched_location": "Remote"

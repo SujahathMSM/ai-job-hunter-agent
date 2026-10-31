@@ -1,11 +1,5 @@
 import os
 import json
-from typing import Optional, Dict, Any, List
-import requests
-from config import GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
-
-import os
-import json
 import time
 from typing import Optional, Dict, Any, List
 import requests
@@ -134,24 +128,28 @@ class LLMClient:
         return ""
 
     def _call_anthropic(self, prompt: str, system_prompt: str, api_key: str) -> str:
-        try:
-            headers = {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            payload = {
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 3000,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            resp = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers, timeout=30)
-            if resp.status_code == 200:
-                data = resp.json()
-                content = data.get("content", [])
-                if content and "text" in content[0]:
-                    return content[0]["text"].strip()
-        except Exception as e:
-            print(f"[LLM Error] Anthropic API call failed: {e}")
+        models = ["claude-3-5-sonnet-latest", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        for model in models:
+            try:
+                payload = {
+                    "model": model,
+                    "max_tokens": 3000,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+                resp = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data.get("content", [])
+                    if content and "text" in content[0]:
+                        return content[0]["text"].strip()
+                else:
+                    print(f"[LLM Error] Anthropic model {model} returned status {resp.status_code}: {resp.text}")
+            except Exception as e:
+                print(f"[LLM Error] Anthropic API call for {model} failed: {e}")
         return ""

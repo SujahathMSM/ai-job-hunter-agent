@@ -54,7 +54,7 @@ GULF_COUNTRIES: List[str] = [
 MIGRATABLE_COUNTRIES: List[str] = [
     "Singapore",
     "Malaysia", "Kuala Lumpur",
-    "Maldives", "Male",
+    "Maldives", "Male, Maldives",
     "United Kingdom", "UK", "London",
     "Germany", "Berlin", "Munich", "Frankfurt",
     "Australia", "Sydney", "Melbourne", "Brisbane", "Perth",
@@ -66,7 +66,7 @@ MIGRATABLE_COUNTRIES: List[str] = [
 
 # 3. STRICT EXCLUSION LIST (Hard rule: Zero tolerance)
 EXCLUDED_COUNTRIES: List[str] = [
-    "Israel", "Tel Aviv", "Jerusalem", "Haifa", "Beer Sheva", "IL"
+    "Israel", "Tel Aviv", "Jerusalem", "Haifa", "Beer Sheva", "Herzliya", "Ra'anana", "Petah Tikva"
 ]
 
 # 4. Structured Regional Scraping Hubs with Localized Indeed Country Domains
@@ -127,9 +127,9 @@ ENGINEERING_KEYWORDS: List[str] = [
     "automation", "embedded", "qa", "quality", "solutions architect",
     "site reliability", "sre", "hardware", "firmware", "ai", "machine learning",
     "project engineer", "technical lead", "engineering manager", "consultant",
-    "business analyst", "analyst", "it support", "support", "document controller",
-    "documentation", "coordinator", "technical coordinator", "operations",
-    "system administrator", "administrator", "it specialist", "it engineer"
+    "business analyst", "systems analyst", "it support", "technical support", "document controller",
+    "technical documentation", "project coordinator", "technical coordinator", "cloud operations",
+    "system administrator", "systems administrator", "it specialist", "it engineer"
 ]
 
 # Default LLM Settings

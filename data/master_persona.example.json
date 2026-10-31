@@ -1,48 +1,64 @@
 {
   "identity": {
-    "full_name": "Full Name",
-    "professional_title": "Software Engineer | Backend, Data & AI Systems",
-    "subtitle": "Python | FastAPI | PostgreSQL | Docker | AWS | Machine Learning",
+    "full_name": "Candidate Name",
+    "professional_title": "Software & Systems Engineer",
     "email": "candidate@example.com",
-    "phone": "+94 XX XXX XXXX",
-    "current_location": "Sri Lanka",
-    "relocation_status": "Open to Relocation (UAE/GCC, Europe & International) and Worldwide Remote",
-    "linkedin": "https://linkedin.com/in/username",
-    "github": "https://github.com/username"
+    "phone": "+1 555 0199",
+    "current_location": "Global",
+    "nationality": "International",
+    "relocation_status": "Available for Full-time Roles | Open to Relocation",
+    "linkedin": "https://linkedin.com/in/example",
+    "github": "https://github.com/example"
   },
-  "summary": "Executive summary highlighting core engineering accomplishments, system scale, and domain capabilities.",
-  "core_skills_categorized": [
+  "summary": "Experienced software and systems engineer with a background in designing scalable services, high-throughput APIs, and reliable automated workflows.",
+  "core_skills": [
+    "Backend Engineering & Microservices",
+    "System Architecture & API Design",
+    "Database Modeling & Query Optimization",
+    "Cloud & Containerized Deployment",
+    "Automated Testing & CI/CD Pipelines"
+  ],
+  "technical_stack": [
+    "Python", "FastAPI", "PostgreSQL", "Docker", "REST APIs", "Git", "Linux", "AWS"
+  ],
+  "work_history": [
     {
-      "category": "Programming & Backend",
-      "skills": "Python, SQL, Java, FastAPI, REST APIs, WebSockets"
-    },
-    {
-      "category": "Data & Databases",
-      "skills": "PostgreSQL, TimescaleDB, MongoDB, Redis, pgvector"
-    },
-    {
-      "category": "AI & Machine Learning",
-      "skills": "LangGraph, RAG, PyTorch, LLM Evaluation, Vision Models"
-    },
-    {
-      "category": "Cloud, DevOps & Systems",
-      "skills": "AWS (EC2, S3, RDS, Lambda), Docker, GitLab CI/CD, GitHub Actions, Linux"
-    },
-    {
-      "category": "IoT & Protocols",
-      "skills": "MQTT, Modbus RTU/RS485, Raspberry Pi, STM32"
-    },
-    {
-      "category": "Analysis & Delivery",
-      "skills": "Requirements Analysis, System Architecture, Agile/Scrum"
-    },
-    {
-      "category": "Documentation & Records",
-      "skills": "Technical Specifications, Runbooks, Deployment Records"
+      "company": "Example Tech Corp",
+      "branch": "Engineering HQ",
+      "title": "Software Engineer",
+      "duration": "2023 - Present",
+      "bullets": [
+        "Designed and maintained backend microservices handling high transaction volumes.",
+        "Improved system reliability and reduced operational latency across service endpoints."
+      ]
     }
   ],
-  "work_history": [],
-  "projects": [],
-  "education": [],
-  "certifications": []
+  "projects": [
+    {
+      "title": "Scalable Telemetry Pipeline",
+      "technologies": "Python, FastAPI, PostgreSQL, Docker",
+      "bullets": [
+        "Engineered an automated streaming ingestion pipeline with structured schema validation and audit logging."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Science in Engineering",
+      "institution": "Accredited University",
+      "duration": "2019 - 2023",
+      "location": "Global",
+      "details": "Computer Science, Systems Engineering, Data Structures, and Applied Mathematics."
+    }
+  ],
+  "certifications": [],
+  "target_preferences": {
+    "preferred_regions": ["Gulf Countries", "Remote / Global Pathways"],
+    "excluded_countries": ["Israel", "Tel Aviv", "Jerusalem", "Haifa", "Beer Sheva"],
+    "visa_requirements": "Open to sponsorship or direct relocation"
+  },
+  "core_skills_categorized": [
+    {"category": "Programming & Backend", "skills": "Python, REST APIs, FastAPI, Docker"},
+    {"category": "Data & Databases", "skills": "PostgreSQL, SQL, Schema Modeling"}
+  ]
 }

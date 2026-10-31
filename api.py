@@ -35,10 +35,21 @@ from outreach.tracker import ApplicationTracker
 
 app = FastAPI(title="NexusHunt AI API", version="2.4")
 
-# Enable CORS for Next.js frontend
+# Enable CORS with specific origin controls (never allow * with credentials)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8005",
+        "http://127.0.0.1:8005",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -184,12 +195,45 @@ class GoogleAuthRequest(BaseModel):
 class SwitchUserRequest(BaseModel):
     user_id: str
 
-JWT_SECRET = os.getenv("JWT_SECRET", "nexushunt-production-jwt-auth-secret-key-2026-secure-32chars")
-JWT_ALGORITHM = "HS256"
-
 def is_production_mode() -> bool:
     env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").lower().strip()
     return env in ["production", "prod"]
+
+DEFAULT_DEV_JWT_SECRET = "nexushunt-development-jwt-auth-secret-key-2026-secure-32chars"
+_raw_jwt = os.getenv("JWT_SECRET", "").strip()
+if is_production_mode() and (not _raw_jwt or _raw_jwt == DEFAULT_DEV_JWT_SECRET):
+    raise RuntimeError("CRITICAL SECURITY ERROR: A custom JWT_SECRET environment variable must be set in production mode.")
+JWT_SECRET = _raw_jwt or DEFAULT_DEV_JWT_SECRET
+JWT_ALGORITHM = "HS256"
+
+def validate_safe_user_file_path(path_str: str, user_id: str) -> Path:
+    """Validates that a file attachment strictly belongs to the user and prevents path traversal."""
+    if not path_str or not path_str.strip():
+        raise HTTPException(status_code=400, detail="File path cannot be empty.")
+    if "\0" in path_str or ".." in path_str:
+        raise HTTPException(status_code=403, detail="Forbidden: Path traversal is prohibited.")
+
+    target = Path(path_str).resolve()
+    # Explicitly disallow system files
+    if target.name.lower() in [".env", "applications.db", "master_persona.json", "config.py", "api.py"] or target.suffix.lower() in [".env", ".db", ".py", ".key", ".pem"]:
+        raise HTTPException(status_code=403, detail="Forbidden: Access to system configuration files is strictly prohibited.")
+
+    user_upload_dir = (UPLOADS_DIR / user_id).resolve()
+    user_gen_dir = (GENERATED_DIR / user_id).resolve()
+    global_upload_dir = UPLOADS_DIR.resolve()
+    global_gen_dir = GENERATED_DIR.resolve()
+
+    allowed = (
+        str(target).startswith(str(user_upload_dir)) or
+        str(target).startswith(str(user_gen_dir)) or
+        (str(target).startswith(str(global_upload_dir)) and (user_id in ["default", "admin"] or user_id in target.name)) or
+        (str(target).startswith(str(global_gen_dir)) and (user_id in ["default", "admin"] or user_id in target.name))
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to attach or view this file.")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="The requested file was not found on the server.")
+    return target
 
 def create_access_token(user_id: str, email: str) -> str:
     payload = {
@@ -353,36 +397,55 @@ def google_auth(req: GoogleAuthRequest):
     # B. ID Token credential flow
     elif req.credential:
         cred = req.credential.strip()
-        # 1. Check for Demo / Sandbox Google Sign-In
+        google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip() or req.client_id
+        allow_mock = os.getenv("ALLOW_MOCK_AUTH", "false").lower() == "true" and not is_production_mode()
+
         if cred.startswith("demo_google_"):
+            if not allow_mock:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Mock Google sign-in is disabled. Please provide an authentic Google OAuth2 credential."
+                )
             parts = cred.replace("demo_google_", "").split(":")
             email = parts[0] if parts and parts[0] else "candidate.google@gmail.com"
             full_name = parts[1] if len(parts) > 1 and parts[1] else "Google Candidate"
             google_id = "google_demo_" + email.replace("@", "_").replace(".", "_")
         else:
-            # 2. Live Google ID Token Verification
+            if is_production_mode() and not google_client_id:
+                raise HTTPException(
+                    status_code=500,
+                    detail="GOOGLE_CLIENT_ID must be configured on the server to verify Google sign-in."
+                )
+            verified = False
             try:
                 from google.oauth2 import id_token
                 from google.auth.transport import requests as google_requests
                 
-                target_aud = req.client_id or os.getenv("GOOGLE_CLIENT_ID") or None
                 idinfo = id_token.verify_oauth2_token(
                     cred,
                     google_requests.Request(),
-                    audience=target_aud if target_aud else None
+                    audience=google_client_id if google_client_id else None
                 )
+                if google_client_id and idinfo.get("aud") != google_client_id:
+                    raise HTTPException(status_code=401, detail="Google token audience mismatch.")
                 email = idinfo.get("email")
                 full_name = idinfo.get("name") or (email.split("@")[0] if email else "Google Candidate")
                 google_id = idinfo.get("sub")
+                verified = True
             except Exception as e:
+                # Secondary fallback: Google tokeninfo endpoint with strict audience check
                 try:
                     import urllib.request, json
                     url = f"https://oauth2.googleapis.com/tokeninfo?id_token={cred}"
                     with urllib.request.urlopen(url, timeout=8) as response:
                         data = json.loads(response.read().decode())
+                        token_aud = data.get("aud")
+                        if google_client_id and token_aud != google_client_id:
+                            raise HTTPException(status_code=401, detail="Google token audience does not match configured client.")
                         email = data.get("email")
                         full_name = data.get("name") or (email.split("@")[0] if email else "Google Candidate")
                         google_id = data.get("sub")
+                        verified = True
                 except Exception as e2:
                     print(f"[Google Auth Verification Error]: {e} / {e2}")
                     raise HTTPException(status_code=401, detail="Google token verification failed. Please check credentials.")
@@ -911,17 +974,36 @@ def preview_document(
 
         # 1. Custom uploaded document preview
         if custom_file:
+            if "\0" in custom_file or ".." in custom_file or "/" in custom_file or "\\" in custom_file:
+                raise HTTPException(status_code=403, detail="Forbidden: Invalid filename.")
+
             safe_name = os.path.basename(custom_file)
-            target = UPLOADS_DIR / safe_name
+            user_upload_dir = UPLOADS_DIR / user_id
+            target = user_upload_dir / safe_name
             if not target.exists():
-                target = GENERATED_DIR / safe_name
+                legacy_target = UPLOADS_DIR / safe_name
+                if legacy_target.exists() and (user_id in ["default", "admin"] or safe_name.startswith(f"manual_{user_id}_")):
+                    target = legacy_target
+                else:
+                    target = GENERATED_DIR / safe_name
+
             if target.exists():
+                is_owned = (
+                    str(target.resolve()).startswith(str(user_upload_dir.resolve())) or
+                    user_id in target.name or
+                    user_id in ["default", "admin"]
+                )
+                if not is_owned:
+                    raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to view this document.")
+
                 media_type = "application/pdf" if target.suffix.lower() == ".pdf" else "application/octet-stream"
                 return FileResponse(
                     target,
                     media_type=media_type,
                     headers={"Content-Disposition": f"inline; filename={target.name}"}
                 )
+            else:
+                raise HTTPException(status_code=404, detail="Requested preview file not found.")
 
         # 2. Standard generated document preview
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
@@ -965,14 +1047,16 @@ async def upload_outreach_attachment(
 ):
     """Saves candidate's manual CV or Cover Letter to replace generated documents."""
     try:
-        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
+        user_upload_dir = UPLOADS_DIR / clean_uid
+        user_upload_dir.mkdir(parents=True, exist_ok=True)
+
         raw_name = file.filename or f"custom_{doc_type}.pdf"
         clean_ext = Path(raw_name).suffix or ".pdf"
         clean_base = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(raw_name).stem)[:40]
-        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
 
         saved_filename = f"manual_{clean_uid}_{doc_type}_{int(time.time())}_{clean_base}{clean_ext}"
-        saved_path = UPLOADS_DIR / saved_filename
+        saved_path = user_upload_dir / saved_filename
 
         content = await file.read()
         with open(saved_path, "wb") as f:
@@ -1011,18 +1095,26 @@ def draft_outreach(req: OutreachDraftRequest, current_user_id: str = Depends(get
 @app.post("/api/outreach/send")
 def send_outreach(req: SendEmailRequest, current_user_id: str = Depends(get_current_user_id)):
     user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+
+    # Security: Validate file attachments against user boundary & prevent path traversal
+    cv_attachment = validate_safe_user_file_path(req.cv_path, user_id) if req.cv_path else None
+    cl_attachment = validate_safe_user_file_path(req.cover_letter_path, user_id) if req.cover_letter_path else None
+
+    # Security: Server-side SAFE_MODE enforcement
+    effective_dry_run = True if SAFE_MODE else bool(req.dry_run)
+
     dispatcher = EmailDispatcher()
     result = dispatcher.dispatch(
         to_email=req.to_email,
         subject=req.subject,
         body_text=req.body,
-        attachment_path=Path(req.cv_path) if req.cv_path else None,
-        cover_letter_path=Path(req.cover_letter_path) if req.cover_letter_path else None,
+        attachment_path=cv_attachment,
+        cover_letter_path=cl_attachment,
         company=req.company,
         job_title=req.job_title,
         location=req.location,
         portal_link=req.portal_link,
-        dry_run=req.dry_run,
+        dry_run=effective_dry_run,
         user_id=user_id
     )
     return result
@@ -1053,7 +1145,7 @@ def get_career_portals(region: Optional[str] = None, query: Optional[str] = None
     return {"portals": portals}
 
 @app.post("/api/portals")
-def add_career_portal(req: PortalAddRequest):
+def add_career_portal(req: PortalAddRequest, current_user_id: str = Depends(get_current_user_id)):
     from hunter.portals import CareerPortalManager
     mgr = CareerPortalManager()
     created = mgr.add_custom_portal(
@@ -1069,7 +1161,7 @@ def add_career_portal(req: PortalAddRequest):
     return {"status": "success", "portal": created}
 
 @app.delete("/api/portals/{portal_id}")
-def delete_career_portal(portal_id: int):
+def delete_career_portal(portal_id: int, current_user_id: str = Depends(get_current_user_id)):
     from hunter.portals import CareerPortalManager
     mgr = CareerPortalManager()
     ok = mgr.delete_portal(portal_id)
@@ -1090,9 +1182,19 @@ def get_settings():
     }
 
 @app.post("/api/settings")
-def update_settings(req: SettingsUpdateRequest):
-    update_env_file(req.settings)
-    return {"status": "success", "updated": list(req.settings.keys())}
+def update_settings(req: SettingsUpdateRequest, current_user_id: str = Depends(get_current_user_id)):
+    if is_production_mode():
+        raise HTTPException(
+            status_code=403,
+            detail="Direct environment modifications are prohibited in production mode. Configure settings via server environment variables."
+        )
+    # Whitelist only safe non-sensitive configuration keys
+    allowed_keys = {"LLM_PROVIDER", "SAFE_MODE"}
+    safe_settings = {k: v for k, v in req.settings.items() if k in allowed_keys}
+    if not safe_settings:
+        raise HTTPException(status_code=400, detail="No permissible settings provided.")
+    update_env_file(safe_settings)
+    return {"status": "success", "updated": list(safe_settings.keys())}
 
 @app.get("/api/settings/user")
 def get_user_settings(user_id: str = Depends(get_current_user_id)):

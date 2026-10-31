@@ -20,8 +20,8 @@ class PersonaBuilder:
         if db_prof:
             return db_prof
 
-        # 2. Check disk profile.json (for default migration)
-        if self.profile_path.exists():
+        # 2. Check disk master_persona.json (ONLY for default seed migration)
+        if self.user_id in ["default", "admin"] and self.profile_path.exists():
             try:
                 with open(self.profile_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -30,41 +30,43 @@ class PersonaBuilder:
             except Exception:
                 pass
 
-        # 3. Fallback to default Moratuwa template and seed DB
+        # 3. For any other user, initialize a clean generic candidate template
         default_data = self._default_template()
         self.tracker.save_profile(self.user_id, default_data)
         return default_data
 
     def _default_template(self) -> Dict[str, Any]:
+        # For default admin account, load master persona if available
+        if self.user_id in ["default", "admin"] and self.profile_path.exists():
+            try:
+                with open(self.profile_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
+        # Clean generic candidate template for new multi-tenant accounts
         return {
             "identity": {
-                "full_name": "M.S. Mohamed Sujahath",
-                "professional_title": "AI/ML, RAG & Backend Systems Engineer | GenAI, LLMs, Python/FastAPI & Distributed Telemetry",
-                "email": "sujahathmhmd@gmail.com",
-                "phone": "+971 50 229 1865 / +94 76 485 8427",
-                "current_location": "Colombo, Sri Lanka",
-                "nationality": "Sri Lankan",
-                "relocation_status": "Available for Full-time, Office-based Roles | Immediate Gulf & International Relocation",
-                "linkedin": "https://linkedin.com/in/sujahath-siddeek",
-                "github": "https://github.com/SujahathMSM"
+                "full_name": "Engineer Candidate",
+                "professional_title": "Software & Systems Engineer",
+                "email": "",
+                "phone": "",
+                "current_location": "",
+                "nationality": "",
+                "relocation_status": "Available for Full-time Roles",
+                "linkedin": "",
+                "github": ""
             },
-            "summary": "Production-tested Backend & Applied AI Systems Engineer with a BScEngHons from the University of Moratuwa. Specializes in building deterministic RAG pipelines (AeroIntel), automated LLM evaluation harnesses (evalX), multimodal document intelligence, and high-throughput Python/FastAPI microservices. Commercial track record eliminating telemetry polling failures (80% to 0%) and slashing startup latency by 90% at Blue Brand IP Institute. Actively builds and validates production GenAI workflows, pgvector hybrid search, and PyTorch federated learning architectures.",
+            "summary": "Motivated software engineer with experience developing scalable services, reliable APIs, and modern automated workflows.",
             "core_skills": [
-                "AI & LLM Workflows (RAG, pgvector, LangGraph, Ollama)",
-                "AI Evaluation Harnesses & Deterministic CI Gates (evalX, LLM-as-a-Judge)",
-                "Python & FastAPI Backend Architecture (AsyncIO, Pydantic)",
-                "PostgreSQL & TimescaleDB (Hypertables, pgvector & Vector Search)",
-                "Multimodal Document Intelligence (Vision LLMs, Schema Extraction)",
-                "Distributed Systems & Fault-Tolerant Telemetry (MQTT, Modbus RTU)",
-                "Deep Learning & Federated Learning (PyTorch, Flower, TensorFlow)",
-                "Docker & Cloud Deployment (AWS EC2, S3, RDS, GitLab CI/CD)"
+                "Software Architecture & API Design",
+                "Backend Engineering & Microservices",
+                "Database Modeling & Query Optimization",
+                "Automated Testing & CI/CD Pipelines",
+                "Cloud & Containerized Deployment"
             ],
             "technical_stack": [
-                "Python", "FastAPI", "PyTorch", "RAG (Retrieval-Augmented Generation)", "pgvector",
-                "LangGraph", "LangChain", "LlamaIndex", "Ollama", "Vector Databases", "LLM-as-a-Judge",
-                "evalX", "Vision LLMs", "PostgreSQL", "TimescaleDB", "Docker", "AWS (EC2, S3, RDS, Lambda)",
-                "SQLAlchemy 2.0", "Pydantic", "Node.js", "Java", "Redis", "Linux", "GitLab CI/CD",
-                "GitHub Actions", "MQTT", "Modbus RTU", "Distributed Systems"
+                "Python", "FastAPI", "PostgreSQL", "Docker", "REST APIs", "Git", "Linux"
             ],
             "work_history": [],
             "projects": [],
@@ -73,13 +75,17 @@ class PersonaBuilder:
             "inferred_chat_projects": [],
             "communication_tone": {
                 "style": "Technically rigorous, metric-driven, proactive problem-solver",
-                "strengths": ["Root-cause debugging", "High-throughput data modeling", "Fault-tolerant architecture"]
+                "strengths": ["Clean code design", "Automated testing", "System reliability"]
             },
             "target_preferences": {
-                "preferred_regions": ["Gulf Countries (UAE, KSA, Qatar, Oman)", "Migratable Global Pathways (Singapore, UK, Germany, Australia)"],
-                "excluded_countries": EXCLUDED_COUNTRIES,
-                "visa_requirements": "Immediate relocation / visa transfer"
-            }
+                "preferred_regions": ["Gulf Countries", "Remote / Global Pathways"],
+                "excluded_countries": ["Israel", "Tel Aviv", "Jerusalem", "Haifa", "Beer Sheva"],
+                "visa_requirements": "Open to sponsorship or direct relocation"
+            },
+            "core_skills_categorized": [
+                {"category": "Programming & Backend", "skills": "Python, REST APIs, Docker, FastAPI"},
+                {"category": "Data & Databases", "skills": "PostgreSQL, SQL, Schema Design"}
+            ]
         }
 
     def build_from_sources(
@@ -174,6 +180,29 @@ class PersonaBuilder:
         return profile
 
     def _canonicalize_work_history(self, raw_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # Non-default users preserve their own authentic uploaded work experience
+        if self.user_id not in ["default", "admin"]:
+            cleaned = []
+            for item in raw_history:
+                comp = item.get("company", "").strip()
+                title = item.get("title", "").strip()
+                if not comp and not title:
+                    continue
+                raw_bullets = item.get("bullets", [])
+                cleaned_bullets = []
+                for b in raw_bullets:
+                    b_clean = re.sub(r"^[•\-*■\s]+", "", str(b)).strip()
+                    if len(b_clean) > 15 and b_clean not in cleaned_bullets:
+                        cleaned_bullets.append(b_clean)
+                cleaned.append({
+                    "company": comp or "Company",
+                    "branch": item.get("branch", item.get("location", "")),
+                    "title": title or "Professional",
+                    "duration": item.get("duration", "Dates not specified"),
+                    "bullets": cleaned_bullets
+                })
+            return cleaned
+
         canonical_map = {
             "blue_brand": {
                 "company": "Blue Brand - Advanced R&D and IP Institute (HQ: Ploiesti, Romania)",
@@ -250,6 +279,23 @@ class PersonaBuilder:
         return [canonical_map["blue_brand"], canonical_map["codescale"], canonical_map["lanka_hydraulic"]]
 
     def _canonicalize_education(self, raw_edu: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # Non-default users preserve their own authentic educational history
+        if self.user_id not in ["default", "admin"]:
+            cleaned_edu = []
+            for item in raw_edu:
+                deg = item.get("degree", "").strip()
+                inst = item.get("institution", "").strip()
+                if not deg and not inst:
+                    continue
+                cleaned_edu.append({
+                    "degree": deg or "Degree",
+                    "institution": inst or "University / Institution",
+                    "duration": item.get("duration", ""),
+                    "location": item.get("location", ""),
+                    "details": item.get("details", "")
+                })
+            return cleaned_edu
+
         return [
             {
                 "degree": "Bachelor of the Science of Engineering Honours (BScEngHons)",
@@ -268,13 +314,28 @@ class PersonaBuilder:
         ]
 
     def _canonicalize_projects(self, raw_projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Always return candidate's verified GitHub and commercial project portfolio
+        # Non-default users preserve their own authentic projects
+        if self.user_id not in ["default", "admin"]:
+            cleaned_proj = []
+            for item in raw_projects:
+                t = item.get("title", "").strip()
+                if not t:
+                    continue
+                raw_bullets = item.get("bullets", [])
+                cleaned_bullets = [re.sub(r"^[•\-*■\s]+", "", str(b)).strip() for b in raw_bullets if len(str(b).strip()) > 15]
+                cleaned_proj.append({
+                    "title": t,
+                    "technologies": item.get("technologies", item.get("tech_stack", "")),
+                    "bullets": cleaned_bullets or [item.get("description", "")]
+                })
+            return cleaned_proj
+
         return [
             {
                 "title": "AeroIntel | Deterministic RAG Pipeline for Aviation Maintenance",
                 "technologies": "Python, FastAPI, pgvector, PostgreSQL, Redis, BM25, Ollama, Docker",
                 "bullets": [
-                    "Engineered a local-first hybrid RAG system (dense vector + BM25 keyword search) with a structural refusal gate, printed-page citations, and a trust layer validating extracted figures against source maintenance manuals, benchmarked on a published golden test set."
+                    "Engineered a local-first hybrid RAG system (dense vector + BM25 keyword search) with a structural refusal gate, printed-page citations, and a trust layer validating extracted figures against source maintenance manuals, evaluated on structured domain test sets."
                 ]
             },
             {
@@ -344,31 +405,33 @@ class PersonaBuilder:
                 bucketed["Programming & Backend"].append(s_clean)
                 seen.add(s_lower)
 
-        # Default fallbacks if empty
-        if not bucketed["AI & Machine Learning"]:
-            bucketed["AI & Machine Learning"] = [
-                "RAG (Retrieval-Augmented Generation)", "LangGraph", "Vector DBs (pgvector)",
-                "Ollama", "Vision LLMs (VLM)", "PyTorch", "LLM-as-a-Judge (evalX)", "Agentic Workflows"
-            ]
-        if not bucketed["Programming & Backend"]:
-            bucketed["Programming & Backend"] = ["Python", "FastAPI", "REST APIs", "SQL"]
-        if not bucketed["Data & Databases"]:
-            bucketed["Data & Databases"] = ["PostgreSQL", "TimescaleDB", "Data Validation", "Pandas"]
-        if not bucketed["Cloud, DevOps & Systems"]:
-            bucketed["Cloud, DevOps & Systems"] = ["Docker", "Linux", "AWS (EC2, S3)", "GitLab CI/CD"]
-        if not bucketed["IoT & Integration"]:
-            bucketed["IoT & Integration"] = ["API Integration", "Real-Time Telemetry", "MQTT"]
-        if not bucketed["Analysis & Delivery"]:
-            bucketed["Analysis & Delivery"] = ["Requirements Analysis", "Solution Design", "Root-Cause Analysis", "Agile/Scrum"]
-        if not bucketed["Documentation & Records Control"]:
-            bucketed["Documentation & Records Control"] = ["Technical Specifications", "Runbooks", "Deployment Records", "Reporting"]
+        # Fallbacks for admin/default profile if empty
+        if self.user_id in ["default", "admin"]:
+            if not bucketed["AI & Machine Learning"]:
+                bucketed["AI & Machine Learning"] = [
+                    "RAG (Retrieval-Augmented Generation)", "LangGraph", "Vector DBs (pgvector)",
+                    "Ollama", "Vision LLMs (VLM)", "PyTorch", "LLM-as-a-Judge (evalX)", "Agentic Workflows"
+                ]
+            if not bucketed["Programming & Backend"]:
+                bucketed["Programming & Backend"] = ["Python", "FastAPI", "REST APIs", "SQL"]
+            if not bucketed["Data & Databases"]:
+                bucketed["Data & Databases"] = ["PostgreSQL", "TimescaleDB", "Data Validation", "Pandas"]
+            if not bucketed["Cloud, DevOps & Systems"]:
+                bucketed["Cloud, DevOps & Systems"] = ["Docker", "Linux", "AWS (EC2, S3)", "GitLab CI/CD"]
+            if not bucketed["IoT & Integration"]:
+                bucketed["IoT & Integration"] = ["API Integration", "Real-Time Telemetry", "MQTT"]
+            if not bucketed["Analysis & Delivery"]:
+                bucketed["Analysis & Delivery"] = ["Requirements Analysis", "Solution Design", "Root-Cause Analysis", "Agile/Scrum"]
+            if not bucketed["Documentation & Records Control"]:
+                bucketed["Documentation & Records Control"] = ["Technical Specifications", "Runbooks", "Deployment Records", "Reporting"]
 
         result = []
         for cat, items in bucketed.items():
-            result.append({
-                "category": cat,
-                "skills": ", ".join(items[:12])
-            })
+            if items:
+                result.append({
+                    "category": cat,
+                    "skills": ", ".join(items[:12])
+                })
         return result
 
     def sync_github_repositories(self, github_url: Optional[str] = None) -> List[Dict[str, Any]]:

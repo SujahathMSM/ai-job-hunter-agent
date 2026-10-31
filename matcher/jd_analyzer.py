@@ -67,7 +67,7 @@ class JobDescriptionAnalyzer:
             depth_hits = sum(1 for term in depth_terms if term in combined_text)
             depth_score = min(depth_hits * 3, 25)
 
-            total_score = max(min(title_score + skill_score + depth_score, 98), 40)
+            total_score = min(title_score + skill_score + depth_score, 98)
             breakdown = {
                 "title_match": title_score,
                 "skills_overlap": skill_score,
