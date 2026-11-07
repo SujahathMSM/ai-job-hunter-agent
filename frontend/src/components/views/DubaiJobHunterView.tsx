@@ -48,27 +48,35 @@ function formatCleanText(text: string): string {
 }
 
 function formatDatePosted(dateStr?: string): string {
-  if (!dateStr || dateStr.toLowerCase() === "recently" || dateStr.toLowerCase() === "active") {
-    return dateStr || "Recently Listed";
-  }
-  if (dateStr.includes("ago") || dateStr.includes("Trending") || dateStr.includes("Today") || dateStr.includes("Yesterday")) {
+  if (!dateStr) return "Recently Listed";
+  const lower = dateStr.toLowerCase().trim();
+
+  // If already contains relative time, keep it
+  if (lower.includes("trending")) {
     return dateStr;
   }
+
   try {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
+      const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
       const diffMs = Date.now() - d.getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffHours / 24);
-      if (diffHours < 1) return "Just now";
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays === 1) return "Yesterday";
-      if (diffDays < 14) return `${diffDays}d ago`;
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+      if (diffHours < 1) return `${formattedDate} · Just now`;
+      if (diffHours < 24) return `${formattedDate} · ${diffHours}h ago`;
+      if (diffDays === 1) return `${formattedDate} · Yesterday`;
+      if (diffDays >= 2 && diffDays <= 30) return `${formattedDate} · ${diffDays}d ago`;
+      return formattedDate;
     }
-  } catch {
-    // fallback
+  } catch {}
+
+  // If string contains active or corporate, display formatted current cycle date
+  if (lower.includes("active") || lower.includes("corporate") || lower === "recent" || lower === "recently") {
+    return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   }
+
   return dateStr;
 }
 

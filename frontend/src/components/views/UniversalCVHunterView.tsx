@@ -38,9 +38,21 @@ interface UniversalCVHunterViewProps {
 
 function formatDateBadge(dateStr?: string): string {
   if (!dateStr) return "Recent";
-  const lower = dateStr.toLowerCase();
+  const lower = dateStr.toLowerCase().trim();
   if (lower.includes("just") || lower.includes("today") || lower.includes("hour") || lower.includes("min")) return "Today";
   if (lower.includes("yesterday")) return "Yesterday";
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const diffMs = Date.now() - d.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return `${formattedDate} · Today`;
+      if (diffDays === 1) return `${formattedDate} · Yesterday`;
+      if (diffDays >= 2 && diffDays <= 30) return `${formattedDate} · ${diffDays}d ago`;
+      return formattedDate;
+    }
+  } catch {}
   return dateStr;
 }
 
