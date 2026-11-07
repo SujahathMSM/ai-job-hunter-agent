@@ -14,6 +14,8 @@ import {
   Zap,
   Globe,
   Laptop,
+  MessageSquareCode,
+  ScanSearch,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -30,10 +32,12 @@ export default function Sidebar({ activeTab, setActiveTab, stats }: SidebarProps
   const navItems = [
     { id: "profile", label: "Profile & CV Intake", icon: UserCheck },
     { id: "hunter", label: "Live Job Hunter", icon: Radar },
+    { id: "cv_matcher", label: "Global CV Matcher", icon: ScanSearch, badge: "Worldwide" },
     { id: "dubai", label: "Dubai Job Hunter", icon: Building2, badge: "UAE" },
     { id: "remote", label: "Global Remote Jobs", icon: Laptop, badge: "Worldwide" },
     { id: "portals", label: "Career Portals", icon: Globe, badge: "Direct" },
     { id: "tailor", label: "AI CV Tailor", icon: Sparkles },
+    { id: "interview", label: "Interview Simulator", icon: MessageSquareCode, badge: "STAR" },
     { id: "outreach", label: "Cold Email Dispatcher", icon: Send },
     { id: "recruiters", label: "Recruiter Finder", icon: UserSearch, badge: "99%" },
     { id: "tracker", label: "Application Tracker", icon: KanbanSquare },

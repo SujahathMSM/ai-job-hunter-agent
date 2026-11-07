@@ -7,7 +7,9 @@ class ResumeTailorer:
     """Dynamically aligns candidate's Master Profile to target Job Description,
     preserving 100% of the candidate's real commercial experience, projects, and education
     while deeply tailoring the title, subtitle, executive profile, skills, work experience framing,
-    and project highlights for maximum ATS alignment and hiring manager impact."""
+    and project highlights for maximum ATS alignment and hiring manager impact.
+    Enforces strict fact-locking: company names, authentic titles, dates, institutions, and
+    degrees are strictly immutable."""
 
     def __init__(self, master_profile: Dict[str, Any]):
         self.profile = master_profile
@@ -21,6 +23,10 @@ class ResumeTailorer:
         education = self.profile.get("education", [])
         certs = self.profile.get("certifications", [])
 
+        full_name = identity.get("full_name", "Candidate")
+        current_loc = identity.get("current_location", "Remote")
+        tech_stack = self.profile.get("technical_stack", [])
+
         # Clean and enrich JD if empty or placeholder
         clean_jd = jd_text.strip() if jd_text and jd_text.strip().lower() not in ["none", "nan", "null"] else ""
         if len(clean_jd) < 80:
@@ -29,27 +35,24 @@ Key focus areas: Technical architecture, robust implementation, scalable backend
 modern frameworks and libraries relevant to '{job_title}', production reliability, low latency, 
 clean documentation, and full lifecycle engineering delivery."""
 
+        # Format candidate's authentic background dynamically from profile
+        edu_summary = "; ".join([f"{e.get('degree', 'Degree')} ({e.get('institution', 'Institution')})" for e in education]) or "Engineering / Technical Education"
+        work_summary = "\n".join([f"- {w.get('title', 'Role')} at {w.get('company', 'Company')} ({w.get('duration', '')}): {'; '.join(w.get('bullets', [])[:3])}" for w in work_hist]) or "Commercial Software & Systems Engineering"
+        proj_summary = "\n".join([f"- {p.get('title', 'Project')}: Tech ({p.get('technologies', '')}). {'; '.join(p.get('bullets', [])[:2])}" for p in projects[:5]]) or "Production & Open Source Projects"
+
         prompt = f"""
 You are an elite principal technical career strategist and executive CV writer.
-You are tailoring the CV of candidate: {identity.get('full_name', 'M.S. MOHAMED SUJAHATH')}
+You are tailoring the CV of candidate: {full_name}
 for the specific role: '{job_title}' at '{company}' in '{location}'.
 
-CANDIDATE'S AUTHENTIC MASTER BACKGROUND:
-- Degree: BScEngHons (Bachelor of the Science of Engineering Honours), University of Moratuwa (Sri Lanka's top engineering school)
-- Current Commercial Experience:
-  1. Software Engineer at Blue Brand - Advanced R&D and IP Institute (HQ: Ploiesti, Romania / Sri Lanka Branch) (Mar 2025 - Present):
-     Production Python/FastAPI microservices, distributed energy platform, real-time device data, REST/WebSocket/MQTT data flows, PostgreSQL/TimescaleDB, automated vision-model document extraction service (Energy Bill Extractor with evaluation harness), audit of 419-file codebase, reduced polling failures from 80% to 0%, slashed startup times by 90% (5-6 min to 15-30s), GitLab CI/CD, Docker, Ansible, AWS EC2/S3.
-  2. Software Engineer Intern / Associate Engineer at CodeScale Pvt Ltd (Jul 2024 - Feb 2025):
-     WheresNow real-time platform, Node.js (Express/Nest.js), Java, Firebase, REST/GraphQL, PostgreSQL, MongoDB, AWS (EC2, Lambda, S3), GitHub Actions, Jenkins.
-  3. Trainee Engineer at Lanka Hydraulic Institute (Jan 2023 - Jun 2023):
-     Python (Pandas, NumPy, Matplotlib), PostgreSQL, coastal spatial simulations.
-- Candidate Verified GitHub Projects (github.com/SujahathMSM):
-  1. AeroIntel (github.com/SujahathMSM/aerointel): Local-first hybrid RAG (Retrieval-Augmented Generation) pipeline over aviation maintenance manuals that refuses instead of guessing: hybrid search (pgvector + BM25), structural refusal gate, printed-page citations, and a trust layer validating every figure against source documents. Tech: Python, FastAPI, pgvector, PostgreSQL, Redis, BM25, Ollama, Docker. Evaluated on a published golden set.
-  2. evalX (github.com/SujahathMSM/evalX): Comprehensive evaluation harness for LLM apps: golden test datasets, deterministic code assertions + LLM-as-a-judge scoring, regression tracking, and automated CI gates ("pytest for AI behavior"). Tech: Python, Pytest, Pydantic, LLM-as-a-Judge, CI/CD.
-  3. EDGEOPS AI (github.com/SujahathMSM/EDGEOPS_AI): AI-assisted infrastructure incident triage platform using typed tools, strict permission boundaries, target access restrictions, and correlated audit logging. Tech: Python 3.11+, Pydantic, Agentic Workflows, Typed Tools.
-  4. Energy Bill Extractor: Multimodal document extraction service converting complex bill PDFs and photos into validated structured JSON schemas with an evaluation harness. Tech: Python, FastAPI, Vision LLMs, Pydantic.
-  5. Federated Learning for IoT Botnet Detection: Privacy-preserving distributed ML pipeline across 9 client nodes using PyTorch and Flower (99.71% federated accuracy). Tech: Python, PyTorch, Flower, NumPy.
-- Location: Sri Lanka. 100% prepared for immediate international relocation to {location}.
+CANDIDATE'S AUTHENTIC MASTER BACKGROUND (FACT-LOCKED):
+- Education: {edu_summary}
+- Work Experience:
+{work_summary}
+- Portfolio Projects:
+{proj_summary}
+- Verified Tech Stack: {', '.join(tech_stack[:25])}
+- Candidate Location: {current_loc}
 
 TARGET ROLE: {job_title}
 TARGET COMPANY: {company}
@@ -57,17 +60,18 @@ TARGET LOCATION: {location}
 TARGET JOB DESCRIPTION / REQUIREMENTS:
 {clean_jd[:1600]}
 
+STRICT ANTI-HALLUCINATION & FACT-LOCKING RULES:
+1. Companies, institutions, job titles, durations, and degrees are IMMUTABLE. Do NOT invent new employers, alter start/end dates, or fabricate unearned credentials.
+2. Do NOT invent tools or libraries the candidate has never used. Only emphasize and prioritize technical skills and competencies that exist in the candidate's verified profile and stack.
+3. Keep project metrics accurate. Do not invent exaggerated benchmarks.
+
 CRITICAL TAILORING OBJECTIVES:
-1. 'tailored_title': A high-impact executive headline matching the target role (e.g. for AI/RAG/LangGraph: 'AI Engineer | GenAI, RAG, LangGraph & Scalable Systems Specialist').
-2. 'tailored_subtitle': Refined subtitle featuring the exact core technologies needed for this role that match candidate's strengths (e.g. 'Python (AsyncIO, FastAPI) | LangGraph | RAG & Vector DBs | PyTorch | AWS | Docker | CI/CD | System Reliability').
-3. 'summary': An impressive 4-5 sentence Executive Profile. Crucially highlight how his deep backend and production systems engineering rigor (FastAPI, distributed pipelines, zero-tolerance reliability, 80% to 0% polling failures) directly bridges with the target role's demands (building reliable, deterministic, production-grade agentic workflows, RAG pipelines, and scalable APIs rather than fragile toy prototypes). State readiness for immediate international relocation to {location}.
-4. 'core_skills_categorized': Return a list of 7 skill category dicts ({{"category": "...", "skills": "..."}}). Intelligently prioritize and weave in the target role's key requirements:
-   - For AI / GenAI / RAG roles: In 'AI & Machine Learning', explicitly showcase: 'LangGraph, RAG (Retrieval-Augmented Generation), Vector Databases (pgvector, ChromaDB), LangChain, LlamaIndex, PyTorch, TensorFlow, Prompt Engineering, Agentic Workflows, Vision-Model Document Extraction, LLM Evaluation Harnesses'.
-   - In 'Programming & Backend': 'Python (AsyncIO, FastAPI, Pydantic), REST & Streaming APIs, WebSockets, SQL, Node.js (Express, Nest.js), GraphQL, Docker, C'.
-   - In 'Data & Databases': 'PostgreSQL, pgvector, TimescaleDB, MongoDB, time-series data, schema design, query optimisation, data validation and reconciliation, Pandas, NumPy'.
-   - Retain the other 4 categories with high density.
-5. 'work_history': Return candidate's 3 real jobs. Tailor the bullet points of Blue Brand and CodeScale to strategically highlight the intersections with the target role (e.g. low-latency APIs, automated document intelligence / vision pipelines, data streaming, database optimization, eliminating failure rates, Docker/AWS deployment) while remaining 100% truthful to his background. Maintain 8-9 bullets for Blue Brand, 3 for CodeScale, 1 for Lanka Hydraulic.
-6. 'projects': Intelligently select and return 3-4 projects from candidate's verified portfolio. For AI / GenAI / RAG / LangGraph roles, ALWAYS lead with 'AeroIntel' (deterministic RAG with pgvector & BM25), 'evalX' (LLM evaluation harness with CI gates), and 'EDGEOPS AI' or 'Energy Bill Extractor'. Highlight the exact technical overlap with the role (each with 1-2 concise, high-impact bullet points).
+1. 'tailored_title': High-impact executive headline matching the target role (e.g. for AI/Backend: '{job_title} | Systems & API Architecture Specialist').
+2. 'tailored_subtitle': Refined subtitle featuring the core technologies needed for this role that match candidate's actual strengths (e.g. 'Python (AsyncIO, FastAPI) | PostgreSQL | Docker | AWS | System Reliability').
+3. 'summary': An impressive 3-4 sentence Executive Profile. Highlight how candidate's technical rigor directly bridges with the target role's demands. State relocation or remote delivery readiness for {location}.
+4. 'core_skills_categorized': Return a list of skill category dicts ({{"category": "...", "skills": "..."}}). Prioritize and weave in the role's key requirements from the candidate's actual skills.
+5. 'work_history': Return candidate's real jobs. Tailor the bullet phrasing to strategically highlight intersections with the target role while remaining 100% truthful. Keep companies and dates identical.
+6. 'projects': Select 3-4 projects from candidate's real portfolio. Highlight the technical overlap with the role (each with 1-2 high-impact bullet points).
 
 OUTPUT FORMAT:
 Return ONLY valid JSON with keys:
@@ -94,79 +98,49 @@ Return ONLY valid JSON with keys:
 
         if parsed and isinstance(parsed, dict) and "tailored_title" in parsed:
             tailored_title = parsed.get("tailored_title", f"{job_title} Specialist")
-            tailored_subtitle = parsed.get("tailored_subtitle", identity.get("subtitle"))
-            tailored_profile = parsed.get("summary", self.profile.get("summary"))
+            tailored_subtitle = parsed.get("tailored_subtitle", identity.get("subtitle") or "Backend & Systems Engineering")
+            tailored_profile = parsed.get("summary", self.profile.get("summary", ""))
             tailored_skills = parsed.get("core_skills_categorized") or skills_cat
-            tailored_work = parsed.get("work_history") or work_hist
-            tailored_projects = parsed.get("projects") or projects
+            raw_tailored_work = parsed.get("work_history") or work_hist
+            raw_tailored_projects = parsed.get("projects") or projects
         else:
-            # Deterministic Smart Fallback based on job keywords
+            # Deterministic Fallback based on authentic profile and role keywords
             is_ai_role = any(kw in f"{job_title} {clean_jd}".lower() for kw in ["ai", "rag", "langgraph", "llm", "genai", "machine learning", "nlp"])
             if is_ai_role:
-                tailored_title = f"{job_title} | GenAI, RAG & Scalable Systems Specialist"
-                tailored_subtitle = "Python (AsyncIO, FastAPI) | LangGraph | RAG & Vector DBs | PyTorch | AWS | Docker | CI/CD | System Reliability"
+                tailored_title = f"{job_title} | AI Systems & RAG Specialist"
+                tailored_subtitle = "Python (FastAPI, AsyncIO) | RAG & Vector Search | PyTorch | PostgreSQL | Docker | CI/CD"
                 tailored_profile = (
-                    f"Dynamic Engineer with proven expertise bridging production backend rigor and cutting-edge artificial intelligence to build "
-                    f"enterprise-grade GenAI systems, RAG architectures, and agentic workflows. Track record of high-impact delivery in Python and FastAPI, "
-                    f"including slashing controller startup times by 90% and eliminating polling failures from 80% to 0%. Experienced in building multimodal "
-                    f"document intelligence pipelines and automated evaluation harnesses. Based in Sri Lanka and fully prepared for immediate international "
-                    f"relocation to {location} to accelerate engineering delivery at {company}."
+                    f"Engineer with demonstrated experience bridging production backend rigor and applied AI architectures. "
+                    f"Track record building high-throughput Python/FastAPI services, hybrid vector search pipelines, and automated "
+                    f"evaluation harnesses. Prepared for immediate technical delivery for {company} in {location}."
                 )
-                # Enhance AI skills
-                tailored_skills = []
-                for cat in skills_cat:
-                    if cat.get("category") == "AI & Machine Learning":
-                        tailored_skills.append({
-                            "category": "AI & Machine Learning",
-                            "skills": "LangGraph, RAG (Retrieval-Augmented Generation), Vector Databases (pgvector, ChromaDB), LangChain, LlamaIndex, PyTorch, TensorFlow, Prompt Engineering, Agentic Workflows, Vision-Model Document Extraction, LLM Evaluation Harnesses"
-                        })
-                    elif cat.get("category") == "Programming & Backend":
-                        tailored_skills.append({
-                            "category": "Programming & Backend",
-                            "skills": "Python (AsyncIO, FastAPI, Pydantic), REST & Streaming APIs, WebSockets, SQL, Java, Node.js (Express, Nest.js), GraphQL, Docker, C"
-                        })
-                    else:
-                        tailored_skills.append(cat)
-
-                # Enhance projects with verified GitHub AI/RAG repositories
-                tailored_projects = [
-                    {
-                        "title": "AeroIntel | Deterministic RAG Pipeline for Aviation Maintenance",
-                        "technologies": "Python, FastAPI, pgvector, PostgreSQL, Redis, BM25, Ollama, Docker",
-                        "bullets": [
-                            "Engineered a local-first hybrid RAG system (dense vector + BM25 keyword search) with a structural refusal gate, printed-page citations, and a trust layer validating extracted figures against source maintenance manuals, benchmarked on a published golden test set."
-                        ]
-                    },
-                    {
-                        "title": "evalX | Evaluation Harness & Regression Testing for LLM Apps",
-                        "technologies": "Python, Pytest, Pydantic, LLM-as-a-Judge, CI/CD Gates",
-                        "bullets": [
-                            "Built an automated testing harness for LLM behavior featuring golden test suites, hybrid scoring (code assertions + LLM-judge), regression tracking, and automated CI gating to eliminate hallucinations in production releases."
-                        ]
-                    },
-                    {
-                        "title": "Energy Bill Extractor & Vision RAG Pipeline",
-                        "technologies": "Python, FastAPI, Multimodal Vision LLMs, Pydantic, Benchmark Harness",
-                        "bullets": [
-                            "Engineered an end-to-end multimodal pipeline turning messy PDFs and photos into validated structured JSON schemas, incorporating an automated evaluation benchmark harness to optimize extraction accuracy and handle edge cases."
-                        ]
-                    },
-                    {
-                        "title": "Federated Learning for IoT Threat & Botnet Detection",
-                        "technologies": "Python, PyTorch, Flower, Distributed Systems, NumPy",
-                        "bullets": [
-                            "Built a privacy-preserving federated ML pipeline classifying Mirai and BASHLITE botnet traffic across 9 distributed client nodes; achieved 99.71% federated accuracy while maintaining complete data localization."
-                        ]
-                    }
-                ]
-                tailored_work = work_hist
             else:
                 tailored_title = f"{job_title} | Backend, Data & Systems Specialist"
-                tailored_subtitle = identity.get("subtitle")
-                tailored_profile = self.profile.get("summary")
-                tailored_skills = skills_cat
-                tailored_work = work_hist
-                tailored_projects = projects
+                tailored_subtitle = identity.get("professional_title") or "Software & Systems Engineer"
+                tailored_profile = self.profile.get("summary") or f"Experienced engineer ready to deliver scalable services for {company}."
+
+            tailored_skills = skills_cat
+            raw_tailored_work = work_hist
+            raw_tailored_projects = projects
+
+        # FACT-LOCKING ENFORCEMENT: Lock company names, titles, durations, institution, and degrees
+        locked_work = []
+        for idx, original_job in enumerate(work_hist):
+            job_copy = dict(original_job)
+            if idx < len(raw_tailored_work) and isinstance(raw_tailored_work[idx], dict):
+                tailored_bullets = raw_tailored_work[idx].get("bullets")
+                if tailored_bullets and isinstance(tailored_bullets, list):
+                    job_copy["bullets"] = [str(b).strip() for b in tailored_bullets if str(b).strip()]
+            locked_work.append(job_copy)
+
+        locked_projects = []
+        for idx, original_proj in enumerate(projects[:4]):
+            proj_copy = dict(original_proj)
+            if idx < len(raw_tailored_projects) and isinstance(raw_tailored_projects[idx], dict):
+                tailored_bullets = raw_tailored_projects[idx].get("bullets")
+                if tailored_bullets and isinstance(tailored_bullets, list):
+                    proj_copy["bullets"] = [str(b).strip() for b in tailored_bullets if str(b).strip()]
+            locked_projects.append(proj_copy)
 
         return {
             "identity": identity,
@@ -175,8 +149,8 @@ Return ONLY valid JSON with keys:
             "summary": tailored_profile,
             "tailored_summary": tailored_profile,
             "core_skills_categorized": tailored_skills,
-            "work_history": tailored_work,
-            "projects": tailored_projects,
+            "work_history": locked_work or work_hist,
+            "projects": locked_projects or projects,
             "education": education,
             "certifications": certs,
             "target_company": company,

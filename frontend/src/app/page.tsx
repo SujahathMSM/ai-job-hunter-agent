@@ -5,10 +5,12 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import ProfileView from "../components/views/ProfileView";
 import JobHunterView from "../components/views/JobHunterView";
+import UniversalCVHunterView from "../components/views/UniversalCVHunterView";
 import DubaiJobHunterView from "../components/views/DubaiJobHunterView";
 import GlobalRemoteJobsView from "../components/views/GlobalRemoteJobsView";
 import CareerPortalsView from "../components/views/CareerPortalsView";
 import CVTailorView from "../components/views/CVTailorView";
+import InterviewPrepView from "../components/views/InterviewPrepView";
 import ColdEmailView from "../components/views/ColdEmailView";
 import RecruiterFinderView from "../components/views/RecruiterFinderView";
 import TrackerView from "../components/views/TrackerView";
@@ -30,7 +32,7 @@ export default function Home() {
     sent: 12,
   });
 
-  const VALID_TABS = ["profile", "hunter", "dubai", "remote", "portals", "tailor", "outreach", "recruiters", "tracker", "settings"];
+  const VALID_TABS = ["profile", "hunter", "cv_matcher", "dubai", "remote", "portals", "tailor", "interview", "outreach", "recruiters", "tracker", "settings"];
 
   const navigateToTab = (tab: string, pushHistory = true) => {
     if (!VALID_TABS.includes(tab)) return;
@@ -49,6 +51,7 @@ export default function Home() {
 
   // Cross-tab pipeline state
   const [selectedJobForTailor, setSelectedJobForTailor] = useState<any>(null);
+  const [selectedJobForInterview, setSelectedJobForInterview] = useState<any>(null);
   const [selectedOutreachData, setSelectedOutreachData] = useState<any>(null);
 
   useEffect(() => {
@@ -146,6 +149,16 @@ export default function Home() {
     navigateToTab("tailor");
   };
 
+  const handleSelectForInterview = (jobTitle: string, company: string, location: string, desc: string) => {
+    setSelectedJobForInterview({
+      job_title: jobTitle,
+      company: company,
+      location: location,
+      description: desc,
+    });
+    navigateToTab("interview");
+  };
+
   const handleSelectForOutreach = (job: JobItem) => {
     if (!job.hr_email && job.portal) {
       window.open(job.portal, "_blank");
@@ -225,11 +238,20 @@ export default function Home() {
               onSelectForOutreach={handleSelectForOutreach}
             />
           </div>
+          <div className={activeTab === "cv_matcher" ? "block" : "hidden"}>
+            <UniversalCVHunterView
+              key={currentUser?.id || "guest"}
+              onSelectForTailor={handleSelectForTailor}
+              onSelectForOutreach={handleSelectForOutreach}
+              onSelectForInterview={handleSelectForInterview}
+            />
+          </div>
           <div className={activeTab === "dubai" ? "block" : "hidden"}>
             <DubaiJobHunterView
               key={currentUser?.id || "guest"}
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
+              onSelectForInterview={handleSelectForInterview}
               onSelectForRecruiters={(company, title) => {
                 setActiveTab("recruiters");
               }}
@@ -240,6 +262,7 @@ export default function Home() {
               key={currentUser?.id || "guest"}
               onSelectForTailor={handleSelectForTailor}
               onSelectForOutreach={handleSelectForOutreach}
+              onSelectForInterview={handleSelectForInterview}
               onSelectForRecruiters={(company, title) => {
                 setActiveTab("recruiters");
               }}
@@ -256,6 +279,23 @@ export default function Home() {
               key={currentUser?.id || "guest"}
               initialJob={selectedJobForTailor}
               onProceedToOutreach={handleTailorToOutreach}
+              onSelectForInterview={handleSelectForInterview}
+            />
+          </div>
+          <div className={activeTab === "interview" ? "block" : "hidden"}>
+            <InterviewPrepView
+              key={currentUser?.id || "guest"}
+              initialJob={selectedJobForInterview}
+              onSelectForTailor={(title, comp, loc, desc) => {
+                setSelectedJobForTailor({
+                  job_title: title,
+                  company: comp,
+                  location: loc,
+                  hr_email: "",
+                  description: desc,
+                });
+                navigateToTab("tailor");
+              }}
             />
           </div>
           <div className={activeTab === "outreach" ? "block" : "hidden"}>

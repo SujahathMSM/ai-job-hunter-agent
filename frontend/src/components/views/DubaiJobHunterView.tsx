@@ -23,6 +23,7 @@ import {
   ChevronDown,
   RefreshCw,
   Award,
+  MessageSquareCode,
 } from "lucide-react";
 import { DubaiJobItem, JobItem } from "../../types";
 import { fetchDubaiJobs } from "../../lib/api";
@@ -31,6 +32,7 @@ interface DubaiJobHunterViewProps {
   onSelectForTailor: (job: JobItem) => void;
   onSelectForOutreach: (job: JobItem) => void;
   onSelectForRecruiters?: (company: string, jobTitle: string) => void;
+  onSelectForInterview?: (jobTitle: string, company: string, location: string, desc: string) => void;
 }
 
 function formatCleanText(text: string): string {
@@ -46,27 +48,35 @@ function formatCleanText(text: string): string {
 }
 
 function formatDatePosted(dateStr?: string): string {
-  if (!dateStr || dateStr.toLowerCase() === "recently" || dateStr.toLowerCase() === "active") {
-    return dateStr || "Recently Listed";
-  }
-  if (dateStr.includes("ago") || dateStr.includes("Trending") || dateStr.includes("Today") || dateStr.includes("Yesterday")) {
+  if (!dateStr) return "Recently Listed";
+  const lower = dateStr.toLowerCase().trim();
+
+  // If already contains relative time, keep it
+  if (lower.includes("trending")) {
     return dateStr;
   }
+
   try {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
+      const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
       const diffMs = Date.now() - d.getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffHours / 24);
-      if (diffHours < 1) return "Just now";
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays === 1) return "Yesterday";
-      if (diffDays < 14) return `${diffDays}d ago`;
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+      if (diffHours < 1) return `${formattedDate} · Just now`;
+      if (diffHours < 24) return `${formattedDate} · ${diffHours}h ago`;
+      if (diffDays === 1) return `${formattedDate} · Yesterday`;
+      if (diffDays >= 2 && diffDays <= 30) return `${formattedDate} · ${diffDays}d ago`;
+      return formattedDate;
     }
-  } catch {
-    // fallback
+  } catch {}
+
+  // If string contains active or corporate, display formatted current cycle date
+  if (lower.includes("active") || lower.includes("corporate") || lower === "recent" || lower === "recently") {
+    return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   }
+
   return dateStr;
 }
 
@@ -92,6 +102,7 @@ export default function DubaiJobHunterView({
   onSelectForTailor,
   onSelectForOutreach,
   onSelectForRecruiters,
+  onSelectForInterview,
 }: DubaiJobHunterViewProps) {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [keyword, setKeyword] = useState("");
@@ -468,6 +479,17 @@ export default function DubaiJobHunterView({
                     <span>Tailor CV</span>
                   </button>
 
+                  {onSelectForInterview && (
+                    <button
+                      onClick={() => onSelectForInterview(job.job_title, job.company, job.location, job.description)}
+                      className="px-3 py-1.5 rounded-lg bg-[#1a1b22] border border-[#3d494c]/40 hover:border-[#4edea3] text-[#e3e1ec] hover:text-[#4edea3] text-xs flex items-center gap-1.5 transition-all"
+                      title="Practice role-specific STAR questions & answers for this opening"
+                    >
+                      <MessageSquareCode className="w-3.5 h-3.5 text-[#4edea3]" />
+                      <span>Prep Interview</span>
+                    </button>
+                  )}
+
                   {hasEmail && (
                     <button
                       onClick={() => handleOutreachBridge(job)}
@@ -586,6 +608,19 @@ export default function DubaiJobHunterView({
                   <Sparkles className="w-3.5 h-3.5 text-[#4cd7f6]" />
                   <span>Tailor CV with this JD</span>
                 </button>
+
+                {onSelectForInterview && (
+                  <button
+                    onClick={() => {
+                      onSelectForInterview(activeModalJob.job_title, activeModalJob.company, activeModalJob.location, activeModalJob.description);
+                      setActiveModalJob(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#292931] border border-[#4edea3]/40 hover:border-[#4edea3] text-xs font-semibold text-[#4edea3] transition-all"
+                  >
+                    <MessageSquareCode className="w-3.5 h-3.5 text-[#4edea3]" />
+                    <span>Prep Interview</span>
+                  </button>
+                )}
 
                 {activeModalJob.hr_email && (
                   <button

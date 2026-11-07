@@ -5,10 +5,11 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   async rewrites() {
+    const backendPort = process.env.BACKEND_PORT || process.env.PORT || "8005";
     return [
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
+        destination: `http://127.0.0.1:${backendPort}/api/:path*`,
       },
     ];
   },

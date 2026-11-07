@@ -4,6 +4,7 @@ import hashlib
 import secrets
 import hmac
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -17,11 +18,15 @@ class ApplicationTracker:
         self.db_path = db_path
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _get_connection(self):
         conn = sqlite3.connect(self.db_path, timeout=15.0)
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA busy_timeout=5000;")
-        return conn
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     @staticmethod
     def _hash_password(password: str, salt: str) -> str:
@@ -158,6 +163,8 @@ class ApplicationTracker:
 
     def authenticate_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
         email = email.strip().lower()
+        if not password or not password.strip():
+            return None
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -169,14 +176,9 @@ class ApplicationTracker:
                 return None
             
             uid, u_email, name, stored_hash, salt, created_at = row
-            # If user has no password set (e.g. legacy default seed), allow login
+            # Security fix: Accounts without password (e.g. OAuth accounts) CANNOT be logged into with arbitrary passwords
             if not stored_hash or not salt:
-                return {
-                    "id": uid,
-                    "email": u_email,
-                    "full_name": name or "Candidate",
-                    "created_at": created_at
-                }
+                return None
 
             calculated_hash = self._hash_password(password, salt)
             if hmac.compare_digest(calculated_hash, stored_hash):

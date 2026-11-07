@@ -101,10 +101,12 @@ class HRFinder:
                     "person_titles": ["Talent Acquisition", "Technical Recruiter", "HR Manager", "Head of People"],
                     "per_page": 8
                 }
-                resp = requests.post("https://api.apollo.io/v1/contacts/search", json=payload, headers=headers, timeout=8)
+                # Apollo public people prospect search endpoint
+                resp = requests.post("https://api.apollo.io/v1/mixed_people/search", json=payload, headers=headers, timeout=8)
                 if resp.status_code == 200:
-                    contacts = resp.json().get("contacts", [])
-                    for c in contacts:
+                    data = resp.json()
+                    people = data.get("people", []) or data.get("contacts", [])
+                    for c in people:
                         em = c.get("email")
                         if em:
                             result["verified_contacts"].append({
@@ -355,7 +357,7 @@ class HRFinder:
                         if count >= max_companies:
                             break
                 except Exception as loc_e:
-                    print(f"[Role HR Search Warn for {loc}]: {loc_e}")
+                    print(f"[Role HR Search Warn for {display_loc}]: {loc_e}")
                     continue
         except Exception as e:
             print(f"[Role HR Search Error]: {e}")

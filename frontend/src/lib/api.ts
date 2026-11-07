@@ -182,6 +182,82 @@ export async function downloadEuropassPDF(tailoredResume: any): Promise<Blob> {
   return res.blob();
 }
 
+export async function downloadATSPDF(tailoredResume: any): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/cv/generate-ats-pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ tailored_resume: tailoredResume }),
+  });
+  if (!res.ok) throw new Error("Failed to generate ATS PDF");
+  return res.blob();
+}
+
+export async function fetchATSPlaintext(tailoredResume: any): Promise<{ plaintext: string }> {
+  const res = await fetch(`${API_BASE}/cv/ats-plaintext`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ tailored_resume: tailoredResume }),
+  });
+  if (!res.ok) throw new Error("Failed to fetch ATS plaintext");
+  return res.json();
+}
+
+export async function fetchSkillGap(jobTitle: string, company: string, jdText: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/tailor/skill-gap`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      job_title: jobTitle,
+      company: company,
+      jd_text: jdText,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to analyze skill gap");
+  return res.json();
+}
+
+export async function generateInterviewPrep(
+  jobTitle: string,
+  company: string,
+  location: string,
+  description: string
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/interview/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      job_title: jobTitle,
+      company: company,
+      location: location,
+      description: description,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to generate interview prep pack");
+  return res.json();
+}
+
+export async function evaluateInterviewAnswer(
+  question: string,
+  questionType: string,
+  candidateAnswer: string,
+  jobTitle: string,
+  company: string
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/interview/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      question: question,
+      question_type: questionType,
+      candidate_answer: candidateAnswer,
+      job_title: jobTitle,
+      company: company,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to evaluate interview answer");
+  return res.json();
+}
+
 export async function draftEmail(jobTitle: string, company: string, hrEmail: string, hrName?: string, context?: string): Promise<any> {
   const res = await fetch(`${API_BASE}/outreach/draft`, {
     method: "POST",
@@ -468,5 +544,56 @@ export async function fetchDubaiJobs(
   });
   const res = await fetch(`${API_BASE}/jobs/dubai?${params.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch Dubai jobs");
+  return res.json();
+}
+
+export async function analyzeCV(rawText?: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/cv-hunter/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ raw_text: rawText || "" }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || errData.message || `Analysis failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function uploadAndMatchCV(file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_BASE}/cv-hunter/upload`, {
+    method: "POST",
+    headers: { ...getAuthHeaders() },
+    body: formData,
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || errData.message || `Upload failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function searchJobsForCV(
+  cvAnalysis: any,
+  region: string = "ALL",
+  minMatch: number = 65,
+  limit: number = 60
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/cv-hunter/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      cv_analysis: cvAnalysis,
+      region,
+      min_match: minMatch,
+      limit,
+    }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || errData.message || `Job search failed (${res.status})`);
+  }
   return res.json();
 }

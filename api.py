@@ -28,15 +28,28 @@ from matcher.jd_analyzer import JobDescriptionAnalyzer
 from generators.resume_tailorer import ResumeTailorer
 from generators.cover_letter_gen import CoverLetterGenerator
 from generators.pdf_builder import PDFResumeBuilder
+from generators.reviewer_agent import ReviewerAgent
+from generators.interview_engine import InterviewEngine
 from outreach.email_sender import EmailDispatcher
 from outreach.tracker import ApplicationTracker
 
 app = FastAPI(title="NexusHunt AI API", version="2.4")
 
-# Enable CORS for Next.js frontend
+# Enable CORS with specific origin controls (never allow * with credentials)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8005",
+        "http://127.0.0.1:8005",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,6 +80,38 @@ class TailorRequest(BaseModel):
 
 class PDFGenRequest(BaseModel):
     tailored_resume: Dict[str, Any]
+
+class InterviewGenerateRequest(BaseModel):
+    job_title: str
+    company: str
+    location: Optional[str] = "Global / Remote"
+    description: Optional[str] = ""
+    candidate_id: Optional[str] = None
+
+class InterviewEvaluateRequest(BaseModel):
+    question: str
+    question_type: str = "Behavioral (STAR)"
+    candidate_answer: str
+    job_title: str = "Software Engineer"
+    company: str = "Company"
+
+class SkillGapRequest(BaseModel):
+    job_title: str
+    company: str
+    jd_text: Optional[str] = ""
+
+class ATSPlainTextRequest(BaseModel):
+    tailored_resume: Dict[str, Any]
+
+class CVAnalyzeRequest(BaseModel):
+    raw_text: Optional[str] = None
+    user_id: Optional[str] = None
+
+class CVJobHuntRequest(BaseModel):
+    cv_analysis: Dict[str, Any]
+    region: str = "ALL"
+    min_match: int = 70
+    limit: int = 60
 
 class OutreachDraftRequest(BaseModel):
     job_title: str
@@ -150,12 +195,45 @@ class GoogleAuthRequest(BaseModel):
 class SwitchUserRequest(BaseModel):
     user_id: str
 
-JWT_SECRET = os.getenv("JWT_SECRET", "nexushunt-production-jwt-auth-secret-key-2026-secure-32chars")
-JWT_ALGORITHM = "HS256"
-
 def is_production_mode() -> bool:
     env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").lower().strip()
     return env in ["production", "prod"]
+
+DEFAULT_DEV_JWT_SECRET = "nexushunt-development-jwt-auth-secret-key-2026-secure-32chars"
+_raw_jwt = os.getenv("JWT_SECRET", "").strip()
+if is_production_mode() and (not _raw_jwt or _raw_jwt == DEFAULT_DEV_JWT_SECRET):
+    raise RuntimeError("CRITICAL SECURITY ERROR: A custom JWT_SECRET environment variable must be set in production mode.")
+JWT_SECRET = _raw_jwt or DEFAULT_DEV_JWT_SECRET
+JWT_ALGORITHM = "HS256"
+
+def validate_safe_user_file_path(path_str: str, user_id: str) -> Path:
+    """Validates that a file attachment strictly belongs to the user and prevents path traversal."""
+    if not path_str or not path_str.strip():
+        raise HTTPException(status_code=400, detail="File path cannot be empty.")
+    if "\0" in path_str or ".." in path_str:
+        raise HTTPException(status_code=403, detail="Forbidden: Path traversal is prohibited.")
+
+    target = Path(path_str).resolve()
+    # Explicitly disallow system files
+    if target.name.lower() in [".env", "applications.db", "master_persona.json", "config.py", "api.py"] or target.suffix.lower() in [".env", ".db", ".py", ".key", ".pem"]:
+        raise HTTPException(status_code=403, detail="Forbidden: Access to system configuration files is strictly prohibited.")
+
+    user_upload_dir = (UPLOADS_DIR / user_id).resolve()
+    user_gen_dir = (GENERATED_DIR / user_id).resolve()
+    global_upload_dir = UPLOADS_DIR.resolve()
+    global_gen_dir = GENERATED_DIR.resolve()
+
+    allowed = (
+        str(target).startswith(str(user_upload_dir)) or
+        str(target).startswith(str(user_gen_dir)) or
+        (str(target).startswith(str(global_upload_dir)) and (user_id in ["default", "admin"] or user_id in target.name)) or
+        (str(target).startswith(str(global_gen_dir)) and (user_id in ["default", "admin"] or user_id in target.name))
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to attach or view this file.")
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="The requested file was not found on the server.")
+    return target
 
 def create_access_token(user_id: str, email: str) -> str:
     payload = {
@@ -319,36 +397,55 @@ def google_auth(req: GoogleAuthRequest):
     # B. ID Token credential flow
     elif req.credential:
         cred = req.credential.strip()
-        # 1. Check for Demo / Sandbox Google Sign-In
+        google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip() or req.client_id
+        allow_mock = os.getenv("ALLOW_MOCK_AUTH", "false").lower() == "true" and not is_production_mode()
+
         if cred.startswith("demo_google_"):
+            if not allow_mock:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Mock Google sign-in is disabled. Please provide an authentic Google OAuth2 credential."
+                )
             parts = cred.replace("demo_google_", "").split(":")
             email = parts[0] if parts and parts[0] else "candidate.google@gmail.com"
             full_name = parts[1] if len(parts) > 1 and parts[1] else "Google Candidate"
             google_id = "google_demo_" + email.replace("@", "_").replace(".", "_")
         else:
-            # 2. Live Google ID Token Verification
+            if is_production_mode() and not google_client_id:
+                raise HTTPException(
+                    status_code=500,
+                    detail="GOOGLE_CLIENT_ID must be configured on the server to verify Google sign-in."
+                )
+            verified = False
             try:
                 from google.oauth2 import id_token
                 from google.auth.transport import requests as google_requests
                 
-                target_aud = req.client_id or os.getenv("GOOGLE_CLIENT_ID") or None
                 idinfo = id_token.verify_oauth2_token(
                     cred,
                     google_requests.Request(),
-                    audience=target_aud if target_aud else None
+                    audience=google_client_id if google_client_id else None
                 )
+                if google_client_id and idinfo.get("aud") != google_client_id:
+                    raise HTTPException(status_code=401, detail="Google token audience mismatch.")
                 email = idinfo.get("email")
                 full_name = idinfo.get("name") or (email.split("@")[0] if email else "Google Candidate")
                 google_id = idinfo.get("sub")
+                verified = True
             except Exception as e:
+                # Secondary fallback: Google tokeninfo endpoint with strict audience check
                 try:
                     import urllib.request, json
                     url = f"https://oauth2.googleapis.com/tokeninfo?id_token={cred}"
                     with urllib.request.urlopen(url, timeout=8) as response:
                         data = json.loads(response.read().decode())
+                        token_aud = data.get("aud")
+                        if google_client_id and token_aud != google_client_id:
+                            raise HTTPException(status_code=401, detail="Google token audience does not match configured client.")
                         email = data.get("email")
                         full_name = data.get("name") or (email.split("@")[0] if email else "Google Candidate")
                         google_id = data.get("sub")
+                        verified = True
                 except Exception as e2:
                     print(f"[Google Auth Verification Error]: {e} / {e2}")
                     raise HTTPException(status_code=401, detail="Google token verification failed. Please check credentials.")
@@ -611,6 +708,80 @@ def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40)
     )
 
 
+# --- UNIVERSAL CV MATCHER & GLOBAL HUNTER ---
+@app.post("/api/cv-hunter/analyze")
+def analyze_cv(
+    req: Optional[CVAnalyzeRequest] = None,
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """Deeply parses and analyzes ANY CV text or candidate profile to extract target roles,
+    competencies, and global search vectors."""
+    try:
+        from hunter.universal_cv_hunter import UniversalCVHunter
+        hunter = UniversalCVHunter()
+        text_to_analyze = req.raw_text if req and req.raw_text else ""
+        if not text_to_analyze:
+            uid = current_user_id if is_production_mode() else (req.user_id if req and req.user_id else current_user_id)
+            pb = PersonaBuilder(user_id=uid)
+            text_to_analyze = json.dumps(pb.profile, indent=2)
+        analysis = hunter.parse_and_analyze_cv(text_to_analyze)
+        return analysis
+    except Exception as e:
+        print(f"[Universal CV Analyze Error]: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cv-hunter/upload")
+async def upload_and_analyze_cv(
+    file: UploadFile = File(...),
+    current_user_id: str = Depends(get_current_user_id)
+):
+    """Uploads ANY CV file (PDF, DOCX, TXT), parses it carefully, and immediately hunts matching jobs worldwide."""
+    try:
+        from hunter.universal_cv_hunter import UniversalCVHunter
+        hunter = UniversalCVHunter()
+        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename or "cv.pdf")
+        temp_path = UPLOADS_DIR / f"cv_match_{int(time.time())}_{safe_name}"
+        contents = await file.read()
+        with open(temp_path, "wb") as f:
+            f.write(contents)
+
+        analysis = hunter.parse_and_analyze_cv(str(temp_path))
+        jobs = hunter.hunt_matching_jobs(analysis, region="ALL", min_match=65, limit=50)
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "analysis": analysis,
+            "jobs": jobs,
+            "count": len(jobs)
+        }
+    except Exception as e:
+        print(f"[Universal CV Upload & Match Error]: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cv-hunter/search")
+def search_jobs_for_cv(req: CVJobHuntRequest):
+    """Hunts live matching jobs worldwide using the extracted CV analysis parameters."""
+    try:
+        from hunter.universal_cv_hunter import UniversalCVHunter
+        hunter = UniversalCVHunter()
+        jobs = hunter.hunt_matching_jobs(
+            cv_analysis=req.cv_analysis,
+            region=req.region,
+            min_match=req.min_match,
+            limit=req.limit
+        )
+        return {
+            "status": "success",
+            "count": len(jobs),
+            "region": req.region,
+            "jobs": jobs
+        }
+    except Exception as e:
+        print(f"[Universal CV Job Search Error]: {e}")
+        return {"status": "error", "message": str(e), "count": 0, "jobs": []}
+
+
 # --- GLOBAL RECRUITER & HR FINDER ---
 @app.get("/api/hr/by-role/stream")
 def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 25):
@@ -672,20 +843,41 @@ def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_use
         jd_text=req.jd_text
     )
 
+    # Stage 2: Reviewer Agent Anti-Hallucination Audit Gate
+    reviewer = ReviewerAgent(pb.profile)
+    audit_report = reviewer.audit_and_verify(
+        tailored_resume=tailored_resume,
+        cover_letter=cover_letter,
+        job_title=req.job_title,
+        company=req.company,
+        jd_text=req.jd_text
+    )
+
+    # Calculate Skill Gap & 24-Hour Quick-Study Roadmap
+    skill_gap = reviewer.analyze_skill_gap(
+        job_title=req.job_title,
+        company=req.company,
+        jd_text=req.jd_text
+    )
+
     safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', req.company).strip('_') or "Company"
     clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
     try:
         pdf_gen = PDFResumeBuilder()
         cv_out = GENERATED_DIR / f"Europass_CV_{clean_uid}_{safe_comp}.pdf"
+        ats_out = GENERATED_DIR / f"Clean_ATS_CV_{clean_uid}_{safe_comp}.pdf"
         cl_out = GENERATED_DIR / f"Cover_Letter_{clean_uid}_{safe_comp}.pdf"
         pdf_gen.build_resume_pdf(tailored_resume, cv_out)
+        pdf_gen.build_ats_clean_pdf(tailored_resume, ats_out)
         pdf_gen.build_cover_letter_pdf(cover_letter, pb.profile, cl_out)
     except Exception as e:
         print(f"[Tailor Pre-build Error]: {e}")
     
     return {
         "tailored_resume": tailored_resume,
-        "cover_letter": cover_letter
+        "cover_letter": cover_letter,
+        "reviewer_audit": audit_report,
+        "skill_gap": skill_gap
     }
 
 @app.post("/api/cv/generate-pdf")
@@ -705,6 +897,67 @@ def generate_pdf(req: PDFGenRequest):
         filename=os.path.basename(out_file)
     )
 
+@app.post("/api/cv/generate-ats-pdf")
+def generate_ats_pdf(req: PDFGenRequest):
+    import time
+    pdf_gen = PDFResumeBuilder()
+    out_file = GENERATED_DIR / f"Clean_ATS_CV_{int(time.time())}.pdf"
+    pdf_gen.build_ats_clean_pdf(
+        resume_data=req.tailored_resume,
+        output_path=out_file
+    )
+    if not os.path.exists(out_file):
+        raise HTTPException(status_code=500, detail="ATS PDF generation failed.")
+    return FileResponse(
+        out_file,
+        media_type="application/pdf",
+        filename=os.path.basename(out_file)
+    )
+
+@app.post("/api/cv/ats-plaintext")
+def get_ats_plaintext(req: ATSPlainTextRequest):
+    pdf_gen = PDFResumeBuilder()
+    plaintext = pdf_gen.generate_ats_plaintext(req.tailored_resume)
+    return {"plaintext": plaintext}
+
+@app.post("/api/tailor/skill-gap")
+def get_skill_gap(req: SkillGapRequest, current_user_id: str = Depends(get_current_user_id)):
+    pb = PersonaBuilder(user_id=current_user_id)
+    reviewer = ReviewerAgent(pb.profile)
+    gap = reviewer.analyze_skill_gap(
+        job_title=req.job_title,
+        company=req.company,
+        jd_text=req.jd_text or ""
+    )
+    return gap
+
+@app.post("/api/interview/generate")
+def generate_interview_prep(req: InterviewGenerateRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id if is_production_mode() else (req.candidate_id or current_user_id)
+    pb = PersonaBuilder(user_id=user_id)
+    engine = InterviewEngine(pb.profile)
+    pack = engine.generate_interview_pack(
+        job_title=req.job_title,
+        company=req.company,
+        location=req.location or "Global / Remote",
+        jd_text=req.description or ""
+    )
+    return pack
+
+@app.post("/api/interview/evaluate")
+def evaluate_interview_answer(req: InterviewEvaluateRequest, current_user_id: str = Depends(get_current_user_id)):
+    user_id = current_user_id
+    pb = PersonaBuilder(user_id=user_id)
+    engine = InterviewEngine(pb.profile)
+    evaluation = engine.evaluate_candidate_answer(
+        question=req.question,
+        question_type=req.question_type,
+        candidate_answer=req.candidate_answer,
+        job_title=req.job_title,
+        company=req.company
+    )
+    return evaluation
+
 @app.get("/api/documents/preview")
 def preview_document(
     type: str = "cv",
@@ -721,17 +974,36 @@ def preview_document(
 
         # 1. Custom uploaded document preview
         if custom_file:
+            if "\0" in custom_file or ".." in custom_file or "/" in custom_file or "\\" in custom_file:
+                raise HTTPException(status_code=403, detail="Forbidden: Invalid filename.")
+
             safe_name = os.path.basename(custom_file)
-            target = UPLOADS_DIR / safe_name
+            user_upload_dir = UPLOADS_DIR / user_id
+            target = user_upload_dir / safe_name
             if not target.exists():
-                target = GENERATED_DIR / safe_name
+                legacy_target = UPLOADS_DIR / safe_name
+                if legacy_target.exists() and (user_id in ["default", "admin"] or safe_name.startswith(f"manual_{user_id}_")):
+                    target = legacy_target
+                else:
+                    target = GENERATED_DIR / safe_name
+
             if target.exists():
+                is_owned = (
+                    str(target.resolve()).startswith(str(user_upload_dir.resolve())) or
+                    user_id in target.name or
+                    user_id in ["default", "admin"]
+                )
+                if not is_owned:
+                    raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to view this document.")
+
                 media_type = "application/pdf" if target.suffix.lower() == ".pdf" else "application/octet-stream"
                 return FileResponse(
                     target,
                     media_type=media_type,
                     headers={"Content-Disposition": f"inline; filename={target.name}"}
                 )
+            else:
+                raise HTTPException(status_code=404, detail="Requested preview file not found.")
 
         # 2. Standard generated document preview
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
@@ -775,14 +1047,16 @@ async def upload_outreach_attachment(
 ):
     """Saves candidate's manual CV or Cover Letter to replace generated documents."""
     try:
-        UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
+        user_upload_dir = UPLOADS_DIR / clean_uid
+        user_upload_dir.mkdir(parents=True, exist_ok=True)
+
         raw_name = file.filename or f"custom_{doc_type}.pdf"
         clean_ext = Path(raw_name).suffix or ".pdf"
         clean_base = re.sub(r'[^a-zA-Z0-9_-]', '_', Path(raw_name).stem)[:40]
-        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
 
         saved_filename = f"manual_{clean_uid}_{doc_type}_{int(time.time())}_{clean_base}{clean_ext}"
-        saved_path = UPLOADS_DIR / saved_filename
+        saved_path = user_upload_dir / saved_filename
 
         content = await file.read()
         with open(saved_path, "wb") as f:
@@ -821,18 +1095,26 @@ def draft_outreach(req: OutreachDraftRequest, current_user_id: str = Depends(get
 @app.post("/api/outreach/send")
 def send_outreach(req: SendEmailRequest, current_user_id: str = Depends(get_current_user_id)):
     user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+
+    # Security: Validate file attachments against user boundary & prevent path traversal
+    cv_attachment = validate_safe_user_file_path(req.cv_path, user_id) if req.cv_path else None
+    cl_attachment = validate_safe_user_file_path(req.cover_letter_path, user_id) if req.cover_letter_path else None
+
+    # Security: Server-side SAFE_MODE enforcement
+    effective_dry_run = True if SAFE_MODE else bool(req.dry_run)
+
     dispatcher = EmailDispatcher()
     result = dispatcher.dispatch(
         to_email=req.to_email,
         subject=req.subject,
         body_text=req.body,
-        attachment_path=Path(req.cv_path) if req.cv_path else None,
-        cover_letter_path=Path(req.cover_letter_path) if req.cover_letter_path else None,
+        attachment_path=cv_attachment,
+        cover_letter_path=cl_attachment,
         company=req.company,
         job_title=req.job_title,
         location=req.location,
         portal_link=req.portal_link,
-        dry_run=req.dry_run,
+        dry_run=effective_dry_run,
         user_id=user_id
     )
     return result
@@ -863,7 +1145,7 @@ def get_career_portals(region: Optional[str] = None, query: Optional[str] = None
     return {"portals": portals}
 
 @app.post("/api/portals")
-def add_career_portal(req: PortalAddRequest):
+def add_career_portal(req: PortalAddRequest, current_user_id: str = Depends(get_current_user_id)):
     from hunter.portals import CareerPortalManager
     mgr = CareerPortalManager()
     created = mgr.add_custom_portal(
@@ -879,7 +1161,7 @@ def add_career_portal(req: PortalAddRequest):
     return {"status": "success", "portal": created}
 
 @app.delete("/api/portals/{portal_id}")
-def delete_career_portal(portal_id: int):
+def delete_career_portal(portal_id: int, current_user_id: str = Depends(get_current_user_id)):
     from hunter.portals import CareerPortalManager
     mgr = CareerPortalManager()
     ok = mgr.delete_portal(portal_id)
@@ -900,9 +1182,19 @@ def get_settings():
     }
 
 @app.post("/api/settings")
-def update_settings(req: SettingsUpdateRequest):
-    update_env_file(req.settings)
-    return {"status": "success", "updated": list(req.settings.keys())}
+def update_settings(req: SettingsUpdateRequest, current_user_id: str = Depends(get_current_user_id)):
+    if is_production_mode():
+        raise HTTPException(
+            status_code=403,
+            detail="Direct environment modifications are prohibited in production mode. Configure settings via server environment variables."
+        )
+    # Whitelist only safe non-sensitive configuration keys
+    allowed_keys = {"LLM_PROVIDER", "SAFE_MODE"}
+    safe_settings = {k: v for k, v in req.settings.items() if k in allowed_keys}
+    if not safe_settings:
+        raise HTTPException(status_code=400, detail="No permissible settings provided.")
+    update_env_file(safe_settings)
+    return {"status": "success", "updated": list(safe_settings.keys())}
 
 @app.get("/api/settings/user")
 def get_user_settings(user_id: str = Depends(get_current_user_id)):
@@ -949,4 +1241,5 @@ def save_user_settings(req: UserSettingsRequest, current_user_id: str = Depends(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    port = int(os.getenv("BACKEND_PORT") or os.getenv("PORT") or 8005)
+    uvicorn.run("api:app", host="127.0.0.1", port=port, reload=True)

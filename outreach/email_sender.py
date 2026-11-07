@@ -2,6 +2,7 @@ import os
 import re
 import time
 import smtplib
+import mimetypes
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -9,7 +10,7 @@ from email.utils import formatdate
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SENDER_NAME, DRAFTS_DIR, GENERATED_DIR
+from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SENDER_NAME, DRAFTS_DIR, GENERATED_DIR, SAFE_MODE
 from outreach.tracker import ApplicationTracker
 
 class EmailDispatcher:
@@ -30,7 +31,7 @@ class EmailDispatcher:
     ) -> MIMEMultipart:
         msg = MIMEMultipart()
         s_email = sender_email or os.getenv("SMTP_USER", SMTP_USER).strip() or "candidate@engineering-talent.com"
-        s_name = sender_display_name or os.getenv("SENDER_NAME", SENDER_NAME) or "M.S. Mohamed Sujahath"
+        s_name = sender_display_name or os.getenv("SENDER_NAME", SENDER_NAME) or "Candidate"
 
         msg["From"] = f"{s_name} <{s_email}>"
         msg["To"] = recipient_email
@@ -42,8 +43,12 @@ class EmailDispatcher:
         if attachments:
             for filepath in attachments:
                 if filepath and filepath.exists():
+                    ctype, _ = mimetypes.guess_type(str(filepath))
+                    subtype = "pdf"
+                    if ctype and "/" in ctype:
+                        _, subtype = ctype.split("/", 1)
                     with open(filepath, "rb") as f:
-                        part = MIMEApplication(f.read(), _subtype="pdf")
+                        part = MIMEApplication(f.read(), _subtype=subtype)
                         part.add_header("Content-Disposition", "attachment", filename=filepath.name)
                         msg.attach(part)
 
@@ -66,24 +71,26 @@ class EmailDispatcher:
         """Dispatches live email via SMTP or logs safe draft based on dry_run mode.
         Supports per-user private SMTP credentials with fallback to system defaults."""
         user_cfg = self.tracker.get_user_settings(user_id)
+        from ingestion.persona_builder import PersonaBuilder
+        pb = PersonaBuilder(user_id=user_id)
+        default_sender = pb.profile.get("identity", {}).get("full_name") or "Candidate"
 
         clean_user = (user_cfg.get("smtp_user") or os.getenv("SMTP_USER", SMTP_USER)).strip()
         clean_pwd = (user_cfg.get("smtp_password") or os.getenv("SMTP_PASSWORD", SMTP_PASSWORD)).replace(" ", "").strip()
         host = (user_cfg.get("smtp_host") or os.getenv("SMTP_HOST", SMTP_HOST)).strip()
         port = int(user_cfg.get("smtp_port") or os.getenv("SMTP_PORT", str(SMTP_PORT)))
-        sender_name = (user_cfg.get("sender_name") or os.getenv("SENDER_NAME", SENDER_NAME) or "M.S. Mohamed Sujahath").strip()
+        sender_name = (user_cfg.get("sender_name") or os.getenv("SENDER_NAME", SENDER_NAME) or default_sender).strip()
 
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
+        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
 
         # 1. Ensure Europass CV PDF Attachment
         cv_pdf_file = attachment_path
         if not cv_pdf_file or not cv_pdf_file.exists():
-            cv_pdf_file = GENERATED_DIR / f"Europass_CV_{safe_comp}.pdf"
+            cv_pdf_file = GENERATED_DIR / f"Europass_CV_{clean_uid}_{safe_comp}.pdf"
             try:
                 from generators.pdf_builder import PDFResumeBuilder
-                from ingestion.persona_builder import PersonaBuilder
                 builder = PDFResumeBuilder()
-                pb = PersonaBuilder()
                 builder.build_resume_pdf(pb.profile, cv_pdf_file)
             except Exception as e:
                 print(f"[Auto-CV Generation Error]: {e}")
@@ -91,12 +98,10 @@ class EmailDispatcher:
         # 2. Ensure Cover Letter PDF Attachment
         cl_pdf_file = cover_letter_path
         if not cl_pdf_file or not cl_pdf_file.exists():
-            cl_pdf_file = GENERATED_DIR / f"Cover_Letter_{safe_comp}.pdf"
+            cl_pdf_file = GENERATED_DIR / f"Cover_Letter_{clean_uid}_{safe_comp}.pdf"
             try:
                 from generators.pdf_builder import PDFResumeBuilder
-                from ingestion.persona_builder import PersonaBuilder
                 builder = PDFResumeBuilder()
-                pb = PersonaBuilder()
                 builder.build_cover_letter_pdf(
                     body_text or f"Cover letter application for {job_title} at {company}",
                     pb.profile,
@@ -121,7 +126,8 @@ class EmailDispatcher:
             attachments=attachments
         )
 
-        can_send_live = bool(clean_user and clean_pwd and not dry_run)
+        # Security: Safe Mode strictly prevents live SMTP dispatch
+        can_send_live = bool(clean_user and clean_pwd and not dry_run and not SAFE_MODE)
 
         if can_send_live:
             try:

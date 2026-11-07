@@ -1,11 +1,5 @@
 import os
 import json
-from typing import Optional, Dict, Any, List
-import requests
-from config import GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
-
-import os
-import json
 import time
 from typing import Optional, Dict, Any, List
 import requests
@@ -18,9 +12,7 @@ class LLMClient:
     # Models to try in order of availability and speed
     GEMINI_MODELS = [
         "gemini-flash-lite-latest",
-        "gemini-3.8-flash",
-        "gemini-flash-latest",
-        "gemini-3.5-flash"
+        "gemini-2.5-flash"
     ]
 
     def __init__(self, provider: Optional[str] = None):
@@ -39,7 +31,13 @@ class LLMClient:
             return {"active": True, "provider": "Anthropic Claude", "key_set": True}
         return {"active": False, "provider": "Offline Rule-based Heuristic", "key_set": False}
 
-    def generate(self, prompt: str, system_prompt: str = "You are an elite executive career strategist and technical CV/Cover Letter writer.") -> str:
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: str = "You are an elite executive career strategist and technical CV/Cover Letter writer.",
+        temperature: Optional[float] = None,
+        **kwargs
+    ) -> str:
         # Determine sequence of providers to try based on preference
         providers = []
         if self.provider == "openai":
@@ -54,7 +52,7 @@ class LLMClient:
                 continue
 
             if prov_name == "gemini":
-                text = self._call_gemini(prompt, system_prompt, key)
+                text = self._call_gemini(prompt, system_prompt, key, temperature=temperature)
                 if text:
                     return text
             elif prov_name == "openai":
@@ -70,7 +68,7 @@ class LLMClient:
         print("[LLM Notice] No live LLM output received; using intelligent local engine.")
         return ""
 
-    def _call_gemini(self, prompt: str, system_prompt: str, api_key: str) -> str:
+    def _call_gemini(self, prompt: str, system_prompt: str, api_key: str, temperature: Optional[float] = None) -> str:
         headers = {"Content-Type": "application/json"}
         payload = {
             "contents": [
@@ -81,37 +79,32 @@ class LLMClient:
                 }
             ],
             "generationConfig": {
-                "temperature": 0.4,
+                "temperature": temperature if temperature is not None else 0.4,
                 "maxOutputTokens": 3000
             }
         }
 
         for model_name in self.GEMINI_MODELS:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-            for attempt in range(2):
-                try:
-                    res = requests.post(url, json=payload, headers=headers, timeout=30)
-                    if res.status_code == 200:
-                        data = res.json()
-                        candidates = data.get("candidates", [])
-                        if candidates:
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            if parts:
-                                text = parts[0].get("text", "").strip()
-                                if text:
-                                    print(f"[LLM SUCCESS] Model '{model_name}' generated {len(text)} characters.")
-                                    return text
-                    elif res.status_code in [429, 503]:
-                        time.sleep(1.5 * (attempt + 1))
-                        continue
-                    elif res.status_code == 404:
-                        break  # Model not found, try next model
-                    else:
-                        print(f"[LLM Warning] Gemini {model_name} returned {res.status_code}: {res.text[:120]}")
-                        break
-                except Exception as e:
-                    print(f"[LLM Error] Error contacting {model_name}: {e}")
-                    time.sleep(1)
+            try:
+                res = requests.post(url, json=payload, headers=headers, timeout=(2.0, 4.0))
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            text = parts[0].get("text", "").strip()
+                            if text:
+                                print(f"[LLM SUCCESS] Model '{model_name}' generated {len(text)} characters.")
+                                return text
+                elif res.status_code == 404:
+                    continue  # Model not found, try next model
+                else:
+                    print(f"[LLM Warning] Gemini {model_name} returned {res.status_code}: {res.text[:120]}")
+            except Exception as e:
+                print(f"[LLM Timeout/Error] {model_name}: {e}")
+                continue
         return ""
 
     def _call_openai(self, prompt: str, system_prompt: str, api_key: str) -> str:
@@ -135,24 +128,28 @@ class LLMClient:
         return ""
 
     def _call_anthropic(self, prompt: str, system_prompt: str, api_key: str) -> str:
-        try:
-            headers = {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            payload = {
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 3000,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": prompt}]
-            }
-            resp = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers, timeout=30)
-            if resp.status_code == 200:
-                data = resp.json()
-                content = data.get("content", [])
-                if content and "text" in content[0]:
-                    return content[0]["text"].strip()
-        except Exception as e:
-            print(f"[LLM Error] Anthropic API call failed: {e}")
+        models = ["claude-3-5-sonnet-latest", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        for model in models:
+            try:
+                payload = {
+                    "model": model,
+                    "max_tokens": 3000,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": prompt}]
+                }
+                resp = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data.get("content", [])
+                    if content and "text" in content[0]:
+                        return content[0]["text"].strip()
+                else:
+                    print(f"[LLM Error] Anthropic model {model} returned status {resp.status_code}: {resp.text}")
+            except Exception as e:
+                print(f"[LLM Error] Anthropic API call for {model} failed: {e}")
         return ""

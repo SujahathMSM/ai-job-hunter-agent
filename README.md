@@ -1,6 +1,8 @@
-# 🎯 AI Autonomous Job Hunter & Application Agent
+# 🎯 NexusHunt AI - Autonomous Career & Job Matching Agent
 
-An end-to-end autonomous AI bot engineered for **Engineers** seeking international relocation. The agent ingests your existing CVs, chat histories (ChatGPT, Claude, Gemini), and LinkedIn profile to deeply understand your technical background, problem-solving mindset, and personal voice. It then identifies engineering jobs, tailors ATS-optimized CVs & Cover Letters, compiles publication-quality PDFs, and dispatches applications directly to HR mailboxes.
+An end-to-end autonomous AI career agent and global job hunter engineered for technical professionals seeking worldwide remote and international opportunities (GCC / Gulf, Europe, UK, Australasia, and the Americas).
+
+The agent ingests your existing CVs, chat histories (ChatGPT, Claude, Gemini), and LinkedIn profile to deeply understand your technical background, problem-solving mindset, and personal voice. It then identifies matching engineering jobs, tailors ATS-optimized CVs & Cover Letters, compiles publication-quality PDFs, and generates structured outreach packages.
 
 ---
 
@@ -10,17 +12,16 @@ An end-to-end autonomous AI bot engineered for **Engineers** seeking internation
 - **United Arab Emirates (UAE)**: Dubai, Abu Dhabi, Sharjah
 - **Saudi Arabia (KSA)**: Riyadh, Jeddah, Dammam, NEOM Mega-Projects
 - **Qatar**: Doha, Lusail
-- **Oman**: Muscat, Sohar
-- **Kuwait & Bahrain**
+- **Oman, Kuwait, & Bahrain**
 
-### 2. High-Opportunity & Migratable Pathways from Sri Lanka
-- **Southeast Asia**: Singapore (Employment Pass), Malaysia (Tech Pass), Maldives
-- **Europe & UK**: United Kingdom (Skilled Worker Visa), Germany (Opportunity Card / Chancenkarte & EU Blue Card for Engineers)
-- **Australasia**: Australia (Subclass 189/190/491 & CDR Engineers Australia), New Zealand (Green List)
-- **North America**: Canada (Express Entry STEM)
+### 2. High-Opportunity & Migratable Pathways
+- **Southeast Asia**: Singapore, Malaysia
+- **Europe & UK**: United Kingdom (Skilled Worker), Germany (Opportunity Card / EU Blue Card), Netherlands, Ireland
+- **Australasia**: Australia, New Zealand
+- **North America**: Canada, USA (Worldwide Remote)
 
-### 3. Strict Exclusion Rule (Hard Coded Zero-Tolerance)
-- **Israel**: **Strictly Excluded.** Any job posting located in or affiliated with Israel is automatically identified and rejected by the filtering engine with zero exceptions.
+### 3. Strict Exclusion Rule (Hardcoded Zero-Tolerance)
+- **Prohibited Regions**: Any job posting located in or affiliated with Israel is automatically identified and rejected by the filtering engine with zero exceptions.
 
 ---
 
@@ -28,84 +29,71 @@ An end-to-end autonomous AI bot engineered for **Engineers** seeking internation
 
 ```
 ai-job-hunter-agent/
-├── app.py                      # Interactive Streamlit Web Command Center
-├── cli.py                      # Headless CLI for terminal / automation runs
+├── api.py                      # FastAPI Backend Server (REST & Streaming SSE)
+├── start.bat                   # Unified Launcher for Backend + Frontend
 ├── config.py                   # Configuration, target regions & strict exclusion rules
-├── test_agent.py               # Comprehensive unit test suite
 ├── ingestion/
 │   ├── cv_parser.py            # Parses PDF, DOCX, TXT CVs & extracts chronology
-│   ├── chat_parser.py          # Mines ChatGPT, Claude & Gemini exports for real engineering depth
+│   ├── chat_parser.py          # Mines ChatGPT, Claude & Gemini exports for real depth
 │   ├── linkedin_parser.py      # Parses LinkedIn Profile PDF or archive CSVs
+│   ├── intake_engine.py        # Multi-source intelligence fusion engine
 │   └── persona_builder.py      # Synthesizes unified Master Professional Persona
 ├── matcher/
-│   ├── geo_rules.py            # Validates Gulf & migration regions; enforces Israel blocklist
+│   ├── geo_rules.py            # Validates Gulf & migration regions; enforces blocklists
 │   └── jd_analyzer.py          # ATS keyword overlap, discipline match & gap scoring
 ├── generators/
 │   ├── llm_client.py           # Multi-provider client (Gemini, OpenAI, Claude, or offline fallback)
-│   ├── resume_tailorer.py      # STAR-aligned, ATS-optimized CV content generator
+│   ├── resume_tailorer.py      # STAR-aligned, ATS-optimized CV content generator with Fact-Locking
 │   ├── cover_letter_gen.py     # High-impact personalized cover letter generator
 │   └── pdf_builder.py          # ReportLab ATS-compliant PDF compiler
 ├── hunter/
-│   ├── job_search.py           # Gulf & Global job aggregator and web URL scraper
+│   ├── live_scraper.py         # Multi-board live aggregator and web URL scraper
+│   ├── universal_cv_hunter.py  # Deep CV semantic matching engine for any profession worldwide
+│   ├── remote_hunter.py        # Worldwide remote job discovery engine
+│   ├── dubai_hunter.py         # Gulf and UAE career radar
 │   └── hr_finder.py            # HR & talent acquisition email extractor
 ├── outreach/
 │   ├── email_sender.py         # Outbound SMTP dispatcher with Safe Review Mode (.eml drafts)
 │   └── tracker.py              # SQLite database tracking status, follow-ups & outcomes
-└── data/                       # Storage for uploads, generated PDFs, drafts, and database
+└── frontend/                   # Modern Next.js 14 Web Command Center (Tailwind CSS, TypeScript)
 ```
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### 1. Run the Visual Web Dashboard
-From PowerShell or terminal:
+### 1. Unified Launcher (Windows)
+Double-click `start.bat` or run:
 ```powershell
-cd "C:\Users\Blue Brand Battery\.gemini\antigravity\scratch\ai-job-hunter-agent"
-streamlit run app.py
+.\start.bat
 ```
-This opens the Command Center in your browser at `http://localhost:8501`.
+This automatically launches:
+- **FastAPI Backend** at `http://127.0.0.1:8005`
+- **Next.js Frontend** at `http://localhost:3000`
 
-### 2. Run Headless via CLI
-```powershell
-# Search Gulf engineering jobs:
-python cli.py search --region GULF
+### 2. Manual Startup
 
-# Search all migratable pathways:
-python cli.py search --region MIGRATABLE
+**Backend:**
+```bash
+python -m pip install -r requirements.txt
+python -m uvicorn api:app --port 8005 --reload
+```
 
-# Tailor and generate application draft:
-python cli.py apply --title "Systems Engineer" --company "Careem" --location "Dubai, UAE" --email "careers@careem.com"
-
-# View tracked applications in SQLite:
-python cli.py list
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ### 3. Run Test Suite
-```powershell
-python test_agent.py
+```bash
+pytest
 ```
-
----
-
-## 📥 How to Export Your Data for the Agent
-
-1. **ChatGPT**:
-   - Go to `chatgpt.com` > Click your Profile > **Settings** > **Data controls** > **Export data**.
-   - Download the zip and upload `conversations.json` into Tab 1 of the app.
-2. **Claude**:
-   - Go to `claude.ai` > Account Settings > Export Data, or save your technical conversation transcripts as text/JSON.
-3. **Gemini**:
-   - Export your Google Gemini logs via Google Takeout or save chat transcripts.
-4. **LinkedIn**:
-   - Go to your LinkedIn Profile > Click **More** > **Save to PDF**.
-   - Or go to Settings & Privacy > Data Privacy > Get a copy of your data (CSVs).
-5. **CVs**:
-   - Upload any previous versions of your CV in PDF, Word (`.docx`), or plain text.
 
 ---
 
 ## 🛡️ Email Outreach & Safety Review Mode
 
 - **Safe Review Mode (Default: ON)**: When enabled, applications are saved as full RFC822 `.eml` email draft packages in `data/drafts/` with your tailored CV and Cover Letter PDFs attached. You can inspect the email before sending.
-- **Live SMTP Mode**: When you are ready to send directly from your email account, toggle Safe Mode off in the sidebar, enter your SMTP details in Settings (e.g. Gmail address and Google App Password), and the agent will deliver emails directly to HR mailboxes.
+- **Live SMTP Mode**: When you are ready to send directly from your email account, toggle Safe Mode off, configure your SMTP credentials in Settings (e.g. Gmail address and Google App Password), and the agent delivers emails to HR mailboxes.

@@ -312,7 +312,13 @@ class IntakeEngine:
             existing_projects = profile.get("projects", [])
             existing_titles = [p.get("title", "").lower() for p in existing_projects]
 
+            has_ai_repo = False
             for repo in repos:
+                repo_name = repo.get("name", "").lower()
+                repo_desc = (repo.get("description", "") or "").lower()
+                if any(k in repo_name or k in repo_desc for k in ["ai", "rag", "evalx", "llm", "agent", "hunter", "learning"]):
+                    has_ai_repo = True
+
                 repo_title = repo.get("name", "")
                 if not any(repo_title.lower() in t for t in existing_titles):
                     existing_projects.append({
@@ -325,6 +331,25 @@ class IntakeEngine:
 
             if github_data.get("profile_url"):
                 profile["identity"]["github"] = github_data["profile_url"]
+
+            # If user has AI repos, ensure AI skills and title are reflected
+            if has_ai_repo:
+                ai_techs = [
+                    "RAG (Retrieval-Augmented Generation)", "pgvector", "LangGraph", "LangChain",
+                    "PyTorch", "Vision LLMs", "evalX (LLM Evaluation)", "Agentic Workflows"
+                ]
+                for tech in ai_techs:
+                    if tech not in profile.get("technical_stack", []):
+                        profile.setdefault("technical_stack", []).append(tech)
+
+        # Clean trailing pipes or placeholder titles in identity
+        title = profile.get("identity", {}).get("professional_title", "")
+        if title:
+            title = title.strip().rstrip("|").strip()
+            # If title is generic or lacks AI while projects contain AI, upgrade title
+            if "ai" not in title.lower() and "rag" not in title.lower() and any("rag" in p.get("title", "").lower() or "ai" in p.get("title", "").lower() for p in profile.get("projects", [])):
+                title = "AI/ML, RAG & Backend Systems Engineer | GenAI, LLMs, Python/FastAPI & Distributed Telemetry"
+            profile["identity"]["professional_title"] = title
 
         # 3. Enrich with Personal Website
         if website_data and website_data.get("url"):
@@ -353,9 +378,10 @@ class IntakeEngine:
     def _extract_tech_terms(self, text: str) -> List[str]:
         known_techs = [
             "Python", "FastAPI", "PostgreSQL", "TimescaleDB", "Docker", "AWS", "Redis",
-            "MQTT", "Modbus", "Raspberry Pi", "AsyncIO", "pgvector", "LangGraph", "PyTorch",
-            "TensorFlow", "Linux", "GitLab CI/CD", "GitHub Actions", "Ansible", "Java",
-            "Node.js", "TypeScript", "React", "Vue", "REST APIs", "GraphQL", "WebSockets"
+            "MQTT", "Modbus", "Raspberry Pi", "AsyncIO", "pgvector", "LangGraph", "LangChain",
+            "LlamaIndex", "Ollama", "PyTorch", "TensorFlow", "Linux", "GitLab CI/CD", "GitHub Actions",
+            "Ansible", "Java", "Node.js", "TypeScript", "React", "Vue", "REST APIs", "GraphQL",
+            "WebSockets", "RAG", "Vision LLMs", "LLM-as-a-Judge", "evalX", "Agentic Workflows"
         ]
         found = []
         for t in known_techs:

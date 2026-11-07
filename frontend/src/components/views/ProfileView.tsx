@@ -23,6 +23,12 @@ import {
   ChevronUp,
   Eye,
   X,
+  Edit3,
+  Save,
+  Cpu,
+  Zap,
+  Database,
+  Check,
 } from "lucide-react";
 
 function GithubIcon({ className = "w-4 h-4" }: { className?: string }) {
@@ -54,7 +60,8 @@ import {
   parsePersonalWebsite,
   synthesizeMasterProfile,
   downloadDefaultEuropassCV,
-  saveSettings
+  saveSettings,
+  saveProfile
 } from "../../lib/api";
 
 export default function ProfileView() {
@@ -90,6 +97,71 @@ export default function ProfileView() {
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showIntakeStudio, setShowIntakeStudio] = useState(true);
   const [showCvPreview, setShowCvPreview] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    full_name: "",
+    professional_title: "",
+    summary: "",
+    current_location: "",
+    nationality: "",
+    phone: "",
+    email: "",
+    linkedin: "",
+    github: "",
+    website: "",
+  });
+
+  const handleOpenEdit = () => {
+    if (!profile) return;
+    setEditForm({
+      full_name: profile.identity?.full_name || "",
+      professional_title: profile.identity?.professional_title || "",
+      summary: profile.summary || "",
+      current_location: profile.identity?.current_location || "",
+      nationality: profile.identity?.nationality || "",
+      phone: profile.identity?.phone || "",
+      email: profile.identity?.email || "",
+      linkedin: profile.identity?.linkedin || "",
+      github: profile.identity?.github || "",
+      website: profile.identity?.website || "",
+    });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!profile) return;
+    setSavingEdit(true);
+    try {
+      const updated: CandidateProfile = {
+        ...profile,
+        identity: {
+          ...profile.identity,
+          full_name: editForm.full_name,
+          professional_title: editForm.professional_title,
+          current_location: editForm.current_location,
+          nationality: editForm.nationality,
+          phone: editForm.phone,
+          email: editForm.email,
+          linkedin: editForm.linkedin,
+          github: editForm.github,
+          website: editForm.website,
+        },
+        summary: editForm.summary,
+      };
+      await saveProfile(updated);
+      setProfile(updated);
+      setIsEditing(false);
+      setStatusMsg({
+        type: "success",
+        text: "⚡ Candidate profile & AI headline updated and saved successfully!",
+      });
+    } catch (err: any) {
+      alert("Failed to save changes: " + err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const loadProfile = () => {
     setLoading(true);
@@ -319,6 +391,27 @@ export default function ProfileView() {
             </span>
           </div>
           <p className="text-[14px] text-[#4cd7f6] mt-0.5 font-medium">{identity.professional_title}</p>
+          
+          {/* AI & Machine Learning Specialization Pill Group */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <span className="px-2.5 py-0.5 rounded-full bg-[#4cd7f6]/15 border border-[#4cd7f6]/40 text-[#4cd7f6] text-[11px] font-mono flex items-center gap-1.5 shadow-sm">
+              <Sparkles className="w-3 h-3 text-[#4cd7f6]" />
+              AI / GenAI & RAG Specialization
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#a855f7]/15 border border-[#a855f7]/40 text-[#c084fc] text-[11px] font-mono flex items-center gap-1.5">
+              <Zap className="w-3 h-3 text-[#c084fc]" />
+              LLM Evaluation & CI (evalX)
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#4edea3]/15 border border-[#4edea3]/40 text-[#4edea3] text-[11px] font-mono flex items-center gap-1.5">
+              <Cpu className="w-3 h-3 text-[#4edea3]" />
+              Multimodal Vision & Telemetry
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#f59e0b]/15 border border-[#f59e0b]/40 text-[#fbbf24] text-[11px] font-mono flex items-center gap-1.5">
+              <Database className="w-3 h-3 text-[#fbbf24]" />
+              Vector DBs (pgvector)
+            </span>
+          </div>
+
           <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-[#bcc9cd]">
             <span>📍 {identity.current_location} ({identity.nationality})</span>
             <span>📧 {identity.email}</span>
@@ -340,6 +433,16 @@ export default function ProfileView() {
 
         {/* Top Header Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Edit Headline & Identity Button */}
+          <button
+            onClick={handleOpenEdit}
+            className="px-3.5 py-2.5 rounded-lg bg-[#1a1b22] border border-[#4cd7f6]/40 text-xs font-semibold text-[#e3e1ec] hover:border-[#4cd7f6] hover:text-[#4cd7f6] transition-colors flex items-center gap-1.5"
+            title="Edit headline, professional title, location, phone, and executive summary"
+          >
+            <Edit3 className="w-4 h-4 text-[#4cd7f6]" />
+            <span>Edit Profile</span>
+          </button>
+
           {/* Preview Europass CV Button */}
           <button
             onClick={() => setShowCvPreview(true)}
@@ -717,6 +820,68 @@ export default function ProfileView() {
         </div>
       </div>
 
+      {/* Categorized Competencies Architecture (ATS Optimized) */}
+      {profile.core_skills_categorized && profile.core_skills_categorized.length > 0 && (
+        <div className="p-5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/30 specular-border flex flex-col gap-4">
+          <div className="flex items-center justify-between pb-2 border-b border-[#3d494c]/20">
+            <h3 className="text-xs font-mono uppercase text-[#869397] flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#4cd7f6]" />
+              Categorized Competency Architecture (ATS &amp; Recruiter Matrix)
+            </h3>
+            <span className="text-[11px] font-mono text-[#4edea3]">
+              {profile.core_skills_categorized.length} Domains Synchronized
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {profile.core_skills_categorized.map((cat, idx) => {
+              const isAI = cat.category.toLowerCase().includes("ai") || cat.category.toLowerCase().includes("machine learning");
+              const skillsArray = cat.skills.split(",").map((s: string) => s.trim()).filter(Boolean);
+              return (
+                <div
+                  key={idx}
+                  className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 transition-all ${
+                    isAI
+                      ? "bg-[#141824] border-[#4cd7f6]/50 shadow-[0_0_15px_rgba(76,215,246,0.15)] col-span-1 md:col-span-2 lg:col-span-3"
+                      : "bg-[#1a1b22] border-[#3d494c]/30"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 ${
+                        isAI ? "text-[#4cd7f6]" : "text-[#e3e1ec]"
+                      }`}>
+                        {isAI && <Sparkles className="w-3.5 h-3.5 text-[#4cd7f6]" />}
+                        {cat.category}
+                      </span>
+                      {isAI && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#4cd7f6]/20 border border-[#4cd7f6]/40 text-[#4cd7f6]">
+                          Primary Specialization
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {skillsArray.map((sk: string, sIdx: number) => (
+                        <span
+                          key={sIdx}
+                          className={`px-2 py-0.5 rounded text-[11px] font-mono ${
+                            isAI
+                              ? "bg-[#4cd7f6]/10 border border-[#4cd7f6]/30 text-[#e3e1ec] font-medium"
+                              : "bg-[#14151c] border border-[#3d494c]/30 text-[#bcc9cd]"
+                          }`}
+                        >
+                          {sk}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Canonical Work History */}
       <div className="p-5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/30 specular-border flex flex-col gap-4">
         <h3 className="text-xs font-mono uppercase text-[#869397] flex items-center gap-1.5">
@@ -854,6 +1019,130 @@ export default function ProfileView() {
                 className="px-4 py-1.5 rounded-lg bg-[#292931] border border-[#3d494c]/50 hover:bg-[#3d494c]/40 text-xs text-[#e3e1ec] font-medium transition-all"
               >
                 Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Profile Modal */}
+      {isEditing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => !savingEdit && setIsEditing(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[90vh] bg-[#0d0e15] border border-[#3d494c]/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden specular-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#3d494c]/30 bg-[#14151e]">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-[#4cd7f6]" />
+                <h3 className="text-sm font-semibold text-[#e3e1ec]">Edit Profile Identity &amp; AI Headline</h3>
+              </div>
+              <button
+                onClick={() => setIsEditing(false)}
+                disabled={savingEdit}
+                className="p-1 rounded-lg text-[#869296] hover:text-[#e3e1ec] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">
+                  Professional Title / Headline (Displayed on CV &amp; Search Radar)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.professional_title}
+                  onChange={(e) => setEditForm({ ...editForm, professional_title: e.target.value })}
+                  placeholder="e.g. AI/ML, RAG &amp; Backend Systems Engineer | GenAI, LLMs, Python/FastAPI"
+                  className="w-full px-3 py-2 bg-[#1a1b22] text-[#4cd7f6] font-medium rounded-lg border border-[#4cd7f6]/40 focus:border-[#4cd7f6] focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Current Location</label>
+                  <input
+                    type="text"
+                    value={editForm.current_location}
+                    onChange={(e) => setEditForm({ ...editForm, current_location: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Nationality</label>
+                  <input
+                    type="text"
+                    value={editForm.nationality}
+                    onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Phone Number(s)</label>
+                  <input
+                    type="text"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Executive Summary / Bio</label>
+                <textarea
+                  rows={4}
+                  value={editForm.summary}
+                  onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 border-t border-[#3d494c]/30 bg-[#14151e]">
+              <button
+                onClick={() => setIsEditing(false)}
+                disabled={savingEdit}
+                className="px-4 py-2 rounded-lg bg-[#1a1b22] border border-[#3d494c]/50 text-[#bcc9cd] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={savingEdit}
+                className="px-4 py-2 rounded-lg bg-[#4cd7f6] text-[#003640] font-semibold hover:bg-white transition-all flex items-center gap-1.5 cyan-glow disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{savingEdit ? "Saving..." : "Save Changes"}</span>
               </button>
             </div>
           </div>
