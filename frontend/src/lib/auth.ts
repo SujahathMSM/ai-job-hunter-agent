@@ -10,8 +10,8 @@ const USER_KEY = "nexushunt_auth_user";
 
 export const DEFAULT_USER: AuthUser = {
   id: "default",
-  email: "sujahathmhmd@gmail.com",
-  full_name: "M.S. Mohamed Sujahath",
+  email: "",
+  full_name: "Candidate",
 };
 
 export function getStoredToken(): string | null {

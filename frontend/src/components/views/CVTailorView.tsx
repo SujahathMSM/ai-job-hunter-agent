@@ -252,13 +252,21 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
         ];
 
   const candidateIdentity = baseProfile?.identity || {
-    full_name: "M.S. Mohamed Sujahath",
-    email: "sujahathmhmd@gmail.com",
-    phone: "+971 50 229 1865",
-    current_location: "Sri Lanka (Prepared for Immediate Relocation)",
-    linkedin: "linkedin.com/in/mohamed-sujahath",
-    github: "github.com/SujahathMSM",
+    full_name: "Candidate",
+    email: "",
+    phone: "",
+    current_location: "Remote / International Relocation",
+    linkedin: "",
+    github: "",
   };
+  const displayWorkHistory =
+    tailoredData?.work_history && tailoredData.work_history.length > 0
+      ? tailoredData.work_history
+      : baseProfile?.work_history || [];
+  const displayEducation =
+    tailoredData?.education && tailoredData.education.length > 0
+      ? tailoredData.education
+      : baseProfile?.education || [];
 
   return (
     <div className="flex flex-col gap-5 p-6 max-w-7xl mx-auto">
@@ -616,46 +624,48 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
               </div>
 
               {/* Section 3: Commercial Work History */}
-              <div className="flex flex-col gap-2">
-                <div className="text-[11px] font-mono uppercase tracking-wider text-[#4cd7f6] font-semibold">
-                  Commercial Work Experience
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="p-3 rounded-lg bg-[#14151f] border border-[#3d494c]/20">
-                    <div className="flex items-center justify-between">
-                      <strong className="text-[#e3e1ec]">Software Engineer — Blue Brand IP Institute</strong>
-                      <span className="text-[11px] font-mono text-[#869397]">Mar 2025 – Present</span>
-                    </div>
-                    <p className="text-[#bcc9cd] mt-1 leading-normal font-sans">
-                      Production Python/FastAPI microservices, distributed energy platform, TimescaleDB, reduced polling failures from 80% to 0%, slashed startup times by 90%.
-                    </p>
+              {displayWorkHistory.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-[#4cd7f6] font-semibold">
+                    Commercial Work Experience
                   </div>
-
-                  <div className="p-3 rounded-lg bg-[#14151f] border border-[#3d494c]/20">
-                    <div className="flex items-center justify-between">
-                      <strong className="text-[#e3e1ec]">Software Engineer Intern — CodeScale Pvt Ltd</strong>
-                      <span className="text-[11px] font-mono text-[#869397]">Jul 2024 – Feb 2025</span>
-                    </div>
-                    <p className="text-[#bcc9cd] mt-1 leading-normal font-sans">
-                      Real-time Node.js/Java microservices, Firebase, PostgreSQL, Docker, AWS deployments.
-                    </p>
+                  <div className="space-y-2 text-xs">
+                    {displayWorkHistory.slice(0, 3).map((job: any, idx: number) => (
+                      <div key={idx} className="p-3 rounded-lg bg-[#14151f] border border-[#3d494c]/20">
+                        <div className="flex items-center justify-between">
+                          <strong className="text-[#e3e1ec]">
+                            {job.title} — {job.company}
+                          </strong>
+                          <span className="text-[11px] font-mono text-[#869397]">{job.duration}</span>
+                        </div>
+                        {job.bullets && job.bullets.length > 0 && (
+                          <p className="text-[#bcc9cd] mt-1 leading-normal font-sans">
+                            {job.bullets.slice(0, 2).join(" ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Section 4: Education */}
-              <div className="flex flex-col gap-1.5 pt-2 border-t border-[#3d494c]/20">
-                <div className="text-[11px] font-mono uppercase tracking-wider text-[#4cd7f6] font-semibold">
-                  Education
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <div>
-                    <strong className="text-[#e3e1ec]">BScEngHons (Bachelor of Science of Engineering Honours)</strong>
-                    <div className="text-[#bcc9cd]">University of Moratuwa — Sri Lanka's Premier Engineering Institution</div>
+              {displayEducation.length > 0 && (
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-[#3d494c]/20">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-[#4cd7f6] font-semibold">
+                    Education
                   </div>
-                  <span className="text-[11px] font-mono text-[#869397]">Graduated</span>
+                  {displayEducation.slice(0, 2).map((edu: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-xs">
+                      <div>
+                        <strong className="text-[#e3e1ec]">{edu.degree}</strong>
+                        <div className="text-[#bcc9cd]">{edu.institution}</div>
+                      </div>
+                      <span className="text-[11px] font-mono text-[#869397]">{edu.duration || "Graduated"}</span>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
           )}
 

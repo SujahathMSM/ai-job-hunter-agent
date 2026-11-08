@@ -34,7 +34,7 @@ export default function SettingsView() {
       setSafeMode(String(sysData.safe_mode) || "True");
 
       if (userData) {
-        setSenderName(userData.sender_name || sysData.sender_name || "M.S. Mohamed Sujahath");
+        setSenderName(userData.sender_name || sysData.sender_name || "");
         setSmtpHost(userData.smtp_host || sysData.smtp_host || "smtp.gmail.com");
         setSmtpPort(userData.smtp_port || 587);
         setSmtpUser(userData.smtp_user || sysData.smtp_user || "");
@@ -194,7 +194,7 @@ export default function SettingsView() {
               <label className="text-[#bcc9cd] block mb-1">Sender Display Name</label>
               <input
                 type="text"
-                placeholder="M.S. Mohamed Sujahath"
+                placeholder="Candidate Full Name"
                 value={senderName}
                 onChange={(e) => setSenderName(e.target.value)}
                 className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"

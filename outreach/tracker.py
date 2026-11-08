@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from config import DB_PATH
+from config import DB_PATH, DEFAULT_USER_EMAIL, SENDER_NAME
 
 class ApplicationTracker:
     """Multi-tenant tracking engine for applied jobs, draft applications,
@@ -119,8 +119,8 @@ class ApplicationTracker:
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 cursor.execute("""
                     INSERT INTO users (id, email, full_name, created_at)
-                    VALUES ('default', 'sujahathmhmd@gmail.com', 'M.S. Mohamed Sujahath', ?)
-                """, (now,))
+                    VALUES ('default', ?, ?, ?)
+                """, (DEFAULT_USER_EMAIL, SENDER_NAME, now))
 
             conn.commit()
 

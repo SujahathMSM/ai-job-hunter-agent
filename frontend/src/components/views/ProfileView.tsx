@@ -77,10 +77,19 @@ export default function ProfileView() {
   const [websiteData, setWebsiteData] = useState<any>(null);
 
   // Form Inputs
-  const [githubInput, setGithubInput] = useState("https://github.com/SujahathMSM");
-  const [linkedinInput, setLinkedinInput] = useState("https://linkedin.com/in/sujahath-siddeek");
+  const [githubInput, setGithubInput] = useState(profile?.identity?.github || "");
+  const [linkedinInput, setLinkedinInput] = useState(profile?.identity?.linkedin || "");
   const [websiteInput, setWebsiteInput] = useState("");
   const [linkedinRawText, setLinkedinRawText] = useState("");
+
+  useEffect(() => {
+    if (profile?.identity?.github && !githubInput) {
+      setGithubInput(profile.identity.github);
+    }
+    if (profile?.identity?.linkedin && !linkedinInput) {
+      setLinkedinInput(profile.identity.linkedin);
+    }
+  }, [profile]);
 
   // Loading States
   const [uploadingCVs, setUploadingCVs] = useState(false);
@@ -342,7 +351,8 @@ export default function ProfileView() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Europass_CV_MS_Mohamed_Sujahath.pdf`;
+      const safeName = (profile?.identity?.full_name || "Candidate").replace(/[^a-zA-Z0-9]+/g, "_");
+      a.download = `Europass_CV_${safeName}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

@@ -180,200 +180,80 @@ class PersonaBuilder:
         return profile
 
     def _canonicalize_work_history(self, raw_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Non-default users preserve their own authentic uploaded work experience
-        if self.user_id not in ["default", "admin"]:
-            cleaned = []
-            for item in raw_history:
-                comp = item.get("company", "").strip()
-                title = item.get("title", "").strip()
-                if not comp and not title:
-                    continue
-                raw_bullets = item.get("bullets", [])
-                cleaned_bullets = []
-                for b in raw_bullets:
-                    b_clean = re.sub(r"^[•\-*■\s]+", "", str(b)).strip()
-                    if len(b_clean) > 15 and b_clean not in cleaned_bullets:
-                        cleaned_bullets.append(b_clean)
-                cleaned.append({
-                    "company": comp or "Company",
-                    "branch": item.get("branch", item.get("location", "")),
-                    "title": title or "Professional",
-                    "duration": item.get("duration", "Dates not specified"),
-                    "bullets": cleaned_bullets
-                })
-            return cleaned
-
-        canonical_map = {
-            "blue_brand": {
-                "company": "Blue Brand - Advanced R&D and IP Institute (HQ: Ploiesti, Romania)",
-                "branch": "Sri Lanka Branch",
-                "title": "Software Engineer",
-                "duration": "Mar 2025 - Present",
-                "bullets": []
-            },
-            "codescale": {
-                "company": "CodeScale Pvt Ltd",
-                "branch": "Colombo, Sri Lanka",
-                "title": "Software Engineer Intern / Associate Engineer",
-                "duration": "Jul 2024 - Feb 2025",
-                "bullets": []
-            },
-            "lanka_hydraulic": {
-                "company": "Lanka Hydraulic Institute",
-                "branch": "Moratuwa, Sri Lanka",
-                "title": "Trainee Engineer",
-                "duration": "Jan 2023 - Jun 2023",
-                "bullets": []
-            }
-        }
-
-        # Default high-fidelity bullets if extracted bullets are truncated
-        default_bullets = {
-            "blue_brand": [
-                "Build and operate production Python/FastAPI services for a live multi-site solar and battery energy-management platform, connecting real-time device data, control workflows, databases, and operator-facing APIs and dashboards.",
-                "Design and maintain REST, WebSocket, and MQTT data flows between Raspberry Pi edge controllers and cloud services, with PostgreSQL/TimescaleDB storage, health monitoring, retries, and fallback handling.",
-                "Translate operational and safety requirements from operations, firmware, and hardware stakeholders into specifications and deployable software, owning changes from requirements through implementation, deployment, and verification.",
-                "Investigate production issues using logs, SQL analysis, and telemetry; fixes reduced device polling failures from about 80% to 0% and controller startup time from 5-6 minutes to 15-30 seconds.",
-                "Audited a 419-file Python codebase, validated critical safety fixes, and identified 1.83 GB of write-only database tables with no readers, supporting corrective action through structured analysis.",
-                "Design and run staged test plans before production changes: baseline checks, controlled read/write tests, failure scenarios, regression checks, rollback validation, and soak monitoring.",
-                "Maintain version-controlled technical documentation and records: system architecture, register maps, procedures, runbooks, deployment and rollback records, and engineer onboarding guides.",
-                "Deliver versioned Docker releases through GitLab CI/CD, Harbor, and Ansible across ARM64 edge and AMD64 cloud environments; host cloud services on AWS EC2 with S3 object storage.",
-                "Built an operator control-panel dashboard with Vue, TypeScript, and Tailwind giving operators live visibility of system status."
-            ],
-            "codescale": [
-                "Developed WheresNow, a real-time location platform with live tracking, geofencing, crash detection, background processing, and secure messaging across mobile and web clients.",
-                "Built backend services and integrations with Node.js (Express/Nest.js), Java, Firebase, REST, and GraphQL, alongside React Native and Vue.js interfaces; integrated PostgreSQL and MongoDB and optimised queries.",
-                "Used AWS EC2, Lambda, IAM, RDS, and S3; maintained CI/CD with GitHub Actions and Jenkins; worked in Agile/Scrum through code reviews, testing, and release workflows."
-            ],
-            "lanka_hydraulic": [
-                "Processed, validated, and visualised large engineering datasets with Python (Pandas, NumPy, Matplotlib) and PostgreSQL; supported coastal simulations and spatial analysis using Mike Zero and ArcGIS."
-            ]
-        }
-
+        cleaned = []
+        seen = set()
         for item in raw_history:
-            comp_text = (item.get("company", "") + " " + item.get("title", "")).lower()
-            target_key = None
-            if "blue brand" in comp_text or "ploiesti" in comp_text:
-                target_key = "blue_brand"
-            elif "codescale" in comp_text or "wheresnow" in comp_text:
-                target_key = "codescale"
-            elif "hydraulic" in comp_text:
-                target_key = "lanka_hydraulic"
-
-            bullets = item.get("bullets", [])
-            for b in bullets:
-                # Clean block characters and bullets
+            comp = item.get("company", "").strip()
+            title = item.get("title", "").strip()
+            if not comp and not title:
+                continue
+            key = f"{comp.lower()}_{title.lower()}"
+            if key in seen:
+                continue
+            seen.add(key)
+            raw_bullets = item.get("bullets", [])
+            cleaned_bullets = []
+            for b in raw_bullets:
                 b_clean = re.sub(r"^[•\-*■\s]+", "", str(b)).strip()
-                sub_parts = re.split(r"[■•]", b_clean)
-                for sp in sub_parts:
+                for sp in re.split(r"[■•]", b_clean):
                     sp_clean = sp.strip(" -–|:•■")
-                    if target_key and len(sp_clean) > 25:
-                        if not any(sp_clean.lower() in existing.lower() or existing.lower() in sp_clean.lower() for existing in canonical_map[target_key]["bullets"]):
-                            canonical_map[target_key]["bullets"].append(sp_clean)
-
-        # Fallback to complete verified bullets if extracted bullets are empty
-        for key in ["blue_brand", "codescale", "lanka_hydraulic"]:
-            if not canonical_map[key]["bullets"]:
-                canonical_map[key]["bullets"] = default_bullets[key]
-
-        return [canonical_map["blue_brand"], canonical_map["codescale"], canonical_map["lanka_hydraulic"]]
+                    if len(sp_clean) > 15 and sp_clean not in cleaned_bullets:
+                        cleaned_bullets.append(sp_clean)
+            cleaned.append({
+                "company": comp or "Company",
+                "branch": item.get("branch", item.get("location", "")),
+                "title": title or "Professional",
+                "duration": item.get("duration", "Dates not specified"),
+                "bullets": cleaned_bullets
+            })
+        if cleaned:
+            return cleaned
+        return self.profile.get("work_history", []) if hasattr(self, "profile") and isinstance(self.profile, dict) else []
 
     def _canonicalize_education(self, raw_edu: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Non-default users preserve their own authentic educational history
-        if self.user_id not in ["default", "admin"]:
-            cleaned_edu = []
-            for item in raw_edu:
-                deg = item.get("degree", "").strip()
-                inst = item.get("institution", "").strip()
-                if not deg and not inst:
-                    continue
-                cleaned_edu.append({
-                    "degree": deg or "Degree",
-                    "institution": inst or "University / Institution",
-                    "duration": item.get("duration", ""),
-                    "location": item.get("location", ""),
-                    "details": item.get("details", "")
-                })
+        cleaned_edu = []
+        seen = set()
+        for item in raw_edu:
+            deg = item.get("degree", "").strip()
+            inst = item.get("institution", "").strip()
+            if not deg and not inst:
+                continue
+            key = f"{deg.lower()}_{inst.lower()}"
+            if key in seen:
+                continue
+            seen.add(key)
+            cleaned_edu.append({
+                "degree": deg or "Degree",
+                "institution": inst or "University / Institution",
+                "duration": item.get("duration", ""),
+                "location": item.get("location", ""),
+                "details": item.get("details", "")
+            })
+        if cleaned_edu:
             return cleaned_edu
-
-        return [
-            {
-                "degree": "Bachelor of the Science of Engineering Honours (BScEngHons)",
-                "institution": "University of Moratuwa",
-                "duration": "Jan 2020 - Jul 2024",
-                "location": "Moratuwa, Sri Lanka",
-                "details": "Relevant study: programming, applied statistics, numerical methods, data analysis, machine learning, remote sensing and GIS."
-            },
-            {
-                "degree": "Diploma in Comprehensive Java Development",
-                "institution": "Institute of Software Engineering",
-                "duration": "Jan 2024 - Dec 2024",
-                "location": "Colombo, Sri Lanka",
-                "details": "Core Java, OOP, JDBC, design patterns, data structures, Hibernate, Spring Boot, REST APIs, and React."
-            }
-        ]
+        return self.profile.get("education", []) if hasattr(self, "profile") and isinstance(self.profile, dict) else []
 
     def _canonicalize_projects(self, raw_projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Non-default users preserve their own authentic projects
-        if self.user_id not in ["default", "admin"]:
-            cleaned_proj = []
-            for item in raw_projects:
-                t = item.get("title", "").strip()
-                if not t:
-                    continue
-                raw_bullets = item.get("bullets", [])
-                cleaned_bullets = [re.sub(r"^[•\-*■\s]+", "", str(b)).strip() for b in raw_bullets if len(str(b).strip()) > 15]
-                cleaned_proj.append({
-                    "title": t,
-                    "technologies": item.get("technologies", item.get("tech_stack", "")),
-                    "bullets": cleaned_bullets or [item.get("description", "")]
-                })
+        cleaned_proj = []
+        seen = set()
+        for item in raw_projects:
+            t = item.get("title", "").strip()
+            if not t:
+                continue
+            key = t.lower()[:30]
+            if key in seen:
+                continue
+            seen.add(key)
+            raw_bullets = item.get("bullets", [])
+            cleaned_bullets = [re.sub(r"^[•\-*■\s]+", "", str(b)).strip() for b in raw_bullets if len(str(b).strip()) > 15]
+            cleaned_proj.append({
+                "title": t,
+                "technologies": item.get("technologies", item.get("tech_stack", "")),
+                "bullets": cleaned_bullets or ([item.get("description", "")] if item.get("description") else [])
+            })
+        if cleaned_proj:
             return cleaned_proj
-
-        return [
-            {
-                "title": "AeroIntel | Deterministic RAG Pipeline for Aviation Maintenance",
-                "technologies": "Python, FastAPI, pgvector, PostgreSQL, Redis, BM25, Ollama, Docker",
-                "bullets": [
-                    "Engineered a local-first hybrid RAG system (dense vector + BM25 keyword search) with a structural refusal gate, printed-page citations, and a trust layer validating extracted figures against source maintenance manuals, evaluated on structured domain test sets."
-                ]
-            },
-            {
-                "title": "evalX | Evaluation Harness & Regression Testing for LLM Apps",
-                "technologies": "Python, Pytest, Pydantic, LLM-as-a-Judge, CI/CD Gates",
-                "bullets": [
-                    "Built an automated testing harness for LLM behavior featuring golden test suites, hybrid scoring (code assertions + LLM-judge), regression tracking, and automated CI gating to eliminate hallucinations in production releases."
-                ]
-            },
-            {
-                "title": "EDGEOPS AI | Autonomous Agent Investigation Platform",
-                "technologies": "Python 3.11+, Pydantic, Agentic Workflows, Typed Tools, Audit Logging",
-                "bullets": [
-                    "Developed an AI-assisted infrastructure triage agent with strongly-typed tool foundations, strict permission boundaries, target access restrictions, and correlated audit logging."
-                ]
-            },
-            {
-                "title": "Energy Bill Extractor | Multimodal Vision Document Intelligence",
-                "technologies": "Python, FastAPI, Vision LLMs, Structured Schemas",
-                "bullets": [
-                    "Built an end-to-end multimodal pipeline converting unstructured bill PDFs and photos into validated structured data with an automated evaluation harness."
-                ]
-            },
-            {
-                "title": "Federated Learning for IoT Botnet Detection",
-                "technologies": "Python, PyTorch, Flower, NumPy",
-                "bullets": [
-                    "Built a privacy-preserving federated learning pipeline classifying Mirai and BASHLITE botnet traffic across 9 simulated IoT clients (N-BaIoT dataset); achieved 99.71% federated vs. 99.95% centralised accuracy while keeping raw data local."
-                ]
-            },
-            {
-                "title": "Flood Risk Assessment Using Machine Learning",
-                "technologies": "Python, TensorFlow, OpenCV, PostgreSQL, GIS",
-                "bullets": [
-                    "Combined satellite imagery, climate data, GIS, and machine learning to identify flood-risk patterns, with PostgreSQL for structured querying and analysis."
-                ]
-            }
-        ]
+        return self.profile.get("projects", []) if hasattr(self, "profile") and isinstance(self.profile, dict) else []
 
     def _build_categorized_skills(self, skills: List[str]) -> List[Dict[str, str]]:
         categories = {

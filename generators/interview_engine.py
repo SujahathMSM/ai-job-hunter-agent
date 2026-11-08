@@ -5,12 +5,32 @@ from generators.llm_client import LLMClient
 
 class InterviewEngine:
     """Simulates realistic technical & behavioral interviews based on the exact
-    Job Description and candidate's Moratuwa engineering credentials. Provides
+    Job Description and candidate's authentic profile credentials. Provides
     STAR framework scoring, candidate talking points, and smart reverse questions."""
 
     def __init__(self, master_profile: Dict[str, Any]):
         self.profile = master_profile
         self.llm = LLMClient()
+
+    def _build_profile_summary(self) -> str:
+        education = self.profile.get("education", [])
+        work_hist = self.profile.get("work_history", [])
+        projects = self.profile.get("projects", [])
+        identity = self.profile.get("identity", {})
+
+        lines = []
+        if education:
+            edu_str = "; ".join([f"{e.get('degree', 'Degree')} from {e.get('institution', 'University')}" for e in education])
+            lines.append(f"- Education: {edu_str}")
+        for w in work_hist[:3]:
+            bullets = "; ".join(w.get("bullets", [])[:2])
+            lines.append(f"- {w.get('title', 'Engineer')} at {w.get('company', 'Company')}: {bullets}")
+        if projects:
+            proj_str = "; ".join([f"{p.get('title', 'Project')} ({p.get('technologies', '')})" for p in projects[:4]])
+            lines.append(f"- Key Projects: {proj_str}")
+        reloc = identity.get("relocation_status", "Prepared for immediate international relocation or remote autonomy.")
+        lines.append(f"- Availability: {reloc}")
+        return "\n".join(lines)
 
     def generate_interview_pack(
         self,
@@ -21,7 +41,16 @@ class InterviewEngine:
     ) -> Dict[str, Any]:
         """Generates comprehensive interview preparation assets for a specific opening."""
         identity = self.profile.get("identity", {})
-        candidate_name = identity.get("full_name", "M.S. Mohamed Sujahath")
+        candidate_name = identity.get("full_name", "Candidate")
+        profile_summary = self._build_profile_summary()
+        work_hist = self.profile.get("work_history", [])
+        education = self.profile.get("education", [])
+        projects = self.profile.get("projects", [])
+
+        recent_company = work_hist[0].get("company", "recent engineering role") if work_hist else "previous engineering projects"
+        recent_bullet = (work_hist[0].get("bullets", [""])[0] if work_hist and work_hist[0].get("bullets") else "Delivered scalable backend and data pipelines under strict SLAs.")
+        edu_label = f"{education[0].get('degree', 'Engineering Degree')} from {education[0].get('institution', 'University')}" if education else "Strong engineering and analytical credentials"
+        top_project = projects[0].get("title", "Production AI & RAG Pipeline") if projects else "Production Microservices Architecture"
 
         prompt = f"""
 You are a Principal Technical Hiring Manager and Executive Interview Coach.
@@ -34,11 +63,7 @@ JOB DESCRIPTION:
 {jd_text[:1400]}
 
 CANDIDATE PROFILE:
-- BScEngHons from University of Moratuwa (Sri Lanka's premier engineering school)
-- Software Engineer at Blue Brand IP Institute: Production Python/FastAPI microservices, TimescaleDB, MQTT/WebSockets, reduced polling failures from 80% to 0%, slashed startup times by 90% (5-6 min to 15-30s).
-- Software Engineer Intern at CodeScale: Node.js, Express, Java, PostgreSQL, Firebase, AWS.
-- Key Projects: AeroIntel (hybrid RAG with pgvector + BM25, structural refusal gate), evalX (LLM evaluation harness with deterministic CI assertions), EDGEOPS AI (incident triage with typed tools), Energy Bill Extractor (vision LLM JSON schema extraction).
-- Location: Prepared for immediate international relocation or remote autonomy.
+{profile_summary}
 
 TASK:
 Generate the following in JSON:
@@ -55,7 +80,7 @@ Generate the following in JSON:
    - 'hiring_intent': What the interviewer is evaluating under the surface
    - 'recommended_star_structure': Bulleted points on how candidate should frame Situation, Task, Action, Result using their real experience.
 
-2. 'candidate_talking_points': 4 bullet points candidate should proactively highlight during the call (e.g. Moratuwa engineering rigor, 80% to 0% polling failure reduction, immediate visa readiness).
+2. 'candidate_talking_points': 4 bullet points candidate should proactively highlight during the call based on their authentic profile.
 
 3. 'killer_questions_to_ask': 4 smart reverse questions to ask the interviewers about their architecture, deployment bottlenecks, and technical runway.
 
@@ -69,14 +94,14 @@ OUTPUT STRICT JSON ONLY:
       "type": "Behavioral (STAR)",
       "question": "Can you walk me through a time when a critical production service was failing or unstable, and how you systematically diagnosed and resolved it?",
       "hiring_intent": "Testing debugging methodology, composure under pressure, and measurable impact.",
-      "recommended_star_structure": "Situation: Blue Brand distributed energy platform experiencing 80% polling failure rate. Task: Overhaul data ingestion. Action: Re-architected asynchronous polling loops in FastAPI with backoff retry and TimescaleDB indexing. Result: Reduced failure rate from 80% to 0% and cut startup latency by 90%."
+      "recommended_star_structure": "Frame using your experience at {recent_company}: {recent_bullet}"
     }}
   ],
   "candidate_talking_points": [
-    "University of Moratuwa BScEngHons training provides mathematical and distributed systems foundation.",
-    "Measurable production impact: Overhauled asynchronous pipelines cutting polling failures from 80% to 0%.",
-    "Pragmatic AI & RAG expertise: Built AeroIntel with local-first pgvector and deterministic refusal gates rather than relying on brittle cloud APIs.",
-    "Immediate availability for international relocation to {location} or high-cadence remote delivery."
+    "{edu_label} provides strong analytical and systems foundation.",
+    "Measurable production impact at {recent_company}: {recent_bullet}",
+    "Applied engineering portfolio including {top_project}.",
+    "Immediate availability for {location} or high-cadence remote delivery."
   ],
   "killer_questions_to_ask": [
     "What are the biggest architectural bottlenecks your engineering team is actively trying to refactor this quarter?",
@@ -93,9 +118,9 @@ OUTPUT STRICT JSON ONLY:
                 {
                     "id": 1,
                     "type": "Behavioral (STAR)",
-                    "question": f"Can you walk us through a complex production issue you solved at Blue Brand or CodeScale, and how you ensured it never reoccurred?",
+                    "question": f"Can you walk us through a complex production issue you solved at {recent_company}, and how you ensured it never reoccurred?",
                     "hiring_intent": "Evaluates systematic debugging, root-cause analysis, and operational ownership.",
-                    "recommended_star_structure": "Situation: Distributed energy telemetry platform had 80% polling failures. Task: Stabilize pipeline and reduce startup overhead. Action: Refactored async event loops, optimized TimescaleDB queries, implemented backpressure. Result: Slashed failure rate from 80% to 0% and reduced startup time by 90%."
+                    "recommended_star_structure": f"Situation & Action from {recent_company}: {recent_bullet}"
                 },
                 {
                     "id": 2,
@@ -109,28 +134,28 @@ OUTPUT STRICT JSON ONLY:
                     "type": "RAG & Document Intelligence",
                     "question": "When building AI-powered tools or RAG systems, how do you prevent hallucinations and ensure enterprise-grade reliability?",
                     "hiring_intent": "Separates superficial prompt wrappers from true software engineers who implement deterministic safety rails.",
-                    "recommended_star_structure": "Highlight AeroIntel: Implemented pgvector + BM25 hybrid search with a strict structural refusal gate and exact printed-page citations. Validated with evalX automated CI regression tests."
+                    "recommended_star_structure": f"Highlight {top_project}: Implemented hybrid vector + keyword retrieval with deterministic refusal gates and automated CI regression tests."
                 },
                 {
                     "id": 4,
                     "type": "Role Alignment",
                     "question": f"What attracted you to {company}, and why do you believe your engineering background is an ideal fit for {job_title}?",
                     "hiring_intent": "Assesses company knowledge, motivation, and clarity of communication.",
-                    "recommended_star_structure": "Connect Moratuwa engineering rigorous fundamentals with practical microservice and data pipeline delivery that directly accelerates {company}'s tech roadmap."
+                    "recommended_star_structure": f"Connect {edu_label} with practical microservice and data pipeline delivery that directly accelerates {company}'s tech roadmap."
                 },
                 {
                     "id": 5,
                     "type": "Relocation & Autonomy",
                     "question": f"This position is based in {location}. How quickly could you transition, and how do you manage independent engineering delivery?",
                     "hiring_intent": "Verifies commitment, visa readiness, and independent delivery cadence.",
-                    "recommended_star_structure": "State clear readiness for immediate relocation to {location} or remote autonomy across timezones, backed by experience working with distributed teams in Romania and Sri Lanka."
+                    "recommended_star_structure": f"State clear readiness for immediate relocation to {location} or remote autonomy across timezones, backed by experience working with distributed engineering teams."
                 }
             ],
             "candidate_talking_points": [
-                "BScEngHons from University of Moratuwa: Rigorous analytical and systems engineering foundation.",
-                "Production Track Record: Reduced polling failures from 80% to 0% and slashed startup times by 90% at Blue Brand IP Institute.",
-                "Reliable AI Architecture: Built AeroIntel with refusal gates and evalX evaluation harness for deterministic testing.",
-                f"100% prepared for immediate international relocation to {location} with zero visa bottlenecks."
+                f"{edu_label}: Rigorous analytical and systems engineering foundation.",
+                f"Production Track Record at {recent_company}: {recent_bullet}",
+                f"Applied Architecture: Built {top_project} with deterministic testing and validation.",
+                f"Prepared for immediate international relocation to {location} or distributed remote delivery."
             ],
             "killer_questions_to_ask": [
                 f"What is the top technical bottleneck the {company} team is aiming to resolve in the next 3 to 6 months?",
@@ -162,6 +187,10 @@ OUTPUT STRICT JSON ONLY:
         company: str
     ) -> Dict[str, Any]:
         """Evaluates a candidate's practice response using STAR criteria and technical depth."""
+        work_hist = self.profile.get("work_history", [])
+        recent_company = work_hist[0].get("company", "my previous engineering role") if work_hist else "my previous engineering role"
+        profile_summary = self._build_profile_summary()
+
         prompt = f"""
 You are a Senior Principal Interviewer assessing a candidate's answer for '{job_title}' at '{company}'.
 
@@ -170,6 +199,9 @@ INTERVIEW QUESTION:
 
 CANDIDATE'S SUBMITTED ANSWER:
 "{candidate_answer}"
+
+CANDIDATE AUTHENTIC BACKGROUND:
+{profile_summary}
 
 EVALUATION RUBRIC:
 1. Did the candidate use the STAR framework (Situation, Task, Action, Result)?
@@ -182,14 +214,14 @@ Provide a constructive evaluation in JSON:
 - 'score': 0 to 100
 - 'strengths': 2-3 specific things the candidate did well
 - 'improvements': 2-3 specific gaps or things to tighten up
-- 'model_answer': An exemplary, polished STAR response incorporating candidate's authentic background (Moratuwa, Blue Brand, FastAPI, 80% to 0% failure reduction).
+- 'model_answer': An exemplary, polished STAR response incorporating candidate's authentic background.
 
 OUTPUT STRICT JSON ONLY:
 {{
   "score": 88,
   "strengths": ["Clear situation and action", "Mentioned concrete technologies"],
   "improvements": ["Quantify the business impact further", "State the end result earlier"],
-  "model_answer": "In my previous role at Blue Brand IP Institute..."
+  "model_answer": "In my role at {recent_company}..."
 }}
 """
         default_eval = {
@@ -199,10 +231,10 @@ OUTPUT STRICT JSON ONLY:
                 "Mentioned relevant tools (FastAPI, PostgreSQL, AsyncIO) credibly."
             ],
             "improvements": [
-                "Reinforce the quantifiable impact (e.g. reduced polling failures from 80% to 0%).",
+                "Reinforce the quantifiable impact with specific percentages and latency metrics.",
                 "Highlight team collaboration and proactive monitoring."
             ],
-            "model_answer": f"At Blue Brand IP Institute, our distributed telemetry ingestion was experiencing significant instability with high failure rates. As the Software Engineer responsible for backend pipelines, I refactored our asynchronous event loops in FastAPI, introduced backpressure queues, and optimized our TimescaleDB indexing strategy. This eliminated our failure rate from 80% down to 0% while slashing system startup latency by 90%."
+            "model_answer": f"In my role at {recent_company}, our distributed telemetry ingestion was experiencing significant instability under load. As the engineer responsible for backend pipelines, I refactored our asynchronous event loops in FastAPI, introduced backpressure queues, and optimized our database indexing strategy, eliminating polling failures and significantly reducing system startup latency."
         }
 
         try:

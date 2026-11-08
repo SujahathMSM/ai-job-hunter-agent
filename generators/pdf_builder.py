@@ -208,95 +208,13 @@ class PDFResumeBuilder:
         ))
 
     def _default_canonical_work_history(self) -> List[Dict[str, Any]]:
-        return [
-            {
-                "company": "Blue Brand - Advanced R&D and IP Institute (HQ: Ploiesti, Romania)",
-                "branch": "Sri Lanka Branch",
-                "title": "Software Engineer",
-                "duration": "Mar 2025 - Present",
-                "bullets": [
-                    "Build and operate production Python/FastAPI services for a live multi-site solar and battery energy-management platform, connecting real-time device data, control workflows, databases, and operator-facing APIs and dashboards.",
-                    "Design and maintain REST, WebSocket, and MQTT data flows between Raspberry Pi edge controllers and cloud services, with PostgreSQL/TimescaleDB storage, health monitoring, retries, and fallback handling.",
-                    "Translate operational and safety requirements from operations, firmware, and hardware stakeholders into specifications and deployable software, owning changes from requirements through implementation, deployment, and verification.",
-                    "Investigate production issues using logs, SQL analysis, and telemetry; fixes reduced device polling failures from about 80% to 0% and controller startup time from 5-6 minutes to 15-30 seconds.",
-                    "Audited a 419-file Python codebase, validated critical safety fixes, and identified 1.83 GB of write-only database tables with no readers, supporting corrective action through structured analysis.",
-                    "Design and run staged test plans before production changes: baseline checks, controlled read/write tests, failure scenarios, regression checks, rollback validation, and soak monitoring.",
-                    "Maintain version-controlled technical documentation and records: system architecture, register maps, procedures, runbooks, deployment and rollback records, and engineer onboarding guides.",
-                    "Deliver versioned Docker releases through GitLab CI/CD, Harbor, and Ansible across ARM64 edge and AMD64 cloud environments; host cloud services on AWS EC2 with S3 object storage.",
-                    "Built an operator control-panel dashboard with Vue, TypeScript, and Tailwind giving operators live visibility of system status."
-                ]
-            },
-            {
-                "company": "CodeScale Pvt Ltd",
-                "branch": "Colombo, Sri Lanka",
-                "title": "Software Engineer Intern / Associate Engineer",
-                "duration": "Jul 2024 - Feb 2025",
-                "bullets": [
-                    "Developed WheresNow, a real-time location platform with live tracking, geofencing, crash detection, background processing, and secure messaging across mobile and web clients.",
-                    "Built backend services and integrations with Node.js (Express/Nest.js), Java, Firebase, REST, and GraphQL, alongside React Native and Vue.js interfaces; integrated PostgreSQL and MongoDB and optimised queries.",
-                    "Used AWS EC2, Lambda, IAM, RDS, and S3; maintained CI/CD with GitHub Actions and Jenkins; worked in Agile/Scrum through code reviews, testing, and release workflows."
-                ]
-            },
-            {
-                "company": "Lanka Hydraulic Institute",
-                "branch": "Moratuwa, Sri Lanka",
-                "title": "Trainee Engineer",
-                "duration": "Jan 2023 - Jun 2023",
-                "bullets": [
-                    "Processed, validated, and visualised large engineering datasets with Python (Pandas, NumPy, Matplotlib) and PostgreSQL; supported coastal simulations and spatial analysis using Mike Zero and ArcGIS."
-                ]
-            }
-        ]
+        return []
 
     def _default_canonical_education(self) -> List[Dict[str, Any]]:
-        return [
-            {
-                "degree": "Bachelor of the Science of Engineering Honours (BScEngHons)",
-                "institution": "University of Moratuwa",
-                "duration": "Jan 2020 - Jul 2024",
-                "location": "Moratuwa, Sri Lanka",
-                "details": "Relevant study: programming, applied statistics, numerical methods, data analysis, machine learning, remote sensing and GIS."
-            },
-            {
-                "degree": "Diploma in Comprehensive Java Development",
-                "institution": "Institute of Software Engineering",
-                "duration": "Jan 2024 - Dec 2024",
-                "location": "Colombo, Sri Lanka",
-                "details": "Core Java, OOP, JDBC, design patterns, data structures, Hibernate, Spring Boot, REST APIs, and React."
-            }
-        ]
+        return []
 
     def _default_canonical_projects(self) -> List[Dict[str, Any]]:
-        return [
-            {
-                "title": "AeroIntel | Deterministic RAG Pipeline for Aviation Maintenance",
-                "technologies": "Python, FastAPI, pgvector, PostgreSQL, Redis, BM25, Ollama, Docker",
-                "bullets": [
-                    "Engineered a local-first hybrid RAG system (dense vector + BM25 keyword search) with a structural refusal gate, printed-page citations, and a trust layer validating extracted figures against source maintenance manuals, benchmarked on a published golden test set."
-                ]
-            },
-            {
-                "title": "evalX | Evaluation Harness & Regression Testing for LLM Apps",
-                "technologies": "Python, Pytest, Pydantic, LLM-as-a-Judge, CI/CD Gates",
-                "bullets": [
-                    "Built an automated testing harness for LLM behavior featuring golden test suites, hybrid scoring (code assertions + LLM-judge), regression tracking, and automated CI gating to eliminate hallucinations in production releases."
-                ]
-            },
-            {
-                "title": "EDGEOPS AI | Autonomous Agent Investigation Platform",
-                "technologies": "Python 3.11+, Pydantic, Agentic Workflows, Typed Tools, Audit Logging",
-                "bullets": [
-                    "Developed an AI-assisted infrastructure triage agent with strongly-typed tool foundations, strict permission boundaries, target access restrictions, and correlated audit logging."
-                ]
-            },
-            {
-                "title": "Energy Bill Extractor | Multimodal Vision Document Intelligence",
-                "technologies": "Python, FastAPI, Vision LLMs, Structured Schemas",
-                "bullets": [
-                    "Built an end-to-end multimodal pipeline converting unstructured bill PDFs and photos into validated structured data with an automated evaluation harness."
-                ]
-            }
-        ]
+        return []
 
     def _deduplicate_work_history(self, work_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Cleans and deduplicates work history while preserving tailored bullets from LLM / Persona."""
@@ -421,15 +339,15 @@ class PDFResumeBuilder:
         story = []
 
         identity = resume_data.get("identity", {})
-        full_name = sanitize_pdf_text(identity.get("full_name", "M.S. MOHAMED SUJAHATH"))
+        full_name = sanitize_pdf_text(identity.get("full_name", "Candidate"))
         title = sanitize_pdf_text(resume_data.get("tailored_title", identity.get("professional_title", "Software Engineer | Backend, Data & AI Systems")))
         subtitle = sanitize_pdf_text(resume_data.get("tailored_subtitle", resume_data.get("subtitle", identity.get("subtitle", "Python | SQL | FastAPI | PostgreSQL | Docker | Linux | AWS"))))
         relocation = sanitize_pdf_text(identity.get("relocation_status", "Available for Full-time Roles | Immediate International & Remote Relocation"))
-        phone = identity.get("phone", "+94 76 485 8427 / +971 50 229 1865")
-        email = identity.get("email", "sujahathmhmd@gmail.com")
-        linkedin = identity.get("linkedin", "https://linkedin.com/in/sujahath-siddeek").replace("https://", "")
-        github = identity.get("github", "https://github.com/SujahathMSM").replace("https://", "")
-        location_str = identity.get("current_location", "Moratuwa, Sri Lanka")
+        phone = identity.get("phone", "")
+        email = identity.get("email", "")
+        linkedin = identity.get("linkedin", "").replace("https://", "")
+        github = identity.get("github", "").replace("https://", "")
+        location_str = identity.get("current_location", "Global / Remote")
 
         # 1. OFFICIAL EUROPASS HEADER
         header_table_data = [
@@ -648,14 +566,14 @@ class PDFResumeBuilder:
         story = []
 
         ident = resume_data.get("identity", {})
-        c_name = sanitize_pdf_text(ident.get("full_name", "M.S. MOHAMED SUJAHATH"))
+        c_name = sanitize_pdf_text(ident.get("full_name", "Candidate"))
         title = sanitize_pdf_text(resume_data.get("tailored_title", "Software Engineer"))
         
-        c_phone = ident.get("phone", "+971 50 229 1865")
-        c_email = ident.get("email", "sujahathmhmd@gmail.com")
-        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
-        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
-        c_gh = ident.get("github", "github.com/SujahathMSM")
+        c_phone = ident.get("phone", "")
+        c_email = ident.get("email", "")
+        c_loc = ident.get("current_location", "Global / Remote")
+        c_li = ident.get("linkedin", "")
+        c_gh = ident.get("github", "")
 
         # ATS Styles
         ats_name_style = ParagraphStyle(
@@ -777,10 +695,19 @@ class PDFResumeBuilder:
                 story.append(Spacer(1, 2))
 
         # 5. EDUCATION
-        story.append(Paragraph("<b>EDUCATION &amp; ACADEMIC CREDENTIALS</b>", ats_h1_style))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
-        story.append(Paragraph("<b>BScEngHons (Bachelor of the Science of Engineering Honours)</b>", ats_body_style))
-        story.append(Paragraph("University of Moratuwa &mdash; Sri Lanka's Premier Engineering Institution", ats_body_style))
+        education = resume_data.get("education", [])
+        if education:
+            story.append(Paragraph("<b>EDUCATION &amp; ACADEMIC CREDENTIALS</b>", ats_h1_style))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
+            for edu in education:
+                e_deg = sanitize_pdf_text(edu.get("degree", ""))
+                e_inst = sanitize_pdf_text(edu.get("institution", ""))
+                e_dur = sanitize_pdf_text(edu.get("duration", ""))
+                if e_deg:
+                    story.append(Paragraph(f"<b>{e_deg}</b>", ats_body_style))
+                if e_inst:
+                    inst_line = f"{e_inst} ({e_dur})" if e_dur else e_inst
+                    story.append(Paragraph(inst_line, ats_body_style))
 
         doc.build(story)
         return output_path
@@ -788,13 +715,13 @@ class PDFResumeBuilder:
     def generate_ats_plaintext(self, resume_data: Dict[str, Any]) -> str:
         """Generates pure plaintext formatted specifically for ATS text input boxes."""
         ident = resume_data.get("identity", {})
-        c_name = ident.get("full_name", "M.S. Mohamed Sujahath")
+        c_name = ident.get("full_name", "Candidate")
         title = resume_data.get("tailored_title", "Software Engineer")
-        c_phone = ident.get("phone", "+971 50 229 1865")
-        c_email = ident.get("email", "sujahathmhmd@gmail.com")
-        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
-        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
-        c_gh = ident.get("github", "github.com/SujahathMSM")
+        c_phone = ident.get("phone", "")
+        c_email = ident.get("email", "")
+        c_loc = ident.get("current_location", "Global / Remote")
+        c_li = ident.get("linkedin", "")
+        c_gh = ident.get("github", "")
 
         lines = [
             f"{c_name.upper()}",
@@ -826,17 +753,11 @@ class PDFResumeBuilder:
             for b in proj.get("bullets", []):
                 lines.append(f"  * {b}")
 
-        lines.extend([
-            "",
-            "EDUCATION",
-            "-" * 40,
-            "BScEngHons (Bachelor of the Science of Engineering Honours)",
-            "University of Moratuwa - Sri Lanka's Premier Engineering Institution",
-            "",
-            "LANGUAGES",
-            "-" * 40,
-            "English (Professional Working Proficiency - C1/C2), Tamil (Native), Sinhala (Professional)"
-        ])
+        lines.extend(["", "EDUCATION", "-" * 40])
+        for edu in resume_data.get("education", []):
+            lines.append(f"{edu.get('degree', '')}")
+            if edu.get("institution"):
+                lines.append(f"{edu.get('institution', '')} ({edu.get('duration', '')})".strip())
 
         return "\n".join(lines)
 
@@ -860,7 +781,7 @@ class PDFResumeBuilder:
             c_name = sanitize_pdf_text(ident.get("full_name", "Candidate"))
             phone = ident.get("phone", "")
             email = ident.get("email", "")
-            location = ident.get("current_location", "Moratuwa, Sri Lanka")
+            location = ident.get("current_location", "Global / Remote")
         else:
             c_name = sanitize_pdf_text(str(candidate_name or "Candidate"))
 
@@ -890,210 +811,3 @@ class PDFResumeBuilder:
 
         doc.build(story)
         return output_path
-
-    def build_ats_clean_pdf(self, resume_data: Dict[str, Any], output_path: Path) -> Path:
-        """Renders a pure, 100% ATS-compliant single-column text-layer PDF (LaTeX / Typst style).
-        Strictly avoids non-standard tables or graphics to guarantee 100% parsing on Workday,
-        Greenhouse, Taleo, and Lever."""
-        doc = SimpleDocTemplate(
-            str(output_path),
-            pagesize=A4,
-            leftMargin=36,
-            rightMargin=36,
-            topMargin=32,
-            bottomMargin=32
-        )
-        story = []
-
-        ident = resume_data.get("identity", {})
-        c_name = sanitize_pdf_text(ident.get("full_name", "M.S. MOHAMED SUJAHATH"))
-        title = sanitize_pdf_text(resume_data.get("tailored_title", "Software Engineer"))
-        
-        c_phone = ident.get("phone", "+971 50 229 1865")
-        c_email = ident.get("email", "sujahathmhmd@gmail.com")
-        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
-        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
-        c_gh = ident.get("github", "github.com/SujahathMSM")
-
-        # ATS Styles
-        ats_name_style = ParagraphStyle(
-            name="ATSName",
-            parent=self.styles["Normal"],
-            fontName="Helvetica-Bold",
-            fontSize=16,
-            leading=19,
-            textColor=colors.HexColor("#111827"),
-            alignment=1,
-            spaceAfter=2
-        )
-        ats_title_style = ParagraphStyle(
-            name="ATSTitle",
-            parent=self.styles["Normal"],
-            fontName="Helvetica-Bold",
-            fontSize=10,
-            leading=13,
-            textColor=colors.HexColor("#2563EB"),
-            alignment=1,
-            spaceAfter=4
-        )
-        ats_contact_style = ParagraphStyle(
-            name="ATSContact",
-            parent=self.styles["Normal"],
-            fontName="Helvetica",
-            fontSize=8.5,
-            leading=11,
-            textColor=colors.HexColor("#4B5563"),
-            alignment=1,
-            spaceAfter=8
-        )
-        ats_h1_style = ParagraphStyle(
-            name="ATSH1",
-            parent=self.styles["Normal"],
-            fontName="Helvetica-Bold",
-            fontSize=10,
-            leading=13,
-            textColor=colors.HexColor("#111827"),
-            spaceBefore=8,
-            spaceAfter=2,
-            keepWithNext=True
-        )
-        ats_body_style = ParagraphStyle(
-            name="ATSBody",
-            parent=self.styles["Normal"],
-            fontName="Helvetica",
-            fontSize=8.5,
-            leading=11.5,
-            textColor=colors.HexColor("#1F2937"),
-            spaceAfter=4
-        )
-        ats_bullet_style = ParagraphStyle(
-            name="ATSBullet",
-            parent=self.styles["Normal"],
-            fontName="Helvetica",
-            fontSize=8.5,
-            leading=11.5,
-            leftIndent=12,
-            firstLineIndent=-8,
-            textColor=colors.HexColor("#1F2937"),
-            spaceAfter=2
-        )
-
-        # Header Block
-        story.append(Paragraph(f"<b>{c_name.upper()}</b>", ats_name_style))
-        story.append(Paragraph(f"<b>{title.upper()}</b>", ats_title_style))
-        contact_str = f"{c_email} | {c_phone} | {c_loc} | {c_li} | {c_gh}"
-        story.append(Paragraph(sanitize_pdf_text(contact_str), ats_contact_style))
-        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#111827"), spaceBefore=1, spaceAfter=6))
-
-        # 1. PROFESSIONAL SUMMARY
-        summary = resume_data.get("summary") or resume_data.get("tailored_summary", "")
-        if summary:
-            story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", ats_h1_style))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
-            story.append(Paragraph(sanitize_pdf_text(summary), ats_body_style))
-
-        # 2. CORE TECHNICAL SKILLS
-        skills_cat = resume_data.get("core_skills_categorized", [])
-        if skills_cat:
-            story.append(Paragraph("<b>CORE TECHNICAL COMPETENCIES</b>", ats_h1_style))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
-            for cat in skills_cat:
-                c_name_cat = sanitize_pdf_text(cat.get("category", "Technical"))
-                c_skills = sanitize_pdf_text(cat.get("skills", ""))
-                story.append(Paragraph(f"&bull; <b>{c_name_cat}:</b> {c_skills}", ats_bullet_style))
-
-        # 3. WORK EXPERIENCE
-        work_hist = resume_data.get("work_history", [])
-        if work_hist:
-            story.append(Paragraph("<b>PROFESSIONAL WORK EXPERIENCE</b>", ats_h1_style))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
-            for job in work_hist:
-                j_title = sanitize_pdf_text(job.get("title", ""))
-                j_comp = sanitize_pdf_text(job.get("company", ""))
-                j_dur = sanitize_pdf_text(job.get("duration", ""))
-                story.append(Paragraph(f"<b>{j_title}</b> &mdash; <i>{j_comp}</i> ({j_dur})", ats_body_style))
-                for b in job.get("bullets", []):
-                    clean_b = sanitize_pdf_text(b)
-                    if clean_b:
-                        story.append(Paragraph(f"&bull; {clean_b}", ats_bullet_style))
-                story.append(Spacer(1, 2))
-
-        # 4. KEY TECHNICAL PROJECTS
-        projects = resume_data.get("projects", [])
-        if projects:
-            story.append(Paragraph("<b>KEY TECHNICAL &amp; PRODUCTION PROJECTS</b>", ats_h1_style))
-            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
-            for proj in projects[:4]:
-                p_title = sanitize_pdf_text(proj.get("title", ""))
-                p_tech = sanitize_pdf_text(proj.get("technologies", ""))
-                p_header = f"<b>{p_title}</b> &mdash; <i>Tech: {p_tech}</i>" if p_tech else f"<b>{p_title}</b>"
-                story.append(Paragraph(p_header, ats_body_style))
-                for b in proj.get("bullets", []):
-                    clean_b = sanitize_pdf_text(b)
-                    if clean_b:
-                        story.append(Paragraph(f"&bull; {clean_b}", ats_bullet_style))
-                story.append(Spacer(1, 2))
-
-        # 5. EDUCATION
-        story.append(Paragraph("<b>EDUCATION &amp; ACADEMIC CREDENTIALS</b>", ats_h1_style))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#9CA3AF"), spaceBefore=1, spaceAfter=4))
-        story.append(Paragraph("<b>BScEngHons (Bachelor of the Science of Engineering Honours)</b>", ats_body_style))
-        story.append(Paragraph("University of Moratuwa &mdash; Sri Lanka's Premier Engineering Institution", ats_body_style))
-
-        doc.build(story)
-        return output_path
-
-    def generate_ats_plaintext(self, resume_data: Dict[str, Any]) -> str:
-        """Generates pure plaintext formatted specifically for ATS text input boxes."""
-        ident = resume_data.get("identity", {})
-        c_name = ident.get("full_name", "M.S. Mohamed Sujahath")
-        title = resume_data.get("tailored_title", "Software Engineer")
-        c_phone = ident.get("phone", "+971 50 229 1865")
-        c_email = ident.get("email", "sujahathmhmd@gmail.com")
-        c_loc = ident.get("current_location", "Sri Lanka (Prepared for Immediate Relocation)")
-        c_li = ident.get("linkedin", "linkedin.com/in/mohamed-sujahath")
-        c_gh = ident.get("github", "github.com/SujahathMSM")
-
-        lines = [
-            f"{c_name.upper()}",
-            f"{title}",
-            f"Email: {c_email} | Phone: {c_phone} | Location: {c_loc}",
-            f"LinkedIn: {c_li} | GitHub: {c_gh}",
-            "=" * 70,
-            "",
-            "PROFESSIONAL SUMMARY",
-            "-" * 40,
-            resume_data.get("summary") or resume_data.get("tailored_summary", ""),
-            "",
-            "TECHNICAL COMPETENCIES",
-            "-" * 40,
-        ]
-
-        for cat in resume_data.get("core_skills_categorized", []):
-            lines.append(f"* {cat.get('category', 'Technical')}: {cat.get('skills', '')}")
-
-        lines.extend(["", "PROFESSIONAL EXPERIENCE", "-" * 40])
-        for job in resume_data.get("work_history", []):
-            lines.append(f"\n{job.get('title', '')} - {job.get('company', '')} ({job.get('duration', '')})")
-            for b in job.get("bullets", []):
-                lines.append(f"  * {b}")
-
-        lines.extend(["", "KEY TECHNICAL PROJECTS", "-" * 40])
-        for proj in resume_data.get("projects", []):
-            lines.append(f"\n{proj.get('title', '')} | Tech: {proj.get('technologies', '')}")
-            for b in proj.get("bullets", []):
-                lines.append(f"  * {b}")
-
-        lines.extend([
-            "",
-            "EDUCATION",
-            "-" * 40,
-            "BScEngHons (Bachelor of the Science of Engineering Honours)",
-            "University of Moratuwa - Sri Lanka's Premier Engineering Institution",
-            "",
-            "LANGUAGES",
-            "-" * 40,
-            "English (Professional Working Proficiency - C1/C2), Tamil (Native), Sinhala (Professional)"
-        ])
-
-        return "\n".join(lines)

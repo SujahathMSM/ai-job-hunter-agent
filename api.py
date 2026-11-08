@@ -17,7 +17,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 from config import (
     PROFILE_PATH, GENERATED_DIR, UPLOADS_DIR,
-    DEFAULT_LLM_PROVIDER, SAFE_MODE, SMTP_HOST, SMTP_USER, SENDER_NAME,
+    DEFAULT_LLM_PROVIDER, SAFE_MODE, SMTP_HOST, SMTP_USER, SENDER_NAME, DEFAULT_USER_EMAIL,
     HUNTER_API_KEY, APOLLO_API_KEY, update_env_file
 )
 from ingestion.persona_builder import PersonaBuilder
@@ -328,8 +328,8 @@ def get_current_user(current_user_id: str = Depends(get_current_user_id)):
     if not user:
         user = tracker.get_user_by_id("default") or {
             "id": "default",
-            "email": "sujahathmhmd@gmail.com",
-            "full_name": "M.S. Mohamed Sujahath",
+            "email": DEFAULT_USER_EMAIL,
+            "full_name": SENDER_NAME,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     return {"user": user}

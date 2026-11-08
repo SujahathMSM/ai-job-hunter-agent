@@ -13,17 +13,17 @@ from outreach.email_sender import EmailDispatcher
 def test_password_auth_rejects_empty_credentials():
     tracker = ApplicationTracker()
     # Attempting to authenticate with empty password or non-existent user must fail
-    assert tracker.authenticate_user("sujahathmhmd@gmail.com", "") is None
+    assert tracker.authenticate_user("default_admin@example.com", "") is None
     assert tracker.authenticate_user("nonexistent@example.com", "any_password") is None
     assert tracker.authenticate_user("", "password") is None
 
 def test_non_default_user_gets_isolated_profile():
-    # User ff9988 must start with generic candidate template, NOT Sujahath's identity
+    # User ff9988 must start with generic candidate template
     pb = PersonaBuilder(user_id="user_test_isolation_9988")
     profile = pb.profile
-    assert profile["identity"]["full_name"] != "M.S. Mohamed Sujahath"
-    assert "University of Moratuwa" not in [e.get("institution") for e in profile.get("education", [])]
-    assert "Blue Brand" not in [w.get("company") for w in profile.get("work_history", [])]
+    assert profile["identity"]["full_name"] == "Engineer Candidate"
+    assert profile.get("education", []) == []
+    assert profile.get("work_history", []) == []
 
 def test_non_default_user_canonicalize_preserves_authentic_data():
     pb = PersonaBuilder(user_id="user_custom_engineer_123")

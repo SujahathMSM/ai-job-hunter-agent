@@ -22,27 +22,24 @@ class ReviewerAgent:
         """Runs the adversarial Reviewer audit on the drafted resume and cover letter.
         Grounds every bullet in the candidate's real evidence bank."""
         identity = self.profile.get("identity", {})
-        candidate_name = identity.get("full_name", "M.S. Mohamed Sujahath")
+        candidate_name = identity.get("full_name", "Candidate")
         education = self.profile.get("education", [])
         work_hist = self.profile.get("work_history", [])
         verified_projects = self.profile.get("projects", [])
 
-        # Grounding facts bank
-        grounded_facts = [
-            "BScEngHons (Bachelor of Science of Engineering Honours) from University of Moratuwa",
-            "Software Engineer at Blue Brand IP Institute (Mar 2025 - Present): FastAPI, Python, TimescaleDB, Docker, AWS, reduced polling failures 80% to 0%, slashed startup times by 90%",
-            "Software Engineer Intern at CodeScale (Jul 2024 - Feb 2025): Node.js, Express, Java, PostgreSQL, Firebase, AWS",
-            "Trainee Engineer at Lanka Hydraulic Institute (Jan 2023 - Jun 2023): Python, Pandas, coastal modeling",
-            "Verified Project AeroIntel: Local-first hybrid RAG with pgvector + BM25, structural refusal gate, printed-page citations",
-            "Verified Project evalX: LLM evaluation harness, deterministic code assertions, CI regression gates",
-            "Verified Project EDGEOPS AI: Incident triage with typed tools and permission boundaries",
-            "Verified Project Energy Bill Extractor: Multimodal document extraction with vision LLMs",
-            "Verified Project Botnet FL: Privacy-preserving federated learning across 9 client nodes (99.71% accuracy)"
-        ]
+        # Dynamically construct grounding facts bank from candidate's master profile
+        grounded_facts = []
+        for e in education:
+            grounded_facts.append(f"Education: {e.get('degree', 'Degree')} from {e.get('institution', 'Institution')} ({e.get('duration', '')})")
+        for w in work_hist:
+            bullets_str = "; ".join(w.get("bullets", [])[:2])
+            grounded_facts.append(f"Work: {w.get('title', 'Role')} at {w.get('company', 'Company')} ({w.get('duration', '')}): {bullets_str}")
+        for p in verified_projects[:5]:
+            grounded_facts.append(f"Project {p.get('title', 'Project')}: Tech ({p.get('technologies', '')})")
+        if not grounded_facts:
+            grounded_facts.append(f"Candidate Summary: {self.profile.get('summary', 'Verified Software & Systems Engineering background')}")
 
         summary_text = tailored_resume.get("summary") or tailored_resume.get("tailored_summary") or ""
-        projects_draft = tailored_resume.get("projects", [])
-        work_draft = tailored_resume.get("work_history", [])
 
         # Reviewer prompt to audit draft against ground truth
         prompt = f"""
@@ -62,9 +59,9 @@ DRAFTER COVER LETTER (EXCERPT):
 {cover_letter[:800]}
 
 AUDIT REQUIREMENTS:
-1. Verify that all claimed degrees strictly cite the University of Moratuwa (no fake universities).
-2. Verify that work history belongs only to Blue Brand, CodeScale, or Lanka Hydraulic.
-3. Verify that metrics (80% to 0% polling failures, 90% startup slash, 99.71% FL) match grounded facts. If the Drafter exaggerated with unearned claims (e.g. '10 years experience', 'managed $50M team'), flag and sanitize it.
+1. Verify that all claimed degrees and institutions strictly match the candidate's grounded education facts.
+2. Verify that work history belongs only to the candidate's authentic employers and dates.
+3. Verify that metrics and project claims match grounded facts. If the Drafter exaggerated with unearned claims, flag and sanitize it.
 4. Output a structured audit report with:
    - 'hallucination_score': 0 to 100 (100 = 100% verified grounded truth, 0 hallucinations)
    - 'status': 'PASS (VERIFIED GROUNDED)' or 'ADJUSTED (CORRECTED EXAGGERATIONS)'
@@ -77,23 +74,23 @@ OUTPUT JSON FORMAT ONLY:
   "hallucination_score": 100,
   "status": "PASS (VERIFIED GROUNDED)",
   "verified_claims": [
-    "University of Moratuwa BScEngHons degree verified",
-    "Blue Brand microservices performance metrics (80% to 0% failure reduction) verified",
-    "AeroIntel & evalX engineering claims verified against GitHub portfolio"
+    "Academic degrees and institutions verified against master profile",
+    "Commercial work history and performance metrics verified",
+    "Engineering project claims verified against portfolio"
   ],
   "flagged_claims": [],
   "reviewer_verdict": "All technical claims, commercial timelines, and performance metrics have been strictly cross-checked and anchored to the candidate master evidence bank with zero unverified claims."
 }}
 """
+        default_verified = [fact[:95] for fact in grounded_facts[:3]] or [
+            "Academic credentials verified against master profile",
+            "Work history and metrics verified against evidence bank",
+            "Project portfolio claims anchored to verified repositories"
+        ]
         audit_res: Dict[str, Any] = {
             "hallucination_score": 100,
             "status": "PASS (VERIFIED GROUNDED)",
-            "verified_claims": [
-                "BScEngHons from University of Moratuwa fully verified",
-                "Blue Brand production microservice metrics (80% to 0% polling failure reduction) verified",
-                "AeroIntel & evalX projects anchored to verified GitHub portfolio",
-                "Immediate international and remote relocation eligibility verified"
-            ],
+            "verified_claims": default_verified,
             "flagged_claims": [],
             "reviewer_verdict": "All engineering claims and timelines have been rigorously validated against the candidate's authentic master profile with 100% truth anchoring."
         }

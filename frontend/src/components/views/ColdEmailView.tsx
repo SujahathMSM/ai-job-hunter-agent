@@ -202,8 +202,10 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
           <div className="flex items-center gap-2 text-[#bcc9cd]">
             <UserCheck className="w-4 h-4 text-[#4edea3]" />
             <span className="font-mono text-[#869296]">From:</span>
-            <span className="font-semibold text-[#e3e1ec]">M.S. Mohamed Sujahath</span>
-            <span className="text-[#4cd7f6] font-mono">&lt;sujahathmhmd@gmail.com&gt;</span>
+            <span className="font-semibold text-[#e3e1ec]">{candidateName}</span>
+            {candidateEmail && (
+              <span className="text-[#4cd7f6] font-mono">&lt;{candidateEmail}&gt;</span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-2 py-0.5 rounded border border-[#4edea3]/20">
             <span className="w-1.5 h-1.5 rounded-full bg-[#4edea3] animate-pulse"></span>
