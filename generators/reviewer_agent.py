@@ -1,6 +1,8 @@
 import re
-from typing import Dict, Any, List
+import json
+from typing import Dict, Any, List, Optional
 from generators.llm_client import LLMClient
+from generators.fact_checker import FactChecker
 
 class ReviewerAgent:
     """Two-Stage Quality Control: Audits draft CVs and cover letters against the
@@ -17,31 +19,44 @@ class ReviewerAgent:
         cover_letter: str,
         job_title: str,
         company: str,
-        jd_text: str
+        jd_text: str,
+        prior_flags: Optional[List[Dict[str, str]]] = None,
+        revision_rounds: int = 0,
     ) -> Dict[str, Any]:
-        """Runs the adversarial Reviewer audit on the drafted resume and cover letter.
-        Grounds every bullet in the candidate's real evidence bank."""
+        """Audits the drafted resume and cover letter against the candidate's master profile.
+
+        Two layers run: a deterministic rule check (tools, metrics, experience claims) and an
+        LLM review. The audit fails closed: if the LLM review is unavailable the result is
+        reported as PARTIAL instead of a verified pass.
+        """
         identity = self.profile.get("identity", {})
         candidate_name = identity.get("full_name", "Candidate")
         education = self.profile.get("education", [])
         work_hist = self.profile.get("work_history", [])
         verified_projects = self.profile.get("projects", [])
 
+        # Layer 1: deterministic fact check (always runs, no LLM needed)
+        checker = FactChecker(self.profile)
+        rule = checker.check(tailored_resume, cover_letter)
+        rule_flags: List[Dict[str, str]] = rule["flags"]
+
         # Dynamically construct grounding facts bank from candidate's master profile
         grounded_facts = []
         for e in education:
             grounded_facts.append(f"Education: {e.get('degree', 'Degree')} from {e.get('institution', 'Institution')} ({e.get('duration', '')})")
         for w in work_hist:
-            bullets_str = "; ".join(w.get("bullets", [])[:2])
+            bullets_str = "; ".join(w.get("bullets", []))
             grounded_facts.append(f"Work: {w.get('title', 'Role')} at {w.get('company', 'Company')} ({w.get('duration', '')}): {bullets_str}")
-        for p in verified_projects[:5]:
-            grounded_facts.append(f"Project {p.get('title', 'Project')}: Tech ({p.get('technologies', '')})")
+        for p in verified_projects[:8]:
+            grounded_facts.append(f"Project {p.get('title', 'Project')}: Tech ({p.get('technologies', '')}). {'; '.join(str(b) for b in p.get('bullets', []))}")
         if not grounded_facts:
             grounded_facts.append(f"Candidate Summary: {self.profile.get('summary', 'Verified Software & Systems Engineering background')}")
 
-        summary_text = tailored_resume.get("summary") or tailored_resume.get("tailored_summary") or ""
+        sections = FactChecker.collect_sections(tailored_resume, cover_letter)
+        draft_text = "\n".join(f"[{name.upper()}]\n{text[:1800]}" for name, text in sections.items() if text)
+        rule_text = "\n".join(f"- {f['claim']} ({f['section']}): {f['detail']}" for f in rule_flags) or "None"
 
-        # Reviewer prompt to audit draft against ground truth
+        # Layer 2: LLM reviewer
         prompt = f"""
 You are the Senior Adversarial Fact-Checking Agent (Reviewer Agent) in a 2-stage career pipeline.
 Your job is to audit the DRAFTER AGENT's generated resume and cover letter against the CANDIDATE'S AUTHENTIC MASTER PROFILE.
@@ -52,62 +67,94 @@ CANDIDATE: {candidate_name}
 GROUNDED MASTER FACTS (100% VERIFIED TRUTH):
 {chr(10).join(f"- {fact}" for fact in grounded_facts)}
 
-DRAFTER RESUME SUMMARY:
-{summary_text}
+FULL DRAFT TO AUDIT:
+{draft_text}
 
-DRAFTER COVER LETTER (EXCERPT):
-{cover_letter[:800]}
+CLAIMS ALREADY FLAGGED BY RULE-BASED CHECKS:
+{rule_text}
 
 AUDIT REQUIREMENTS:
 1. Verify that all claimed degrees and institutions strictly match the candidate's grounded education facts.
 2. Verify that work history belongs only to the candidate's authentic employers and dates.
-3. Verify that metrics and project claims match grounded facts. If the Drafter exaggerated with unearned claims, flag and sanitize it.
+3. Verify that metrics, tools and project claims match grounded facts. Flag anything exaggerated or unearned. Do NOT flag statements about willingness to relocate or availability, and do not flag metrics that appear in the grounded facts above.
 4. Output a structured audit report with:
-   - 'hallucination_score': 0 to 100 (100 = 100% verified grounded truth, 0 hallucinations)
-   - 'status': 'PASS (VERIFIED GROUNDED)' or 'ADJUSTED (CORRECTED EXAGGERATIONS)'
-   - 'verified_claims': list of 3-5 key claims that passed grounding check
-   - 'flagged_claims': list of any exaggerated or unverified items that were corrected or guarded against
-   - 'reviewer_verdict': A 2-sentence formal review sign-off certifying authenticity.
+   - 'hallucination_score': 0 to 100 (100 = 100% verified grounded truth, 0 = fabricated)
+   - 'verified_claims': list of 3-5 key claims that passed the grounding check
+   - 'flagged_claims': list of exaggerated or unverified items (empty if none)
+   - 'reviewer_verdict': A 2-sentence formal review sign-off.
 
 OUTPUT JSON FORMAT ONLY:
 {{
   "hallucination_score": 100,
-  "status": "PASS (VERIFIED GROUNDED)",
-  "verified_claims": [
-    "Academic degrees and institutions verified against master profile",
-    "Commercial work history and performance metrics verified",
-    "Engineering project claims verified against portfolio"
-  ],
+  "verified_claims": ["..."],
   "flagged_claims": [],
-  "reviewer_verdict": "All technical claims, commercial timelines, and performance metrics have been strictly cross-checked and anchored to the candidate master evidence bank with zero unverified claims."
+  "reviewer_verdict": "..."
 }}
 """
-        default_verified = [fact[:95] for fact in grounded_facts[:3]] or [
-            "Academic credentials verified against master profile",
-            "Work history and metrics verified against evidence bank",
-            "Project portfolio claims anchored to verified repositories"
-        ]
-        audit_res: Dict[str, Any] = {
-            "hallucination_score": 100,
-            "status": "PASS (VERIFIED GROUNDED)",
-            "verified_claims": default_verified,
-            "flagged_claims": [],
-            "reviewer_verdict": "All engineering claims and timelines have been rigorously validated against the candidate's authentic master profile with 100% truth anchoring."
-        }
-
+        llm_review: Optional[Dict[str, Any]] = None
         try:
             resp = self.llm.generate(prompt, temperature=0.1)
             clean = re.sub(r"^```json\s*", "", resp.strip())
             clean = re.sub(r"^```\s*", "", clean)
             clean = re.sub(r"\s*```$", "", clean)
-            import json
             parsed = json.loads(clean)
             if isinstance(parsed, dict) and "hallucination_score" in parsed:
-                audit_res = parsed
+                llm_review = parsed
         except Exception as e:
-            print(f"[Reviewer Agent Fallback]: {e}")
+            print(f"[Reviewer Agent LLM Review Unavailable]: {e}")
 
-        return audit_res
+        ai_review_ok = llm_review is not None
+        llm_flagged = [str(x) for x in (llm_review or {}).get("flagged_claims", []) if str(x).strip()]
+
+        # Score: never higher than the rule-based score
+        score = rule["score"]
+        if ai_review_ok:
+            try:
+                score = min(score, max(0, min(100, int(llm_review.get("hallucination_score", 100)))))
+            except (TypeError, ValueError):
+                pass
+        if llm_flagged:
+            score = min(score, max(0, 100 - 12 * len(llm_flagged)))
+
+        flagged_claims = [f"{f['claim']} ({f['section']}): {f['detail']}" for f in rule_flags] + llm_flagged
+        corrected = [f"Corrected: {f['claim']} ({f['section']})" for f in (prior_flags or [])]
+
+        # Verified claims (deterministic, plus LLM-confirmed ones if available)
+        verified: List[str] = []
+        if not any(f["type"] == "unverified_tool" for f in rule_flags):
+            verified.append("Every technology named in the draft appears in your profile")
+        if not any(f["type"] == "unverified_metric" for f in rule_flags):
+            verified.append("Every numeric claim in the draft matches your profile")
+        if checker.experience_years is not None and not any(f["type"] == "inflated_experience" for f in rule_flags):
+            verified.append("Experience claims are consistent with your work history dates")
+        if ai_review_ok:
+            verified.extend(str(v) for v in llm_review.get("verified_claims", [])[:3])
+
+        # Status (fails closed)
+        if flagged_claims:
+            status = "FLAGGED (REVIEW MANUALLY)"
+            verdict = f"{len(flagged_claims)} claim(s) could not be verified against your profile. Review them before sending."
+        elif corrected:
+            status = "ADJUSTED (CORRECTED UNVERIFIED CLAIMS)" if ai_review_ok else "PARTIAL (CORRECTED, AI REVIEW UNAVAILABLE)"
+            verdict = f"Unsupported claims were found and removed in {revision_rounds or 1} correction pass(es); the final draft passes all rule checks."
+        elif ai_review_ok:
+            status = "PASS (VERIFIED GROUNDED)"
+            verdict = str(llm_review.get("reviewer_verdict") or "All claims were cross-checked against your profile with no unverified items.")
+        else:
+            status = "PARTIAL (RULE CHECKS PASSED, AI REVIEW UNAVAILABLE)"
+            verdict = "Rule-based checks found no unsupported tools, metrics or experience claims, but the AI review could not run. Treat this as unverified."
+
+        return {
+            "hallucination_score": score,
+            "status": status,
+            "verified_claims": verified,
+            "flagged_claims": flagged_claims,
+            "corrected_claims": corrected,
+            "reviewer_verdict": verdict,
+            "ai_review": ai_review_ok,
+            "rule_flags": rule_flags,
+            "revision_rounds": revision_rounds,
+        }
 
     def analyze_skill_gap(
         self,

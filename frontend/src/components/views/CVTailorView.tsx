@@ -285,44 +285,81 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#4cd7f6]/10 border border-[#4cd7f6]/30 text-[#4cd7f6] text-[11px] font-mono">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>2-Stage Reviewer Verified</span>
+            <span>{reviewerAudit ? "Drafter + Reviewer Pipeline" : "2-Stage Reviewer"}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#4edea3]/10 border border-[#4edea3]/30 text-[#4edea3] text-[11px] font-mono">
             <UserCheck className="w-3.5 h-3.5" />
-            <span>Moratuwa Engineering Grounded</span>
+            <span>Profile Grounded</span>
           </div>
         </div>
       </div>
 
       {/* TWO-STAGE QUALITY CONTROL BANNER & REVIEWER AUDIT SHIELD */}
-      <div className="p-3.5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/40 specular-border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#4edea3]/10 border border-[#4edea3]/30 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-4 h-4 text-[#4edea3]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-[#e3e1ec]">Adversarial Reviewer Audit Gate</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#4edea3]/20 text-[#4edea3] border border-[#4edea3]/40">
-                {reviewerAudit?.status || "PASS (100% GROUNDED)"}
-              </span>
-            </div>
-            <div className="text-[11px] text-[#bcc9cd] mt-0.5">
-              {reviewerAudit?.reviewer_verdict ||
-                "Stage 1 Drafter adapted keywords to target JD &bull; Stage 2 Reviewer cross-checked metrics against Moratuwa &amp; Blue Brand evidence bank."}
-            </div>
-          </div>
-        </div>
+      {(() => {
+        const auditStatus: string = reviewerAudit?.status || "";
+        const isPass = auditStatus.startsWith("PASS") || auditStatus.startsWith("ADJUSTED");
+        const isFlagged = auditStatus.startsWith("FLAGGED");
+        const tone = !reviewerAudit
+          ? { text: "text-[#bcc9cd]", bg: "bg-[#1e1f26]", border: "border-[#3d494c]/40", icon: "text-[#869397]" }
+          : isPass
+          ? { text: "text-[#4edea3]", bg: "bg-[#4edea3]/20", border: "border-[#4edea3]/40", icon: "text-[#4edea3]" }
+          : isFlagged
+          ? { text: "text-[#ffb4ab]", bg: "bg-[#93000a]/20", border: "border-[#ffb4ab]/40", icon: "text-[#ffb4ab]" }
+          : { text: "text-[#ffd479]", bg: "bg-[#ffd479]/10", border: "border-[#ffd479]/40", icon: "text-[#ffd479]" };
+        const flaggedClaims: string[] = reviewerAudit?.flagged_claims || [];
+        const correctedClaims: string[] = reviewerAudit?.corrected_claims || [];
+        return (
+          <div className="p-3.5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/40 specular-border flex flex-col gap-3 text-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg ${tone.bg} border ${tone.border} flex items-center justify-center shrink-0`}>
+                  <ShieldCheck className={`w-4 h-4 ${tone.icon}`} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-[#e3e1ec]">Adversarial Reviewer Audit Gate</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${tone.bg} ${tone.text} border ${tone.border}`}>
+                      {reviewerAudit ? auditStatus : "NOT RUN YET"}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[#bcc9cd] mt-0.5">
+                    {reviewerAudit?.reviewer_verdict ||
+                      "Stage 1 Drafter adapts your profile to the job description; Stage 2 Reviewer fact-checks every tool, metric and experience claim against your profile."}
+                  </div>
+                </div>
+              </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0 font-mono text-[11px]">
-          <span className="px-2.5 py-1 rounded bg-[#1e1f26] border border-[#3d494c]/40 text-[#4cd7f6]">
-            Hallucination Score: <strong>{reviewerAudit?.hallucination_score || 100}/100</strong>
-          </span>
-          <span className="px-2.5 py-1 rounded bg-[#1e1f26] border border-[#3d494c]/40 text-[#4edea3]">
-            0 Fabricated Claims
-          </span>
-        </div>
-      </div>
+              <div className="flex items-center gap-2 self-start md:self-auto shrink-0 font-mono text-[11px] flex-wrap">
+                <span className="px-2.5 py-1 rounded bg-[#1e1f26] border border-[#3d494c]/40 text-[#4cd7f6]">
+                  Hallucination Score: <strong>{reviewerAudit ? (reviewerAudit.hallucination_score ?? "--") : "--"}/100</strong>
+                </span>
+                <span className={`px-2.5 py-1 rounded bg-[#1e1f26] border border-[#3d494c]/40 ${flaggedClaims.length ? "text-[#ffb4ab]" : "text-[#4edea3]"}`}>
+                  {reviewerAudit ? `${flaggedClaims.length} Unverified Claim${flaggedClaims.length === 1 ? "" : "s"}` : "--"}
+                </span>
+                {reviewerAudit && (reviewerAudit.revision_rounds ?? 0) > 0 && (
+                  <span className="px-2.5 py-1 rounded bg-[#1e1f26] border border-[#3d494c]/40 text-[#bcc9cd]">
+                    {reviewerAudit.revision_rounds} revision{reviewerAudit.revision_rounds === 1 ? "" : "s"}
+                  </span>
+                )}
+                {reviewerAudit && reviewerAudit.ai_review === false && (
+                  <span className="px-2.5 py-1 rounded bg-[#1e1f26] border border-[#ffd479]/40 text-[#ffd479]">AI review unavailable</span>
+                )}
+              </div>
+            </div>
+
+            {(flaggedClaims.length > 0 || correctedClaims.length > 0) && (
+              <div className="flex flex-col gap-1 pt-2 border-t border-[#3d494c]/20 text-[11px]">
+                {flaggedClaims.map((c, i) => (
+                  <div key={`f${i}`} className="text-[#ffb4ab]">⚠ {c}</div>
+                ))}
+                {correctedClaims.map((c, i) => (
+                  <div key={`c${i}`} className="text-[#4edea3]">✓ {c}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Main Studio Grid: Left Studio Editor (5 cols) & Right Live Preview (7 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">

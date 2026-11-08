@@ -10,7 +10,7 @@ class CoverLetterGenerator:
         self.profile = master_profile
         self.llm = LLMClient()
 
-    def generate(self, job_title: str, company: str, location: str, jd_text: str) -> str:
+    def generate(self, job_title: str, company: str, location: str, jd_text: str, feedback: str = "") -> str:
         identity = self.profile.get("identity", {})
         full_name = identity.get("full_name", "Candidate")
         current_loc = identity.get("current_location", "Remote")
@@ -62,6 +62,8 @@ TONE & CRITERIA:
     Sincerely,
     {full_name}
 """
+        if feedback:
+            prompt += f"\n\nREVIEWER FEEDBACK ON YOUR PREVIOUS DRAFT (MUST FIX):\n{feedback}\n"
         llm_text = self.llm.generate(prompt)
         if llm_text and len(llm_text.strip()) > 200:
             return llm_text.strip()

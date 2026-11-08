@@ -15,7 +15,7 @@ class ResumeTailorer:
         self.profile = master_profile
         self.llm = LLMClient()
 
-    def generate_tailored_resume(self, job_title: str, company: str, location: str, jd_text: str) -> Dict[str, Any]:
+    def generate_tailored_resume(self, job_title: str, company: str, location: str, jd_text: str, feedback: str = "") -> Dict[str, Any]:
         identity = self.profile.get("identity", {})
         skills_cat = self.profile.get("core_skills_categorized", [])
         work_hist = self.profile.get("work_history", [])
@@ -82,6 +82,8 @@ Return ONLY valid JSON with keys:
 - 'work_history' (list of dicts with 'company', 'branch', 'title', 'duration', 'bullets')
 - 'projects' (list of dicts with 'title', 'technologies', 'bullets')
 """
+        if feedback:
+            prompt += f"\n\nREVIEWER FEEDBACK ON YOUR PREVIOUS DRAFT (MUST FIX):\n{feedback}\n"
         llm_output = self.llm.generate(prompt)
         parsed = None
         if llm_output:
@@ -123,24 +125,44 @@ Return ONLY valid JSON with keys:
             raw_tailored_work = work_hist
             raw_tailored_projects = projects
 
-        # FACT-LOCKING ENFORCEMENT: Lock company names, titles, durations, institution, and degrees
-        locked_work = []
-        for idx, original_job in enumerate(work_hist):
-            job_copy = dict(original_job)
-            if idx < len(raw_tailored_work) and isinstance(raw_tailored_work[idx], dict):
-                tailored_bullets = raw_tailored_work[idx].get("bullets")
-                if tailored_bullets and isinstance(tailored_bullets, list):
-                    job_copy["bullets"] = [str(b).strip() for b in tailored_bullets if str(b).strip()]
-            locked_work.append(job_copy)
+        def _find_match(original: Dict[str, Any], candidates: List[Any], key: str):
+            """Match a tailored entry to its original by name (never by position)."""
+            o_name = str(original.get(key, "")).lower().strip()
+            o_head = o_name.split("|")[0].strip()
+            for cand in candidates:
+                if not isinstance(cand, dict):
+                    continue
+                c_name = str(cand.get(key, "")).lower().strip()
+                c_head = c_name.split("|")[0].strip()
+                if c_name == o_name or (o_head and c_head and (o_head in c_head or c_head in o_head)):
+                    return cand
+            return None
 
+        def _apply_bullets(original: Dict[str, Any], tailored: Any) -> Dict[str, Any]:
+            copy = dict(original)
+            bullets = tailored.get("bullets") if isinstance(tailored, dict) else None
+            if bullets and isinstance(bullets, list):
+                cleaned = [str(b).strip() for b in bullets if str(b).strip()]
+                if cleaned:
+                    copy["bullets"] = cleaned
+            return copy
+
+        # FACT-LOCKING ENFORCEMENT: Lock company names, titles, durations, institution, and degrees.
+        # Only bullet text may change, and only when the tailored entry matches the original by name.
+        locked_work = [
+            _apply_bullets(job, _find_match(job, raw_tailored_work, "company"))
+            for job in work_hist
+        ]
+
+        # Keep the projects the Drafter selected (in its order), using ORIGINAL title/technologies.
         locked_projects = []
-        for idx, original_proj in enumerate(projects[:4]):
-            proj_copy = dict(original_proj)
-            if idx < len(raw_tailored_projects) and isinstance(raw_tailored_projects[idx], dict):
-                tailored_bullets = raw_tailored_projects[idx].get("bullets")
-                if tailored_bullets and isinstance(tailored_bullets, list):
-                    proj_copy["bullets"] = [str(b).strip() for b in tailored_bullets if str(b).strip()]
-            locked_projects.append(proj_copy)
+        for tp in raw_tailored_projects:
+            original = next((p for p in projects if _find_match(p, [tp], "title") is not None), None)
+            if original is not None and all(original is not x for x in locked_projects):
+                locked_projects.append(_apply_bullets(original, tp))
+        if not locked_projects:
+            locked_projects = [dict(p) for p in projects[:4]]
+        locked_projects = locked_projects[:4]
 
         return {
             "identity": identity,

@@ -29,6 +29,7 @@ from generators.resume_tailorer import ResumeTailorer
 from generators.cover_letter_gen import CoverLetterGenerator
 from generators.pdf_builder import PDFResumeBuilder
 from generators.reviewer_agent import ReviewerAgent
+from generators.pipeline import run_drafter_reviewer
 from generators.interview_engine import InterviewEngine
 from outreach.email_sender import EmailDispatcher
 from outreach.tracker import ApplicationTracker
@@ -826,31 +827,14 @@ def find_hr_by_company(req: CompanyHRSearchRequest):
 def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_user_id)):
     user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
     pb = PersonaBuilder(user_id=user_id)
-    tailorer = ResumeTailorer(pb.profile)
-    cl_gen = CoverLetterGenerator(pb.profile)
-    
-    tailored_resume = tailorer.generate_tailored_resume(
-        job_title=req.job_title,
-        company=req.company,
-        location=req.location,
-        jd_text=req.jd_text
-    )
-    
-    cover_letter = cl_gen.generate(
-        job_title=req.job_title,
-        company=req.company,
-        location=req.location,
-        jd_text=req.jd_text
-    )
 
-    # Stage 2: Reviewer Agent Anti-Hallucination Audit Gate
-    reviewer = ReviewerAgent(pb.profile)
-    audit_report = reviewer.audit_and_verify(
-        tailored_resume=tailored_resume,
-        cover_letter=cover_letter,
+    # Drafter -> Reviewer -> Revise loop (rule-based fact check + LLM review)
+    tailored_resume, cover_letter, audit_report, reviewer = run_drafter_reviewer(
+        profile=pb.profile,
         job_title=req.job_title,
         company=req.company,
-        jd_text=req.jd_text
+        location=req.location,
+        jd_text=req.jd_text,
     )
 
     # Calculate Skill Gap & 24-Hour Quick-Study Roadmap
