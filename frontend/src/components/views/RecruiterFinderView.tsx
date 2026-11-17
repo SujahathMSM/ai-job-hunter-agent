@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { UserSearch, Building2, Mail, ExternalLink, CheckCircle2, Search, ArrowRight, Download, Users, Sparkles } from "lucide-react";
 import { HiringCompanyLead } from "../../types";
 import { findCompaniesByRole, searchCompanyHR } from "../../lib/api";
+import { withAuthQuery } from "../../lib/auth";
 
 interface RecruiterFinderViewProps {
   onSelectForOutreach: (jobTitle: string, company: string, email: string, portal: string, desc: string) => void;
@@ -52,7 +53,7 @@ export default function RecruiterFinderView({ onSelectForOutreach }: RecruiterFi
     }
 
     const url = `/api/hr/by-role/stream?role=${encodeURIComponent(targetRole)}&region=${regionFilter}&limit=${maxCompanies}`;
-    const sse = new EventSource(url);
+    const sse = new EventSource(withAuthQuery(url));
     sseRef.current = sse;
 
     sse.onmessage = (event) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { withAuthQuery } from "../../lib/auth";
 import {
   UserCheck,
   UploadCloud,
@@ -1013,7 +1014,7 @@ export default function ProfileView() {
             {/* Viewport */}
             <div className="flex-1 bg-[#1a1b22] p-2 overflow-hidden flex items-center justify-center">
               <iframe
-                src="/api/profile/download-europass-cv"
+                src={withAuthQuery("/api/profile/download-europass-cv")}
                 className="w-full h-[72vh] rounded-lg border border-[#3d494c]/30 bg-white"
                 title="Europass CV Preview"
               />

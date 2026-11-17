@@ -63,3 +63,12 @@ export function getAuthHeaders(): Record<string, string> {
   }
   return headers;
 }
+
+// EventSource streams and iframe/link document previews cannot send an Authorization
+// header, so the session token travels as a query parameter for those URLs only.
+export function withAuthQuery(url: string): string {
+  const token = getStoredToken();
+  if (!token) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}access_token=${encodeURIComponent(token)}`;
+}

@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { JobItem } from "../../types";
+import { withAuthQuery } from "../../lib/auth";
 
 interface JobHunterViewProps {
   onSelectForTailor: (job: JobItem) => void;
@@ -101,7 +102,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
     }
 
     const url = `/api/jobs/stream?keyword=${encodeURIComponent(keyword)}&region=${region}&max_results=${maxResults}`;
-    const sse = new EventSource(url);
+    const sse = new EventSource(withAuthQuery(url));
     sseRef.current = sse;
 
     sse.onmessage = (event) => {

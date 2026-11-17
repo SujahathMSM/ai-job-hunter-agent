@@ -128,7 +128,7 @@ export async function downloadDefaultEuropassCV(): Promise<Blob> {
 export async function searchLiveJobs(keyword: string, region: string, maxResults: number = 15): Promise<JobItem[]> {
   const res = await fetch(`${API_BASE}/jobs/search`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ keyword, region, max_results: maxResults }),
   });
   if (!res.ok) throw new Error("Failed to search jobs");
@@ -139,7 +139,7 @@ export async function searchLiveJobs(keyword: string, region: string, maxResults
 export async function findCompaniesByRole(role: string, region: string, limit: number = 10): Promise<HiringCompanyLead[]> {
   const res = await fetch(`${API_BASE}/hr/by-role`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ role, region, limit }),
   });
   if (!res.ok) throw new Error("Failed to find hiring companies");
@@ -150,7 +150,7 @@ export async function findCompaniesByRole(role: string, region: string, limit: n
 export async function searchCompanyHR(company: string, domain?: string, region: string = "GULF"): Promise<any> {
   const res = await fetch(`${API_BASE}/hr/by-company`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ company, domain, region }),
   });
   if (!res.ok) throw new Error("Failed to search company HR");
@@ -424,7 +424,9 @@ export async function fetchMe(): Promise<{ user: AuthUser }> {
 }
 
 export async function fetchUsersList(): Promise<{ users: AuthUser[] }> {
-  const res = await fetch(`${API_BASE}/auth/users`);
+  const res = await fetch(`${API_BASE}/auth/users`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error("Failed to fetch user list");
   return res.json();
 }
@@ -482,7 +484,9 @@ export async function fetchPortals(region?: string, query?: string): Promise<Car
   const params = new URLSearchParams();
   if (region && region !== "ALL") params.append("region", region);
   if (query) params.append("query", query);
-  const res = await fetch(`${API_BASE}/portals?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/portals?${params.toString()}`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error("Failed to fetch portals");
   const data = await res.json();
   return data.portals || [];
@@ -527,7 +531,9 @@ export async function fetchGlobalRemoteJobs(
     limit: String(limit),
     source,
   });
-  const res = await fetch(`${API_BASE}/jobs/remote?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/jobs/remote?${params.toString()}`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error("Failed to fetch global remote jobs");
   return res.json();
 }
@@ -542,7 +548,9 @@ export async function fetchDubaiJobs(
     category,
     limit: String(limit),
   });
-  const res = await fetch(`${API_BASE}/jobs/dubai?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/jobs/dubai?${params.toString()}`, {
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error("Failed to fetch Dubai jobs");
   return res.json();
 }

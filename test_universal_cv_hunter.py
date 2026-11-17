@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
 from fastapi.testclient import TestClient
-from api import app
+from api import app, create_access_token
 from hunter.universal_cv_hunter import UniversalCVHunter
 
 def test_universal_cv_hunter():
@@ -47,7 +47,7 @@ def test_universal_cv_hunter():
 
     # 3. Test Worldwide Job Hunting for the CV via API
     print("\n[3/3] Testing Global Job Hunting for Parsed CV via API (/api/cv-hunter/search)...")
-    client = TestClient(app)
+    client = TestClient(app, headers={"Authorization": "Bearer " + create_access_token("default", "")})
     r = client.post("/api/cv-hunter/search", json={
         "cv_analysis": civil_analysis,
         "region": "ALL",

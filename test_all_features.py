@@ -7,10 +7,10 @@ BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
 from fastapi.testclient import TestClient
-from api import app
+from api import app, create_access_token
 
 def run_tests():
-    client = TestClient(app)
+    client = TestClient(app, headers={"Authorization": "Bearer " + create_access_token("default", "")})
     print("=== Testing NexusHunt AI Top 4 Features ===")
 
     # 1. Test Tailor with Drafter + Reviewer Agent Pipeline
