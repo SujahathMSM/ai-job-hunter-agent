@@ -27,7 +27,8 @@ class HRFinder:
 
     @classmethod
     def deduce_company_hr_email(cls, company_name: str, domain: Optional[str] = None) -> List[str]:
-        """Suggests general corporate email patterns for manual verification."""
+        """Guesses common corporate HR inboxes. These are NOT verified: never pass them to
+        outreach as a contact; show them only as suggestions for the user to confirm."""
         clean_company = re.sub(r"[^a-zA-Z0-9]", "", company_name.lower())
         active_domain = domain if domain else f"{clean_company}.com"
         return [
@@ -68,8 +69,11 @@ class HRFinder:
         if hunter_key and active_domain:
             result["hunter_active"] = True
             try:
-                url = f"https://api.hunter.io/v2/domain-search?domain={active_domain}&department=human_resources&api_key={hunter_key}"
-                resp = requests.get(url, timeout=7)
+                resp = requests.get(
+                    "https://api.hunter.io/v2/domain-search",
+                    params={"domain": active_domain, "department": "human_resources", "api_key": hunter_key},
+                    timeout=7,
+                )
                 if resp.status_code == 200:
                     data = resp.json().get("data", {})
                     result["email_pattern"] = data.get("pattern")
@@ -300,8 +304,11 @@ class HRFinder:
                         hunter_key = os.getenv("HUNTER_API_KEY", HUNTER_API_KEY)
                         if hunter_key and domain:
                             try:
-                                h_url = f"https://api.hunter.io/v2/domain-search?domain={domain}&department=human_resources&api_key={hunter_key}"
-                                h_resp = requests.get(h_url, timeout=4)
+                                h_resp = requests.get(
+                                    "https://api.hunter.io/v2/domain-search",
+                                    params={"domain": domain, "department": "human_resources", "api_key": hunter_key},
+                                    timeout=4,
+                                )
                                 if h_resp.status_code == 200:
                                     h_data = h_resp.json().get("data", {})
                                     for em in h_data.get("emails", [])[:3]:

@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from matcher.geo_rules import GeoLocationEngine
 from hunter.hr_finder import HRFinder
 from config import RAPIDAPI_KEY, EXPANDED_LOCATION_TARGETS
+from net_safety import safe_get, UnsafeURLError
 
 class LiveJobHunter:
     """Live web scraper and multi-portal engine that scrapes real-time jobs
@@ -117,7 +118,7 @@ class LiveJobHunter:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         try:
-            resp = requests.get(url, headers=headers, timeout=8)
+            resp = safe_get(url, headers=headers, timeout=8)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
                 for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
@@ -128,6 +129,8 @@ class LiveJobHunter:
                 paragraphs = [p.get_text().strip() for p in soup.find_all("p") if len(p.get_text().strip()) > 35]
                 if paragraphs:
                     return "\n\n".join(paragraphs[:15])
+        except UnsafeURLError:
+            pass  # Scraped link points at a non-public address; skip it
         except Exception as e:
             print(f"[Fetch Desc Error for {url}]: {e}")
         return ""
