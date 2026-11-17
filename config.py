@@ -29,6 +29,10 @@ def update_env_file(updates: Dict[str, str]):
             if v:  # Only write non-empty
                 f.write(f"{k}={v}\n")
 
+def is_production_mode() -> bool:
+    env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").lower().strip()
+    return env in ["production", "prod"]
+
 DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
 GENERATED_DIR = DATA_DIR / "generated_cvs"

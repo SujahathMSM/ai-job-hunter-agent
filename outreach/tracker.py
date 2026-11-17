@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from config import DB_PATH, DEFAULT_USER_EMAIL, SENDER_NAME
+import secret_box
 
 class ApplicationTracker:
     """Multi-tenant tracking engine for applied jobs, draft applications,
@@ -112,6 +113,12 @@ class ApplicationTracker:
                 pass  # already present
 
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_apps_user ON applications(user_id)")
+
+            # Migration: encrypt SMTP passwords stored before encryption existed
+            cursor.execute("SELECT user_id, smtp_password FROM user_settings WHERE smtp_password IS NOT NULL AND smtp_password != ''")
+            for uid, stored in cursor.fetchall():
+                if not secret_box.is_encrypted(stored):
+                    cursor.execute("UPDATE user_settings SET smtp_password = ? WHERE user_id = ?", (secret_box.encrypt(stored), uid))
 
             # Seed default user for backward compatibility
             cursor.execute("SELECT id FROM users WHERE id = 'default'")
@@ -300,7 +307,7 @@ class ApplicationTracker:
                     "smtp_host": row[0] or "smtp.gmail.com",
                     "smtp_port": row[1] or 587,
                     "smtp_user": row[2] or "",
-                    "smtp_password": row[3] or "",
+                    "smtp_password": secret_box.decrypt(row[3]),
                     "sender_name": row[4] or ""
                 }
         return {}
@@ -324,7 +331,7 @@ class ApplicationTracker:
                 settings.get("smtp_host", "smtp.gmail.com"),
                 int(settings.get("smtp_port", 587)),
                 settings.get("smtp_user", "").strip(),
-                settings.get("smtp_password", "").strip(),
+                secret_box.encrypt(settings.get("smtp_password", "").strip()),
                 settings.get("sender_name", "").strip(),
                 now
             ))
