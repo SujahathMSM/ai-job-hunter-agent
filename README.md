@@ -55,7 +55,11 @@ ai-job-hunter-agent/
 ├── outreach/
 │   ├── email_sender.py         # Outbound SMTP dispatcher with Safe Review Mode (.eml drafts)
 │   └── tracker.py              # SQLite database tracking status, follow-ups & outcomes
-└── frontend/                   # Modern Next.js 14 Web Command Center (Tailwind CSS, TypeScript)
+├── net_safety.py               # Blocks fetches of user-supplied URLs that point at internal networks
+├── secret_box.py               # Encrypts stored secrets (SMTP passwords)
+├── tests/                      # pytest suite (run in CI)
+├── scripts/                    # Manual smoke/QA scripts
+└── frontend/                   # Next.js Web Command Center (Tailwind CSS, TypeScript)
 ```
 
 ---
@@ -90,8 +94,11 @@ npm run dev
 
 ### 3. Run Test Suite
 ```bash
+python -m pip install -r requirements-dev.txt
 pytest
 ```
+
+Tests live in `tests/`. `scripts/` holds manual smoke checks (`smoke_all_features.py`, `qa_verification.py`) that run against your local profile and are not part of CI.
 
 ---
 
