@@ -1,25 +1,35 @@
 import os
-import json
-import time
 from typing import Optional, Dict, Any, List
 import requests
 from config import GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 
+# CV and cover-letter generations run to a few thousand tokens and routinely take
+# 20-60s, so read timeouts must be generous or every call silently falls back offline.
+CONNECT_TIMEOUT_S = 5.0
+READ_TIMEOUT_S = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
+MAX_OUTPUT_TOKENS = 8000
+
+
 class LLMClient:
     """Unified LLM client supporting Google Gemini, OpenAI, Claude, and offline intelligent fallback
-    with automatic provider failover and retry logic."""
+    with automatic provider failover. Model names can be overridden per provider through
+    GEMINI_MODEL, OPENAI_MODEL and ANTHROPIC_MODEL."""
 
-    # Models to try in order of availability and speed
-    GEMINI_MODELS = [
-        "gemini-flash-lite-latest",
-        "gemini-2.5-flash"
-    ]
+    DEFAULT_GEMINI_MODELS = ["gemini-2.5-flash", "gemini-flash-lite-latest"]
+    DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+    DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5"
 
     def __init__(self, provider: Optional[str] = None):
         self.provider = provider or os.getenv("LLM_PROVIDER", "gemini").lower()
         self.gemini_key = os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", GEMINI_API_KEY))
         self.openai_key = os.getenv("OPENAI_API_KEY", OPENAI_API_KEY)
         self.anthropic_key = os.getenv("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY)
+        self.last_error: str = ""
+
+    @property
+    def gemini_models(self) -> List[str]:
+        configured = os.getenv("GEMINI_MODEL", "").strip()
+        return [configured] if configured else list(self.DEFAULT_GEMINI_MODELS)
 
     def is_active(self) -> Dict[str, Any]:
         """Checks if an active LLM provider and API key are configured."""
@@ -38,118 +48,138 @@ class LLMClient:
         temperature: Optional[float] = None,
         **kwargs
     ) -> str:
-        # Determine sequence of providers to try based on preference
-        providers = []
-        if self.provider == "openai":
-            providers = [("openai", self.openai_key), ("gemini", self.gemini_key), ("anthropic", self.anthropic_key)]
-        elif self.provider == "anthropic":
-            providers = [("anthropic", self.anthropic_key), ("gemini", self.gemini_key), ("openai", self.openai_key)]
-        else:
-            providers = [("gemini", self.gemini_key), ("openai", self.openai_key), ("anthropic", self.anthropic_key)]
+        order = {
+            "openai": ["openai", "gemini", "anthropic"],
+            "anthropic": ["anthropic", "gemini", "openai"],
+        }.get(self.provider, ["gemini", "openai", "anthropic"])
+        keys = {"gemini": self.gemini_key, "openai": self.openai_key, "anthropic": self.anthropic_key}
+        calls = {
+            "gemini": lambda k: self._call_gemini(prompt, system_prompt, k, temperature=temperature),
+            "openai": lambda k: self._call_openai(prompt, system_prompt, k),
+            "anthropic": lambda k: self._call_anthropic(prompt, system_prompt, k),
+        }
 
-        for prov_name, key in providers:
-            if not key:
+        self.last_error = ""
+        for name in order:
+            if not keys[name]:
                 continue
+            text = calls[name](keys[name])
+            if text:
+                return text
 
-            if prov_name == "gemini":
-                text = self._call_gemini(prompt, system_prompt, key, temperature=temperature)
-                if text:
-                    return text
-            elif prov_name == "openai":
-                text = self._call_openai(prompt, system_prompt, key)
-                if text:
-                    return text
-            elif prov_name == "anthropic":
-                text = self._call_anthropic(prompt, system_prompt, key)
-                if text:
-                    return text
-
-        # Fallback to local heuristic
-        print("[LLM Notice] No live LLM output received; using intelligent local engine.")
+        if any(keys.values()):
+            print(f"[LLM Notice] All configured providers failed ({self.last_error or 'no output'}); using local fallback.")
+        else:
+            print("[LLM Notice] No LLM API key configured; using local fallback.")
         return ""
 
     def _call_gemini(self, prompt: str, system_prompt: str, api_key: str, temperature: Optional[float] = None) -> str:
-        headers = {"Content-Type": "application/json"}
+        # Key goes in a header, never the URL, so it can't leak into proxy or access logs.
+        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
         payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": f"{system_prompt}\n\n{prompt}"}
-                    ]
-                }
-            ],
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": temperature if temperature is not None else 0.4,
-                "maxOutputTokens": 3000
-            }
+                "maxOutputTokens": MAX_OUTPUT_TOKENS,
+            },
         }
 
-        for model_name in self.GEMINI_MODELS:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        for model_name in self.gemini_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
             try:
-                res = requests.post(url, json=payload, headers=headers, timeout=(2.0, 4.0))
-                if res.status_code == 200:
-                    data = res.json()
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        if parts:
-                            text = parts[0].get("text", "").strip()
-                            if text:
-                                print(f"[LLM SUCCESS] Model '{model_name}' generated {len(text)} characters.")
-                                return text
-                elif res.status_code == 404:
-                    continue  # Model not found, try next model
-                else:
-                    print(f"[LLM Warning] Gemini {model_name} returned {res.status_code}: {res.text[:120]}")
-            except Exception as e:
-                print(f"[LLM Timeout/Error] {model_name}: {e}")
+                res = requests.post(url, json=payload, headers=headers, timeout=(CONNECT_TIMEOUT_S, READ_TIMEOUT_S))
+            except requests.RequestException as e:
+                self.last_error = f"Gemini {model_name}: {type(e).__name__}"
+                print(f"[LLM Error] {self.last_error}")
                 continue
+            if res.status_code == 404:
+                continue  # Model not available for this key, try the next one
+            if res.status_code != 200:
+                self.last_error = f"Gemini {model_name} HTTP {res.status_code}"
+                print(f"[LLM Warning] {self.last_error}: {res.text[:200]}")
+                continue
+            candidates = res.json().get("candidates", [])
+            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+            text = "".join(p.get("text", "") for p in parts).strip()
+            if text:
+                print(f"[LLM SUCCESS] Gemini '{model_name}' generated {len(text)} characters.")
+                return text
+            self.last_error = f"Gemini {model_name} returned no text"
         return ""
 
     def _call_openai(self, prompt: str, system_prompt: str, api_key: str) -> str:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=api_key)
+        except ImportError:
+            self.last_error = "openai package not installed"
+            return ""
+        try:
+            client = OpenAI(api_key=api_key, timeout=READ_TIMEOUT_S)
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=os.getenv("OPENAI_MODEL", self.DEFAULT_OPENAI_MODEL),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.4
             )
-            text = response.choices[0].message.content or ""
+            text = (response.choices[0].message.content or "").strip()
             if text:
                 print(f"[LLM SUCCESS] OpenAI generated {len(text)} characters.")
-                return text.strip()
+            return text
         except Exception as e:
+            self.last_error = f"OpenAI: {type(e).__name__}"
             print(f"[LLM Error] OpenAI API call failed: {e}")
         return ""
 
     def _call_anthropic(self, prompt: str, system_prompt: str, api_key: str) -> str:
-        models = ["claude-3-5-sonnet-latest", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
-        headers = {
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
-        }
-        for model in models:
-            try:
-                payload = {
-                    "model": model,
-                    "max_tokens": 3000,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": prompt}]
-                }
-                resp = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers, timeout=30)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    content = data.get("content", [])
-                    if content and "text" in content[0]:
-                        return content[0]["text"].strip()
-                else:
-                    print(f"[LLM Error] Anthropic model {model} returned status {resp.status_code}: {resp.text}")
-            except Exception as e:
-                print(f"[LLM Error] Anthropic API call for {model} failed: {e}")
-        return ""
+        try:
+            import anthropic
+        except ImportError:
+            self.last_error = "anthropic package not installed"
+            return ""
+
+        model = os.getenv("ANTHROPIC_MODEL", self.DEFAULT_ANTHROPIC_MODEL)
+        client = anthropic.Anthropic(api_key=api_key, timeout=READ_TIMEOUT_S)
+        try:
+            # Server-side fallback: if the model declines on a policy check, the API
+            # re-runs the request on a suitable model within the same call.
+            response = client.beta.messages.create(
+                model=model,
+                max_tokens=MAX_OUTPUT_TOKENS,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+                output_config={"effort": "medium"},
+                betas=["server-side-fallback-2026-07-01"],
+                fallbacks="default",
+            )
+        except anthropic.NotFoundError:
+            self.last_error = f"Anthropic model '{model}' not found"
+            print(f"[LLM Error] {self.last_error}")
+            return ""
+        except anthropic.AuthenticationError:
+            self.last_error = "Anthropic API key rejected"
+            print(f"[LLM Error] {self.last_error}")
+            return ""
+        except anthropic.RateLimitError:
+            self.last_error = "Anthropic rate limited"
+            print(f"[LLM Error] {self.last_error}")
+            return ""
+        except anthropic.APIStatusError as e:
+            self.last_error = f"Anthropic HTTP {e.status_code}"
+            print(f"[LLM Error] {self.last_error}: {e.message}")
+            return ""
+        except anthropic.APIConnectionError as e:
+            self.last_error = f"Anthropic connection error: {type(e).__name__}"
+            print(f"[LLM Error] {self.last_error}")
+            return ""
+
+        if response.stop_reason == "refusal":
+            self.last_error = "Anthropic declined the request"
+            print(f"[LLM Warning] {self.last_error}")
+            return ""
+        text = "".join(b.text for b in response.content if b.type == "text").strip()
+        if text:
+            print(f"[LLM SUCCESS] Claude '{response.model}' generated {len(text)} characters.")
+        return text
