@@ -132,14 +132,14 @@ def run_tests():
 
     # 11. Career Portals Retrieval
     try:
-        r = client.get("/api/portals?region=GULF")
+        r = client.get("/api/portals?region=GULF", headers=headers)
         record_result("TC11 - Career Portals Retrieval", r.status_code == 200 and len(r.json().get("portals", [])) > 0)
     except Exception as e:
         record_result("TC11 - Career Portals Retrieval", False, str(e))
 
     # 12. Remote Jobs API
     try:
-        r = client.get("/api/jobs/remote?keyword=python&limit=3")
+        r = client.get("/api/jobs/remote?keyword=python&limit=3", headers=headers)
         record_result("TC12 - Global Remote Jobs API", r.status_code == 200 and "jobs" in r.json())
     except Exception as e:
         record_result("TC12 - Global Remote Jobs API", False, str(e))

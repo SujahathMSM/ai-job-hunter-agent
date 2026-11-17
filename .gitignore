@@ -27,6 +27,7 @@ data/applications.db
 data/applications.db-shm
 data/applications.db-wal
 data/*.db*
+data/.jwt_secret
 data/golden_master_persona_backup.json
 data/master_persona.json
 data/*.pdf

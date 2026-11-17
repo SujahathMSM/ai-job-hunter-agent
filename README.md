@@ -86,6 +86,8 @@ npm install
 npm run dev
 ```
 
+> **Sign-in:** when started manually the API requires an account (register in the app). To use it on your own machine without signing in, set `ALLOW_DEV_AUTH=true` in `.env` — `start.bat` does this for you. Never set it on a server other people can reach.
+
 ### 3. Run Test Suite
 ```bash
 pytest

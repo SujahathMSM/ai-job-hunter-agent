@@ -7,6 +7,10 @@ echo.
 
 if "%BACKEND_PORT%"=="" set BACKEND_PORT=8005
 
+:: Single-user local mode: use the app on this PC without signing in.
+:: The backend only listens on 127.0.0.1. Remove this line to require sign-in.
+if "%ALLOW_DEV_AUTH%"=="" set ALLOW_DEV_AUTH=true
+
 :: 1. Launch FastAPI Backend
 start "NexusHunt - FastAPI Backend (:%BACKEND_PORT%)" cmd /k "cd /d "%~dp0" && python -m uvicorn api:app --port %BACKEND_PORT% --reload"
 

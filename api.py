@@ -2,11 +2,12 @@ import os
 import sys
 import re
 import time
+import secrets
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import jwt
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 import json
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -16,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
 from config import (
-    PROFILE_PATH, GENERATED_DIR, UPLOADS_DIR,
+    PROFILE_PATH, GENERATED_DIR, UPLOADS_DIR, DATA_DIR,
     DEFAULT_LLM_PROVIDER, SAFE_MODE, SMTP_HOST, SMTP_USER, SENDER_NAME, DEFAULT_USER_EMAIL,
     HUNTER_API_KEY, APOLLO_API_KEY, update_env_file
 )
@@ -200,12 +201,49 @@ def is_production_mode() -> bool:
     env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").lower().strip()
     return env in ["production", "prod"]
 
-DEFAULT_DEV_JWT_SECRET = "nexushunt-development-jwt-auth-secret-key-2026-secure-32chars"
-_raw_jwt = os.getenv("JWT_SECRET", "").strip()
-if is_production_mode() and (not _raw_jwt or _raw_jwt == DEFAULT_DEV_JWT_SECRET):
-    raise RuntimeError("CRITICAL SECURITY ERROR: A custom JWT_SECRET environment variable must be set in production mode.")
-JWT_SECRET = _raw_jwt or DEFAULT_DEV_JWT_SECRET
+def _load_jwt_secret() -> str:
+    """Returns the JWT signing secret. Never falls back to a secret embedded in source code:
+    production requires JWT_SECRET, local installs get a random secret persisted under data/."""
+    raw = os.getenv("JWT_SECRET", "").strip()
+    if raw:
+        if is_production_mode() and len(raw) < 32:
+            raise RuntimeError("CRITICAL SECURITY ERROR: JWT_SECRET must be at least 32 characters in production mode.")
+        return raw
+    if is_production_mode():
+        raise RuntimeError("CRITICAL SECURITY ERROR: A custom JWT_SECRET environment variable must be set in production mode.")
+    secret_file = DATA_DIR / ".jwt_secret"
+    try:
+        existing = secret_file.read_text(encoding="utf-8").strip() if secret_file.exists() else ""
+        if len(existing) >= 32:
+            return existing
+        generated = secrets.token_urlsafe(48)
+        secret_file.write_text(generated, encoding="utf-8")
+        try:
+            os.chmod(secret_file, 0o600)
+        except OSError:
+            pass
+        return generated
+    except OSError:
+        # Read-only data dir: use an in-memory secret (sessions reset on restart)
+        return secrets.token_urlsafe(48)
+
+JWT_SECRET = _load_jwt_secret()
 JWT_ALGORITHM = "HS256"
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+def is_local_dev_auth_enabled() -> bool:
+    """Single-user local mode: lets requests without a token act as a local profile.
+    Off unless ALLOW_DEV_AUTH=true is set explicitly, and never available in production."""
+    if is_production_mode():
+        return False
+    return os.getenv("ALLOW_DEV_AUTH", "false").lower().strip() in ["true", "1", "yes"]
+
+def resolve_target_user(current_user_id: str, requested_user_id: Optional[str]) -> str:
+    """A request body may only name another profile in single-user local mode."""
+    if requested_user_id and is_local_dev_auth_enabled():
+        return requested_user_id.strip() or current_user_id
+    return current_user_id
 
 def validate_safe_user_file_path(path_str: str, user_id: str) -> Path:
     """Validates that a file attachment strictly belongs to the user and prevents path traversal."""
@@ -245,34 +283,40 @@ def create_access_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def get_current_user_id(
+    request: Request,
     authorization: Optional[str] = Header(None),
     x_user_id: Optional[str] = Header(None),
-    user_id: Optional[str] = None
+    access_token: Optional[str] = None
 ) -> str:
-    # 1. Primary: Cryptographically verified JWT token
+    local_dev = is_local_dev_auth_enabled() and bool(request.client) and request.client.host in _LOOPBACK_HOSTS
+
+    # 1. Cryptographically verified JWT. Browsers cannot set headers on EventSource streams
+    #    or iframe document previews, so those pass the same token as ?access_token=.
+    token = None
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ")[1].strip()
+    elif access_token:
+        token = access_token.strip()
+
+    if token:
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             if payload.get("sub"):
                 return payload["sub"]
         except Exception:
-            if is_production_mode():
-                raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in again.")
+            pass
+        if not local_dev:
+            raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in again.")
 
-    # 2. In production, unauthenticated clients cannot spoof or read another candidate's private data
-    if is_production_mode():
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required. Please sign in to access candidate profile and records."
-        )
+    # 2. Single-user local mode (explicit opt-in, loopback clients only)
+    if local_dev:
+        return (x_user_id or "").strip() or "default"
 
-    # 3. Development Fallback (Local Dev Only)
-    if x_user_id:
-        return x_user_id.strip()
-    if user_id:
-        return user_id.strip()
-    return "default"
+    # 3. Everything else must sign in: identity is never taken from a header or query parameter
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required. Please sign in to access candidate profile and records."
+    )
 
 
 @app.get("/api/health")
@@ -337,20 +381,20 @@ def get_current_user(current_user_id: str = Depends(get_current_user_id)):
 
 @app.get("/api/auth/users")
 def list_available_users():
-    if is_production_mode():
+    if not is_local_dev_auth_enabled():
         raise HTTPException(
             status_code=403,
-            detail="Candidate directory listing is strictly disabled in production for candidate privacy."
+            detail="Candidate directory listing is only available in single-user local mode (ALLOW_DEV_AUTH=true)."
         )
     tracker = ApplicationTracker()
     return {"users": tracker.list_users()}
 
 @app.post("/api/auth/switch")
 def switch_user(req: SwitchUserRequest):
-    if is_production_mode():
+    if not is_local_dev_auth_enabled():
         raise HTTPException(
             status_code=403,
-            detail="Arbitrary candidate switching is strictly disabled in production. Please sign in with your credentials."
+            detail="Candidate switching is only available in single-user local mode (ALLOW_DEV_AUTH=true). Please sign in with your credentials."
         )
     tracker = ApplicationTracker()
     user = tracker.get_user_by_id(req.user_id)
@@ -588,7 +632,7 @@ def download_default_europass_cv(user_id: str = Depends(get_current_user_id)):
 
 # --- LIVE JOB HUNTER ---
 @app.post("/api/jobs/search")
-def search_jobs(req: JobSearchRequest):
+def search_jobs(req: JobSearchRequest, current_user_id: str = Depends(get_current_user_id)):
     hunter = LiveJobHunter()
     jobs = hunter.search_live(
         keyword=req.keyword,
@@ -596,7 +640,7 @@ def search_jobs(req: JobSearchRequest):
         max_results=req.max_results
     )
     
-    pb = PersonaBuilder()
+    pb = PersonaBuilder(user_id=current_user_id)
     analyzer = JobDescriptionAnalyzer(pb.profile)
     scored_jobs = []
     for j in jobs:
@@ -613,11 +657,11 @@ def search_jobs(req: JobSearchRequest):
     return {"count": len(scored_jobs), "jobs": scored_jobs}
 
 @app.get("/api/jobs/stream")
-def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_results: int = 30):
+def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_results: int = 30, current_user_id: str = Depends(get_current_user_id)):
     def event_stream():
         yield ": ping\n\n"
         hunter = LiveJobHunter()
-        pb = PersonaBuilder()
+        pb = PersonaBuilder(user_id=current_user_id)
         analyzer = JobDescriptionAnalyzer(pb.profile)
         for j in hunter.stream_live(
             keyword=keyword,
@@ -651,7 +695,8 @@ def get_global_remote_jobs(
     keyword: str = "Python",
     worldwide_only: bool = True,
     limit: int = 60,
-    source: str = "ALL"
+    source: str = "ALL",
+    current_user_id: str = Depends(get_current_user_id)
 ):
     """Fetches verified 100% remote jobs from keyless public JSON feeds (RemoteOK, Remotive, 
     Jobicy, Himalayas, Arbeitnow, WWR RSS) and Direct Company ATS (Greenhouse/Ashby/Lever).
@@ -673,7 +718,7 @@ def get_global_remote_jobs(
 
 # --- DUBAI & UAE CAREER HUNTER (HIGH-MATCH & OVERQUALIFIED ROLES) ---
 @app.get("/api/jobs/dubai")
-def get_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40):
+def get_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40, current_user_id: str = Depends(get_current_user_id)):
     """Fetches high-fit Dubai & UAE corporate job postings across Business Analyst, 
     IT Support, Document Controller, Software Engineering, and Operations roles."""
     try:
@@ -686,7 +731,7 @@ def get_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40):
         return {"status": "error", "message": str(e), "count": 0, "jobs": []}
 
 @app.get("/api/jobs/dubai/stream")
-def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40):
+def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40, current_user_id: str = Depends(get_current_user_id)):
     def event_stream():
         yield ": ping\n\n"
         from hunter.dubai_hunter import DubaiJobHunter
@@ -722,7 +767,7 @@ def analyze_cv(
         hunter = UniversalCVHunter()
         text_to_analyze = req.raw_text if req and req.raw_text else ""
         if not text_to_analyze:
-            uid = current_user_id if is_production_mode() else (req.user_id if req and req.user_id else current_user_id)
+            uid = resolve_target_user(current_user_id, req.user_id if req else None)
             pb = PersonaBuilder(user_id=uid)
             text_to_analyze = json.dumps(pb.profile, indent=2)
         analysis = hunter.parse_and_analyze_cv(text_to_analyze)
@@ -761,7 +806,7 @@ async def upload_and_analyze_cv(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/cv-hunter/search")
-def search_jobs_for_cv(req: CVJobHuntRequest):
+def search_jobs_for_cv(req: CVJobHuntRequest, current_user_id: str = Depends(get_current_user_id)):
     """Hunts live matching jobs worldwide using the extracted CV analysis parameters."""
     try:
         from hunter.universal_cv_hunter import UniversalCVHunter
@@ -785,7 +830,7 @@ def search_jobs_for_cv(req: CVJobHuntRequest):
 
 # --- GLOBAL RECRUITER & HR FINDER ---
 @app.get("/api/hr/by-role/stream")
-def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 25):
+def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limit: int = 25, current_user_id: str = Depends(get_current_user_id)):
     def event_stream():
         yield ": ping\n\n"
         for comp in HRFinder.stream_companies_and_hr_by_role(role=role, region=region, max_companies=limit):
@@ -804,7 +849,7 @@ def stream_hr_by_role(role: str = "Python Developer", region: str = "GULF", limi
     )
 
 @app.post("/api/hr/by-role")
-def find_hr_by_role(req: RoleHRSearchRequest):
+def find_hr_by_role(req: RoleHRSearchRequest, current_user_id: str = Depends(get_current_user_id)):
     results = HRFinder.find_companies_and_hr_by_role(
         role=req.role,
         region=req.region,
@@ -813,7 +858,7 @@ def find_hr_by_role(req: RoleHRSearchRequest):
     return {"role": req.role, "region": req.region, "count": len(results), "companies": results}
 
 @app.post("/api/hr/by-company")
-def find_hr_by_company(req: CompanyHRSearchRequest):
+def find_hr_by_company(req: CompanyHRSearchRequest, current_user_id: str = Depends(get_current_user_id)):
     results = HRFinder.search_global_hr(
         company_name=req.company,
         domain=req.domain,
@@ -825,7 +870,7 @@ def find_hr_by_company(req: CompanyHRSearchRequest):
 # --- AI CV & COVER LETTER TAILOR ---
 @app.post("/api/cv/tailor")
 def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_user_id)):
-    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+    user_id = resolve_target_user(current_user_id, req.user_id)
     pb = PersonaBuilder(user_id=user_id)
 
     # Drafter -> Reviewer -> Revise loop (rule-based fact check + LLM review)
@@ -865,7 +910,7 @@ def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_use
     }
 
 @app.post("/api/cv/generate-pdf")
-def generate_pdf(req: PDFGenRequest):
+def generate_pdf(req: PDFGenRequest, current_user_id: str = Depends(get_current_user_id)):
     import time
     pdf_gen = PDFResumeBuilder()
     out_file = GENERATED_DIR / f"Europass_CV_{int(time.time())}.pdf"
@@ -882,7 +927,7 @@ def generate_pdf(req: PDFGenRequest):
     )
 
 @app.post("/api/cv/generate-ats-pdf")
-def generate_ats_pdf(req: PDFGenRequest):
+def generate_ats_pdf(req: PDFGenRequest, current_user_id: str = Depends(get_current_user_id)):
     import time
     pdf_gen = PDFResumeBuilder()
     out_file = GENERATED_DIR / f"Clean_ATS_CV_{int(time.time())}.pdf"
@@ -899,7 +944,7 @@ def generate_ats_pdf(req: PDFGenRequest):
     )
 
 @app.post("/api/cv/ats-plaintext")
-def get_ats_plaintext(req: ATSPlainTextRequest):
+def get_ats_plaintext(req: ATSPlainTextRequest, current_user_id: str = Depends(get_current_user_id)):
     pdf_gen = PDFResumeBuilder()
     plaintext = pdf_gen.generate_ats_plaintext(req.tailored_resume)
     return {"plaintext": plaintext}
@@ -917,7 +962,7 @@ def get_skill_gap(req: SkillGapRequest, current_user_id: str = Depends(get_curre
 
 @app.post("/api/interview/generate")
 def generate_interview_prep(req: InterviewGenerateRequest, current_user_id: str = Depends(get_current_user_id)):
-    user_id = current_user_id if is_production_mode() else (req.candidate_id or current_user_id)
+    user_id = resolve_target_user(current_user_id, req.candidate_id)
     pb = PersonaBuilder(user_id=user_id)
     engine = InterviewEngine(pb.profile)
     pack = engine.generate_interview_pack(
@@ -1065,7 +1110,7 @@ async def upload_outreach_attachment(
 # --- OUTREACH & EMAIL DISPATCHER ---
 @app.post("/api/outreach/draft")
 def draft_outreach(req: OutreachDraftRequest, current_user_id: str = Depends(get_current_user_id)):
-    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+    user_id = resolve_target_user(current_user_id, req.user_id)
     pb = PersonaBuilder(user_id=user_id)
     cl_gen = CoverLetterGenerator(pb.profile)
     subject, body = cl_gen.generate_recruiter_email(
@@ -1078,7 +1123,7 @@ def draft_outreach(req: OutreachDraftRequest, current_user_id: str = Depends(get
 
 @app.post("/api/outreach/send")
 def send_outreach(req: SendEmailRequest, current_user_id: str = Depends(get_current_user_id)):
-    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+    user_id = resolve_target_user(current_user_id, req.user_id)
 
     # Security: Validate file attachments against user boundary & prevent path traversal
     cv_attachment = validate_safe_user_file_path(req.cv_path, user_id) if req.cv_path else None
@@ -1114,7 +1159,7 @@ def list_applications(user_id: str = Depends(get_current_user_id)):
 
 @app.post("/api/tracker/update-status")
 def update_application_status(req: StatusUpdateRequest, current_user_id: str = Depends(get_current_user_id)):
-    user_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+    user_id = resolve_target_user(current_user_id, req.user_id)
     tracker = ApplicationTracker()
     ok = tracker.update_status(req.application_id, req.new_status, user_id=user_id)
     return {"status": "success" if ok else "error"}
@@ -1122,7 +1167,7 @@ def update_application_status(req: StatusUpdateRequest, current_user_id: str = D
 
 # --- CAREER PORTALS ---
 @app.get("/api/portals")
-def get_career_portals(region: Optional[str] = None, query: Optional[str] = None):
+def get_career_portals(region: Optional[str] = None, query: Optional[str] = None, current_user_id: str = Depends(get_current_user_id)):
     from hunter.portals import CareerPortalManager
     mgr = CareerPortalManager()
     portals = mgr.list_portals(region=region, query=query)
@@ -1154,7 +1199,7 @@ def delete_career_portal(portal_id: int, current_user_id: str = Depends(get_curr
 
 # --- SETTINGS ---
 @app.get("/api/settings")
-def get_settings():
+def get_settings(current_user_id: str = Depends(get_current_user_id)):
     return {
         "llm_provider": os.getenv("LLM_PROVIDER", DEFAULT_LLM_PROVIDER),
         "safe_mode": os.getenv("SAFE_MODE", str(SAFE_MODE)),
@@ -1198,7 +1243,7 @@ def get_user_settings(user_id: str = Depends(get_current_user_id)):
 
 @app.post("/api/settings/user")
 def save_user_settings(req: UserSettingsRequest, current_user_id: str = Depends(get_current_user_id)):
-    target_id = current_user_id if is_production_mode() else (req.user_id or current_user_id)
+    target_id = resolve_target_user(current_user_id, req.user_id)
     tracker = ApplicationTracker()
     existing = tracker.get_user_settings(target_id)
     pw_to_save = (req.smtp_password or "").strip()

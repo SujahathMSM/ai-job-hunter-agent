@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import unittest
@@ -9,7 +10,6 @@ sys.path.insert(0, str(BASE_DIR))
 
 from matcher.geo_rules import GeoLocationEngine
 from matcher.jd_analyzer import JobDescriptionAnalyzer
-from ingestion.persona_builder import PersonaBuilder
 from generators.resume_tailorer import ResumeTailorer
 from generators.cover_letter_gen import CoverLetterGenerator
 from generators.pdf_builder import PDFResumeBuilder
@@ -20,8 +20,15 @@ from outreach.email_sender import EmailDispatcher
 class TestJobHunterAgent(unittest.TestCase):
 
     def setUp(self):
-        self.builder = PersonaBuilder()
-        self.profile = self.builder.get_profile()
+        # Use the committed example persona so tests never depend on (or read) the
+        # developer's private profile in data/master_persona.json or the local database.
+        with open(BASE_DIR / "data" / "master_persona.example.json", "r", encoding="utf-8") as f:
+            self.profile = json.load(f)
+        self.profile["projects"].append({
+            "title": "Hybrid RAG Document Search",
+            "technologies": "Python, FastAPI, PostgreSQL",
+            "bullets": ["Built a retrieval service combining keyword and vector search over internal documents."]
+        })
 
     def test_geo_rules_strict_israel_exclusion(self):
         """Test that any job mentioning Israel or Israeli cities is strictly blocked."""
@@ -194,7 +201,7 @@ evalX | Pytest, LLM-as-a-Judge
         )
         self.assertIn("AI", tailored["tailored_title"])
         self.assertGreaterEqual(len(tailored["projects"]), 2)
-        self.assertTrue(any("AeroIntel" in p["title"] for p in tailored["projects"]))
+        self.assertTrue(any("Scalable Telemetry Pipeline" in p["title"] for p in tailored["projects"]))
 
     def test_cover_letter_generator_fallback(self):
         """Test CoverLetterGenerator fallback renders without NameError and contains candidate strengths."""

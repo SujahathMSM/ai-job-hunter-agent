@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail, Eye, X, ExternalLink, Upload, RotateCcw, FileCheck } from "lucide-react";
 import { sendEmail, uploadOutreachAttachment } from "../../lib/api";
-import { getStoredUser } from "../../lib/auth";
+import { getStoredUser, withAuthQuery } from "../../lib/auth";
 
 interface ColdEmailViewProps {
   initialData?: {
@@ -489,9 +489,11 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
                 <div className="flex items-center gap-2">
                   <a
                     href={
-                      previewDoc.custom_file
-                        ? `/api/documents/preview?custom_file=${encodeURIComponent(previewDoc.custom_file)}`
-                        : `/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`
+                      withAuthQuery(
+                        previewDoc.custom_file
+                          ? `/api/documents/preview?custom_file=${encodeURIComponent(previewDoc.custom_file)}`
+                          : `/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`
+                      )
                     }
                     target="_blank"
                     rel="noopener noreferrer"
@@ -513,9 +515,11 @@ export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailV
               <div className="flex-1 bg-[#1a1b22] p-2 overflow-hidden flex items-center justify-center">
                 <iframe
                   src={
-                    previewDoc.custom_file
-                      ? `/api/documents/preview?custom_file=${encodeURIComponent(previewDoc.custom_file)}`
-                      : `/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`
+                    withAuthQuery(
+                      previewDoc.custom_file
+                        ? `/api/documents/preview?custom_file=${encodeURIComponent(previewDoc.custom_file)}`
+                        : `/api/documents/preview?type=${previewDoc.type}&company=${encodeURIComponent(company)}&job_title=${encodeURIComponent(jobTitle)}`
+                    )
                   }
                   className="w-full h-[72vh] rounded-lg border border-[#3d494c]/30 bg-white"
                   title={previewDoc.title}

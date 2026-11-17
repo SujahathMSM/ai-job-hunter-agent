@@ -13,6 +13,9 @@ NexusHunt AI incorporates security and isolation guardrails:
 
 1. **Authentication & Multi-Tenant Isolation**:
    - Accounts require cryptographically salted password hashes.
+   - Every API endpoint except health, login/registration and the Google client-id lookup requires a signed session token (JWT). Identity is never taken from a request header, query parameter or request body.
+   - Single-user local mode (`ALLOW_DEV_AUTH=true`, set by `start.bat`) lets requests from the same machine (loopback only) use the app without signing in. It is off by default and always off when `APP_ENV=production`.
+   - No signing secret is embedded in the source: production requires `JWT_SECRET`; local installs generate a random one in `data/.jwt_secret`.
    - User data, uploaded documents, resumes, and profiles are partitioned per user ID in isolated directories (`data/uploads/<user_id>/`).
    - Cross-user file access and path traversal attempts (`..`, `.env`, database files) are strictly blocked with `403 Forbidden`.
 
