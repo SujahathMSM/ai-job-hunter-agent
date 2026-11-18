@@ -12,7 +12,8 @@ Which boards are searched depends on the country:
 
 Glassdoor skips countries it doesn't cover on its own. Every board is queried with an
 hours_old filter, and each board runs separately so one blocked or failing board doesn't
-lose the results from the others.
+lose the results from the others. Adzuna and Jooble are added when their free API keys are
+set (see hunter/keyed_sources.py).
 """
 import re
 import urllib.parse
@@ -169,17 +170,30 @@ def scrape_location(
     max_days: int = MAX_POSTING_AGE_DAYS,
     sites: Optional[Iterable[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Search every relevant board for one location; returns live, de-duplicated postings."""
+    """Search every relevant board for one location (plus Adzuna/Jooble when their keys are
+    set); returns live, de-duplicated postings."""
+    from hunter.keyed_sources import search_keyed_sources
+
     try:
         import jobspy  # noqa: F401
+        chosen = list(sites) if sites else sites_for_country(country)
     except ImportError:
-        return []
+        chosen = []
 
     hours_old = max_days * 24
-    chosen = list(sites) if sites else sites_for_country(country)
     jobs: List[Dict[str, Any]] = []
     seen = set()
-    with ThreadPoolExecutor(max_workers=len(chosen)) as pool:
+
+    def add(job: Optional[Dict[str, Any]]) -> None:
+        if not job:
+            return
+        key = (job["job_title"].lower(), job["company"].lower())
+        if key not in seen:
+            seen.add(key)
+            jobs.append(job)
+
+    with ThreadPoolExecutor(max_workers=len(chosen) + 1) as pool:
+        keyed = pool.submit(search_keyed_sources, search_term, city, country, display, max_days, results_wanted)
         futures = {
             pool.submit(_scrape_one_site, s, search_term, city, country, results_wanted, hours_old): s
             for s in chosen
@@ -193,12 +207,10 @@ def scrape_location(
             if df is None or df.empty:
                 continue
             for row in df.to_dict("records"):
-                job = normalize_row(row, display or city, max_days, hours_old)
-                if not job:
-                    continue
-                key = (job["job_title"].lower(), job["company"].lower())
-                if key in seen:
-                    continue
-                seen.add(key)
-                jobs.append(job)
+                add(normalize_row(row, display or city, max_days, hours_old))
+        try:
+            for job in keyed.result():
+                add(job)
+        except Exception as e:
+            print(f"[Job Sources] Adzuna/Jooble failed for '{search_term}' in {city}: {type(e).__name__}: {e}")
     return jobs
