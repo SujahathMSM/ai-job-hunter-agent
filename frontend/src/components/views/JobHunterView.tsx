@@ -251,9 +251,15 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
           {jobs.map((job, idx) => {
             const jobKey = job.id || `${job.company}-${job.job_title}-${idx}`;
             const isExpanded = expandedJobKey === jobKey;
-            const score = job.fit_analysis?.match_score || 70;
+            const score = job.fit_analysis?.match_score ?? 0;
+            const fitLabel = job.fit_analysis?.fit_label || "";
+            const fitReasons = job.fit_analysis?.fit_reasons || [];
             const scoreColor =
-              score >= 75 ? "text-[#4edea3] border-[#4edea3]/40 bg-[#4edea3]/10" : "text-[#4cd7f6] border-[#4cd7f6]/40 bg-[#4cd7f6]/10";
+              score >= 80
+                ? "text-[#4edea3] border-[#4edea3]/40 bg-[#4edea3]/10"
+                : score >= 60
+                ? "text-[#4cd7f6] border-[#4cd7f6]/40 bg-[#4cd7f6]/10"
+                : "text-[#ffd479] border-[#ffd479]/40 bg-[#ffd479]/10";
             const hasEmail = Boolean(job.hr_email && job.hr_email.includes("@"));
             const portalUrl = job.portal || job.job_url || "#";
             const recruiterSearchUrl =
@@ -272,7 +278,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-[19px] font-bold text-[#e3e1ec]">{job.job_title}</h2>
                         <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${scoreColor}`}>
-                          {score}% ATS Match
+                          {score}% Fit{fitLabel ? ` · ${fitLabel}` : ""}
                         </span>
                         {job.site && (
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1e1f26] text-[#869397] border border-[#3d494c]/30">
@@ -367,6 +373,18 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                     </div>
                   </div>
 
+                  {/* Why this score */}
+                  {fitReasons.length > 0 && (
+                    <div className="p-3.5 rounded-lg bg-[#14151f] border border-[#3d494c]/20">
+                      <div className="text-[11px] font-mono uppercase text-[#bcc9cd] mb-1.5">Why this fit score</div>
+                      <ul className="flex flex-col gap-1 text-xs text-[#e3e1ec]">
+                        {fitReasons.map((r, i) => (
+                          <li key={i}>• {r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* Skills & ATS Insights */}
                   {job.fit_analysis && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 rounded-lg bg-[#14151f] border border-[#3d494c]/20">
@@ -382,14 +400,14 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                               </span>
                             ))
                           ) : (
-                            <span className="text-xs text-[#869397]">Core backend architecture & engineering standards</span>
+                            <span className="text-xs text-[#869397]">No named tools matched</span>
                           )}
                         </div>
                       </div>
 
                       <div>
                         <div className="text-[11px] font-mono uppercase text-[#bcc9cd] mb-1.5">
-                          Target Platform Tech Stack
+                          Asked For, Not In Your Profile
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {job.fit_analysis.missing_tech && job.fit_analysis.missing_tech.length > 0 ? (
@@ -399,7 +417,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                               </span>
                             ))
                           ) : (
-                            <span className="text-xs text-[#869397]">Aligned with candidate master engineering persona</span>
+                            <span className="text-xs text-[#869397]">Nothing missing from the tools the posting names</span>
                           )}
                         </div>
                       </div>
@@ -470,7 +488,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                       </div>
                     </div>
                     <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${scoreColor}`}>
-                      {score}% ATS Match
+                      {score}% Fit{fitLabel ? ` · ${fitLabel}` : ""}
                     </span>
                   </div>
 
@@ -586,7 +604,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                     </span>
                   )}
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6] font-bold">
-                    ✓ {modalJob.fit_analysis?.match_score || 70}% ATS MATCH
+                    ✓ {modalJob.fit_analysis?.match_score ?? "--"}% Fit
                   </span>
                 </div>
                 <h2 className="text-lg font-bold text-[#e3e1ec] tracking-tight">

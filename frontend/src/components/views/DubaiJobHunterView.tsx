@@ -153,13 +153,12 @@ export default function DubaiJobHunterView({
       portal: applyLink,
       salary: job.salary,
       hr_email: job.hr_email || undefined,
-      fit_analysis: {
-        match_score: job.match_score || 92,
+      fit_analysis: job.fit_analysis ?? {
+        match_score: job.match_score ?? 0,
         is_engineering: true,
         geo_eligible: true,
-        matched_skills: job.tags || ["Business Analysis", "Systems", "Python"],
+        matched_skills: job.tags || [],
         missing_tech: [],
-        summary: `Strong Dubai candidate match. Engineering foundation from Moratuwa provides exceptional hireability for ${job.job_title} at ${job.company}.`,
       },
     };
     onSelectForTailor(jobItem);
@@ -412,11 +411,14 @@ export default function DubaiJobHunterView({
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6]">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span className="text-xs font-mono font-bold">
-                        {job.match_score || 92}% MATCH
+                        {job.match_score ?? "--"}% Fit
                       </span>
                     </div>
-                    <span className="text-[10px] text-[#4edea3] font-mono mt-0.5 font-medium">
-                      High Hireability Edge
+                    <span
+                      className="text-[10px] text-[#4edea3] font-mono mt-0.5 font-medium"
+                      title={(job.fit_analysis?.fit_reasons || []).join("\n")}
+                    >
+                      {job.fit_analysis?.fit_label || "Fit"}
                     </span>
                   </div>
                 </div>
@@ -552,7 +554,7 @@ export default function DubaiJobHunterView({
                     📍 {activeModalJob.location}
                   </span>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6] font-bold">
-                    ✓ {activeModalJob.match_score || 92}% ATS FIT
+                    ✓ {activeModalJob.match_score ?? "--"}% Fit
                   </span>
                 </div>
                 <h2 className="text-xl font-bold text-[#e3e1ec] tracking-tight">

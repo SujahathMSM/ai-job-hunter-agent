@@ -711,6 +711,23 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
         }
     )
 
+def score_jobs_for_user(jobs: List[Dict[str, Any]], user_id: str) -> List[Dict[str, Any]]:
+    """Replace listing-supplied match scores with the user's own fit score, best first.
+    These feeds are already filtered by region, so location is not re-checked here."""
+    analyzer = JobDescriptionAnalyzer(PersonaBuilder(user_id=user_id).profile)
+    for j in jobs:
+        analysis = analyzer.analyze(
+            job_title=j.get("job_title", ""),
+            company=j.get("company", ""),
+            location=j.get("location", ""),
+            jd_text=j.get("full_description") or j.get("description", ""),
+            enforce_geo=False,
+        )
+        j["fit_analysis"] = analysis
+        j["match_score"] = analysis["match_score"]
+    jobs.sort(key=lambda x: x.get("match_score", 0), reverse=True)
+    return jobs
+
 # --- GLOBAL REMOTE JOBS (WORLDWIDE ONLY) ---
 @app.get("/api/jobs/remote")
 def get_global_remote_jobs(
@@ -732,6 +749,7 @@ def get_global_remote_jobs(
             limit=limit,
             source_filter=source
         )
+        jobs = score_jobs_for_user(jobs, current_user_id)
         return {"status": "success", "count": len(jobs), "jobs": jobs}
     except Exception as e:
         print(f"[Remote Jobs Hunter Error]: {e}")
@@ -747,6 +765,7 @@ def get_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40, cu
         from hunter.dubai_hunter import DubaiJobHunter
         hunter = DubaiJobHunter()
         jobs = hunter.search_dubai_jobs(keyword=keyword, category=category, max_results=limit)
+        jobs = score_jobs_for_user(jobs, current_user_id)
         return {"status": "success", "count": len(jobs), "jobs": jobs}
     except Exception as e:
         print(f"[Dubai Jobs Hunter Error]: {e}")
@@ -759,6 +778,7 @@ def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40,
         from hunter.dubai_hunter import DubaiJobHunter
         hunter = DubaiJobHunter()
         jobs = hunter.search_dubai_jobs(keyword=keyword, category=category, max_results=limit)
+        jobs = score_jobs_for_user(jobs, current_user_id)
         for j in jobs:
             yield f"data: {json.dumps(j)}\n\n"
             time.sleep(0.03)

@@ -65,6 +65,8 @@ export interface JobItem {
     matched_skills: string[];
     missing_tech: string[];
     summary?: string;
+    fit_label?: string;
+    fit_reasons?: string[];
   };
 }
 
@@ -115,6 +117,7 @@ export interface GlobalRemoteJob {
   job_url?: string;
   description: string;
   match_score: number;
+  fit_analysis?: JobItem["fit_analysis"];
   date_posted?: string;
   posted_at?: string;
 }
@@ -136,5 +139,6 @@ export interface DubaiJobItem {
   posted_at?: string;
   is_dubai: boolean;
   match_score: number;
+  fit_analysis?: JobItem["fit_analysis"];
   overqualification_insight?: string;
 }

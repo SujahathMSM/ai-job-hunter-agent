@@ -151,13 +151,12 @@ export default function GlobalRemoteJobsView({
       job_url: applyLink,
       portal: applyLink,
       salary: job.salary,
-      fit_analysis: {
-        match_score: job.match_score || 85,
+      fit_analysis: job.fit_analysis ?? {
+        match_score: job.match_score ?? 0,
         is_engineering: true,
         geo_eligible: true,
-        matched_skills: job.tags || ["Python", "Backend"],
+        matched_skills: job.tags || [],
         missing_tech: [],
-        summary: `Strong worldwide remote match for ${job.job_title} at ${job.company}.`,
       },
     };
     onSelectForTailor(jobItem);
@@ -446,11 +445,14 @@ export default function GlobalRemoteJobsView({
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6]">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span className="text-xs font-mono font-bold">
-                        {job.match_score || 85}% ATS FIT
+                        {job.match_score ?? "--"}% Fit
                       </span>
                     </div>
-                    <span className="text-[10px] text-[#879396] mt-0.5">
-                      Moratuwa Stack Match
+                    <span
+                      className="text-[10px] text-[#879396] mt-0.5"
+                      title={(job.fit_analysis?.fit_reasons || []).join("\n")}
+                    >
+                      {job.fit_analysis?.fit_label || "Fit"}
                     </span>
                   </div>
                 </div>
@@ -588,7 +590,7 @@ export default function GlobalRemoteJobsView({
                     {activeModalJob.source}
                   </span>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#005047]/30 border border-[#00a389]/40 text-[#4cd7f6] font-bold">
-                    ✓ {activeModalJob.match_score || 85}% ATS FIT
+                    ✓ {activeModalJob.match_score ?? "--"}% Fit
                   </span>
                 </div>
                 <h2 className="text-lg font-bold text-[#e3e1ec] tracking-tight">
