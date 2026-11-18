@@ -84,13 +84,13 @@ This automatically launches:
 **Backend** with [uv](https://docs.astral.sh/uv/) (recommended; installs the exact versions in `uv.lock` into `.venv`):
 ```bash
 uv sync --extra dev
-uv run uvicorn api:app --port 8005 --reload
+uv run python api.py      # dev server on :8005 with auto-reload
 ```
 
 Or with pip:
 ```bash
 python -m pip install -e ".[dev]"      # or: python -m pip install -r requirements.txt  (exact pinned versions)
-python -m uvicorn api:app --port 8005 --reload
+python api.py
 ```
 
 Dependencies are declared in `pyproject.toml`. After changing them, run `uv lock`, then refresh the pip files:

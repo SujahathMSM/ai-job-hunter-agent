@@ -1292,6 +1292,17 @@ def save_user_settings(req: UserSettingsRequest, current_user_id: str = Depends(
     }
 
 if __name__ == "__main__":
+    # Dev server: `python api.py` (or `uv run python api.py`). Reload watches the project but
+    # not the virtualenv, frontend or data folders: installs into .venv and Next.js rewriting
+    # node_modules would otherwise restart or crash the server. Excludes must be absolute paths.
     import uvicorn
-    port = int(os.getenv("BACKEND_PORT") or os.getenv("PORT") or 8005)
-    uvicorn.run("api:app", host="127.0.0.1", port=port, reload=True)
+    port = int((os.getenv("BACKEND_PORT") or os.getenv("PORT") or "8005").strip())
+    uvicorn.run(
+        "api:app",
+        host="127.0.0.1",
+        port=port,
+        reload=True,
+        reload_dirs=[str(BASE_DIR)],
+        # Only folders that exist: uvicorn treats a missing absolute path as a glob and errors
+        reload_excludes=[str(BASE_DIR / d) for d in (".venv", "venv", "frontend", "data", ".git") if (BASE_DIR / d).is_dir()],
+    )
