@@ -12,8 +12,8 @@ Which boards are searched depends on the country:
 
 Glassdoor skips countries it doesn't cover on its own. Every board is queried with an
 hours_old filter, and each board runs separately so one blocked or failing board doesn't
-lose the results from the others. Adzuna and Jooble are added when their free API keys are
-set (see hunter/keyed_sources.py).
+lose the results from the others. Jooble is added when its free API key is set (see
+hunter/keyed_sources.py).
 """
 import re
 import urllib.parse
@@ -170,7 +170,7 @@ def scrape_location(
     max_days: int = MAX_POSTING_AGE_DAYS,
     sites: Optional[Iterable[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Search every relevant board for one location (plus Adzuna/Jooble when their keys are
+    """Search every relevant board for one location (plus Jooble when its key is
     set); returns live, de-duplicated postings."""
     from hunter.keyed_sources import search_keyed_sources
 
@@ -212,5 +212,5 @@ def scrape_location(
             for job in keyed.result():
                 add(job)
         except Exception as e:
-            print(f"[Job Sources] Adzuna/Jooble failed for '{search_term}' in {city}: {type(e).__name__}: {e}")
+            print(f"[Job Sources] Jooble failed for '{search_term}' in {city}: {type(e).__name__}: {e}")
     return jobs
