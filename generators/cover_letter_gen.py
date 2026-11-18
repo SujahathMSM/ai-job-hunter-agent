@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, Any
 from generators.llm_client import LLMClient
+from generators.style_checker import STYLE_RULES_FOR_PROMPT
 
 class CoverLetterGenerator:
     """Generates impressive, persuasive cover letters tailored to target job descriptions,
@@ -32,7 +33,7 @@ class CoverLetterGenerator:
             clean_jd = f"High-impact opening for {job_title} at {company} in {location}. Requires strong engineering foundations, system architecture, API design, production delivery, and domain execution."
 
         prompt = f"""
-Write an impressive, persuasive executive cover letter for:
+Write a cover letter (under 300 words) for:
 Candidate: {full_name}
 Target Role: {job_title}
 Target Company: {company}
@@ -48,11 +49,13 @@ Target Job Requirements & Context:
 {clean_jd[:1400]}
 
 TONE & CRITERIA:
-- Highly professional, persuasive, technically credible, and articulate.
-- Express sharp, enthusiastic commitment to delivering immediate engineering value to {company}.
-- Highlight candidate's genuine technical strengths and reliability in relation to {job_title} requirements.
-- Express readiness for on-site, hybrid, or remote delivery in {location}.
-- Include a strong, polite call to action for an interview.
+- Sound like a real person writing to a real hiring manager: specific, direct, a little informal is fine.
+- Open with why this company or role, not a generic statement of interest.
+- Connect 2-3 of the candidate's actual experiences or projects to the role's requirements. Use only facts from the background above.
+- Mention availability for on-site, hybrid, or remote work in {location}.
+- End with a short, polite request for an interview.
+
+{STYLE_RULES_FOR_PROMPT}
 - FORMATTING RULES:
   * Do NOT output candidate address, email, phone, date, or subject line at the start.
   * Start directly with the salutation: "Dear {company} Hiring Team," or "Dear Hiring Committee,".
@@ -79,13 +82,13 @@ Subject: Application for {job_title} - {full_name}
 
 Dear Hiring Team,
 
-I am writing to express my strong enthusiasm and formal application for the {job_title} position at {company}. With a solid foundation in engineering principles, hands-on technical execution, and structured problem-solving, I have developed a proven track record of architecting reliable systems and delivering measurable operational results.
+I'd like to apply for the {job_title} role at {company}. I've read through what the role involves, and it lines up closely with the work I've been doing.
 
-Having closely reviewed your requirements for the {job_title} role, I was particularly drawn to {company}'s engineering initiatives. My core competencies in {skills_summary} align directly with the high standards your team demands. In my previous work, I have consistently focused on optimizing technical workflows, eliminating system bottlenecks, and translating ambiguous technical specifications into scalable, high-performance solutions.
+The skills I use day to day are {skills_summary}. I'd be glad to walk you through how I've applied them and what I'd focus on in my first few months on your team.
 
-Currently based in {current_loc}, I have structured my professional affairs to support seamless delivery for opportunities in {location}. I am adaptable to multicultural working environments and eager to contribute effectively to your engineering goals.
+I'm currently based in {current_loc} and can work on-site, hybrid or remotely for a role in {location}.
 
-I welcome the opportunity to discuss how my technical expertise and proactive engineering mindset can support {company}'s strategic goals. Thank you for your time, consideration, and review of the attached resume.
+My CV is attached. I'd welcome a conversation about the role whenever suits you.
 
 Sincerely,
 

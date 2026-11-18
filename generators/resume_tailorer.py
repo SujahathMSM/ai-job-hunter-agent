@@ -2,6 +2,7 @@ import json
 import re
 from typing import Dict, Any, List
 from generators.llm_client import LLMClient
+from generators.style_checker import STYLE_RULES_FOR_PROMPT
 
 class ResumeTailorer:
     """Dynamically aligns candidate's Master Profile to target Job Description,
@@ -65,6 +66,8 @@ STRICT ANTI-HALLUCINATION & FACT-LOCKING RULES:
 2. Do NOT invent tools or libraries the candidate has never used. Only emphasize and prioritize technical skills and competencies that exist in the candidate's verified profile and stack.
 3. Keep project metrics accurate. Do not invent exaggerated benchmarks.
 
+{STYLE_RULES_FOR_PROMPT}
+
 CRITICAL TAILORING OBJECTIVES:
 1. 'tailored_title': High-impact executive headline matching the target role (e.g. for AI/Backend: '{job_title} | Systems & API Architecture Specialist').
 2. 'tailored_subtitle': Refined subtitle featuring the core technologies needed for this role that match candidate's actual strengths (e.g. 'Python (AsyncIO, FastAPI) | PostgreSQL | Docker | AWS | System Reliability').
@@ -106,20 +109,15 @@ Return ONLY valid JSON with keys:
             raw_tailored_work = parsed.get("work_history") or work_hist
             raw_tailored_projects = parsed.get("projects") or projects
         else:
-            # Deterministic Fallback based on authentic profile and role keywords
-            is_ai_role = any(kw in f"{job_title} {clean_jd}".lower() for kw in ["ai", "rag", "langgraph", "llm", "genai", "machine learning", "nlp"])
-            if is_ai_role:
-                tailored_title = f"{job_title} | AI Systems & RAG Specialist"
-                tailored_subtitle = "Python (FastAPI, AsyncIO) | RAG & Vector Search | PyTorch | PostgreSQL | Docker | CI/CD"
-                tailored_profile = (
-                    f"Engineer with demonstrated experience bridging production backend rigor and applied AI architectures. "
-                    f"Track record building high-throughput Python/FastAPI services, hybrid vector search pipelines, and automated "
-                    f"evaluation harnesses. Prepared for immediate technical delivery for {company} in {location}."
-                )
-            else:
-                tailored_title = f"{job_title} | Backend, Data & Systems Specialist"
-                tailored_subtitle = identity.get("professional_title") or "Software & Systems Engineer"
-                tailored_profile = self.profile.get("summary") or f"Experienced engineer ready to deliver scalable services for {company}."
+            # Deterministic fallback: built only from the profile, never from assumed skills
+            tailored_title = job_title
+            tailored_subtitle = (
+                identity.get("subtitle")
+                or identity.get("professional_title")
+                or " | ".join(str(t) for t in tech_stack[:6])
+                or "Software & Systems Engineer"
+            )
+            tailored_profile = self.profile.get("summary") or f"Engineer available for the {job_title} role at {company} in {location}."
 
             tailored_skills = skills_cat
             raw_tailored_work = work_hist
