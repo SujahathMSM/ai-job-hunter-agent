@@ -5,7 +5,7 @@ import time
 import secrets
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +19,7 @@ sys.path.insert(0, str(BASE_DIR))
 from config import (
     PROFILE_PATH, GENERATED_DIR, UPLOADS_DIR, DATA_DIR,
     DEFAULT_LLM_PROVIDER, SAFE_MODE, SMTP_HOST, SMTP_USER, SENDER_NAME, DEFAULT_USER_EMAIL,
-    HUNTER_API_KEY, APOLLO_API_KEY, update_env_file
+    HUNTER_API_KEY, APOLLO_API_KEY, update_env_file, is_production_mode
 )
 from ingestion.persona_builder import PersonaBuilder
 from ingestion.cv_parser import CVParser
@@ -197,10 +197,6 @@ class GoogleAuthRequest(BaseModel):
 class SwitchUserRequest(BaseModel):
     user_id: str
 
-def is_production_mode() -> bool:
-    env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").lower().strip()
-    return env in ["production", "prod"]
-
 def _load_jwt_secret() -> str:
     """Returns the JWT signing secret. Never falls back to a secret embedded in source code:
     production requires JWT_SECRET, local installs get a random secret persisted under data/."""
@@ -245,40 +241,66 @@ def resolve_target_user(current_user_id: str, requested_user_id: Optional[str]) 
         return requested_user_id.strip() or current_user_id
     return current_user_id
 
+# Generated/uploaded files kept in the shared data folders are named "<prefix><user id>_...".
+OWNED_FILE_PREFIXES = ("Europass_CV_", "Clean_ATS_CV_", "Cover_Letter_", "manual_")
+FORBIDDEN_FILE_NAMES = {".env", "applications.db", "master_persona.json", "config.py", "api.py", ".jwt_secret", ".data_key"}
+FORBIDDEN_FILE_SUFFIXES = {".env", ".db", ".py", ".key", ".pem"}
+
+def clean_user_id(user_id: str) -> str:
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
+
+def user_owns_file(target: Path, user_id: str) -> bool:
+    """True only if a resolved path is inside the user's own folder, or is a shared-folder
+    file whose name starts with one of the known prefixes followed by exactly this user's id."""
+    uid = clean_user_id(user_id)
+    upload_root, gen_root = UPLOADS_DIR.resolve(), GENERATED_DIR.resolve()
+    for root in (upload_root, gen_root):
+        if target.is_relative_to(root / uid):
+            return True
+    if target.parent in (upload_root, gen_root):
+        if any(target.name.startswith(f"{prefix}{uid}_") for prefix in OWNED_FILE_PREFIXES):
+            return True
+        # Single-user local mode: the local profile owns legacy files saved without an id
+        if user_id == "default" and is_local_dev_auth_enabled():
+            return True
+    return False
+
+def _reject_system_file(target: Path) -> None:
+    if target.name.lower() in FORBIDDEN_FILE_NAMES or target.suffix.lower() in FORBIDDEN_FILE_SUFFIXES:
+        raise HTTPException(status_code=403, detail="Forbidden: Access to system configuration files is strictly prohibited.")
+
 def validate_safe_user_file_path(path_str: str, user_id: str) -> Path:
     """Validates that a file attachment strictly belongs to the user and prevents path traversal."""
     if not path_str or not path_str.strip():
         raise HTTPException(status_code=400, detail="File path cannot be empty.")
-    if "\0" in path_str or ".." in path_str:
-        raise HTTPException(status_code=403, detail="Forbidden: Path traversal is prohibited.")
+    if "\0" in path_str:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid file path.")
 
     target = Path(path_str).resolve()
-    # Explicitly disallow system files
-    if target.name.lower() in [".env", "applications.db", "master_persona.json", "config.py", "api.py"] or target.suffix.lower() in [".env", ".db", ".py", ".key", ".pem"]:
-        raise HTTPException(status_code=403, detail="Forbidden: Access to system configuration files is strictly prohibited.")
-
-    user_upload_dir = (UPLOADS_DIR / user_id).resolve()
-    user_gen_dir = (GENERATED_DIR / user_id).resolve()
-    global_upload_dir = UPLOADS_DIR.resolve()
-    global_gen_dir = GENERATED_DIR.resolve()
-
-    allowed = (
-        str(target).startswith(str(user_upload_dir)) or
-        str(target).startswith(str(user_gen_dir)) or
-        (str(target).startswith(str(global_upload_dir)) and (user_id in ["default", "admin"] or user_id in target.name)) or
-        (str(target).startswith(str(global_gen_dir)) and (user_id in ["default", "admin"] or user_id in target.name))
-    )
-    if not allowed:
+    _reject_system_file(target)
+    if not user_owns_file(target, user_id):
         raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to attach or view this file.")
-    if not target.exists():
+    if not target.is_file():
         raise HTTPException(status_code=404, detail="The requested file was not found on the server.")
     return target
+
+def find_user_file_by_name(file_name: str, user_id: str) -> Path:
+    """Looks up a bare file name in the user's folder, then the shared folders, returning
+    only a file the user owns. Missing and not-owned files both return 404."""
+    if not file_name or "\0" in file_name or "/" in file_name or "\\" in file_name or file_name in (".", ".."):
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid filename.")
+    for folder in (UPLOADS_DIR / clean_user_id(user_id), UPLOADS_DIR, GENERATED_DIR):
+        target = (folder / file_name).resolve()
+        if target.is_file() and user_owns_file(target, user_id):
+            _reject_system_file(target)
+            return target
+    raise HTTPException(status_code=404, detail="Requested preview file not found.")
 
 def create_access_token(user_id: str, email: str) -> str:
     payload = {
         "sub": user_id,
         "email": email,
-        "exp": datetime.utcnow() + timedelta(days=14)
+        "exp": datetime.now(timezone.utc) + timedelta(days=14)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -618,7 +640,7 @@ def synthesize_profile(req: SynthesizeProfileRequest, user_id: str = Depends(get
 def download_default_europass_cv(user_id: str = Depends(get_current_user_id)):
     pb = PersonaBuilder(user_id=user_id)
     builder = PDFResumeBuilder()
-    clean_user = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
+    clean_user = clean_user_id(user_id)
     out_file = GENERATED_DIR / f"Europass_CV_{clean_user}.pdf"
     builder.build_resume_pdf(pb.profile, out_file)
     if not os.path.exists(out_file):
@@ -689,6 +711,23 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
         }
     )
 
+def score_jobs_for_user(jobs: List[Dict[str, Any]], user_id: str) -> List[Dict[str, Any]]:
+    """Replace listing-supplied match scores with the user's own fit score, best first.
+    These feeds are already filtered by region, so location is not re-checked here."""
+    analyzer = JobDescriptionAnalyzer(PersonaBuilder(user_id=user_id).profile)
+    for j in jobs:
+        analysis = analyzer.analyze(
+            job_title=j.get("job_title", ""),
+            company=j.get("company", ""),
+            location=j.get("location", ""),
+            jd_text=j.get("full_description") or j.get("description", ""),
+            enforce_geo=False,
+        )
+        j["fit_analysis"] = analysis
+        j["match_score"] = analysis["match_score"]
+    jobs.sort(key=lambda x: x.get("match_score", 0), reverse=True)
+    return jobs
+
 # --- GLOBAL REMOTE JOBS (WORLDWIDE ONLY) ---
 @app.get("/api/jobs/remote")
 def get_global_remote_jobs(
@@ -710,6 +749,7 @@ def get_global_remote_jobs(
             limit=limit,
             source_filter=source
         )
+        jobs = score_jobs_for_user(jobs, current_user_id)
         return {"status": "success", "count": len(jobs), "jobs": jobs}
     except Exception as e:
         print(f"[Remote Jobs Hunter Error]: {e}")
@@ -725,6 +765,7 @@ def get_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40, cu
         from hunter.dubai_hunter import DubaiJobHunter
         hunter = DubaiJobHunter()
         jobs = hunter.search_dubai_jobs(keyword=keyword, category=category, max_results=limit)
+        jobs = score_jobs_for_user(jobs, current_user_id)
         return {"status": "success", "count": len(jobs), "jobs": jobs}
     except Exception as e:
         print(f"[Dubai Jobs Hunter Error]: {e}")
@@ -737,6 +778,7 @@ def stream_dubai_jobs(keyword: str = "", category: str = "ALL", limit: int = 40,
         from hunter.dubai_hunter import DubaiJobHunter
         hunter = DubaiJobHunter()
         jobs = hunter.search_dubai_jobs(keyword=keyword, category=category, max_results=limit)
+        jobs = score_jobs_for_user(jobs, current_user_id)
         for j in jobs:
             yield f"data: {json.dumps(j)}\n\n"
             time.sleep(0.03)
@@ -890,7 +932,7 @@ def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_use
     )
 
     safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', req.company).strip('_') or "Company"
-    clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
+    clean_uid = clean_user_id(user_id)
     try:
         pdf_gen = PDFResumeBuilder()
         cv_out = GENERATED_DIR / f"Europass_CV_{clean_uid}_{safe_comp}.pdf"
@@ -913,7 +955,7 @@ def tailor_cv(req: TailorRequest, current_user_id: str = Depends(get_current_use
 def generate_pdf(req: PDFGenRequest, current_user_id: str = Depends(get_current_user_id)):
     import time
     pdf_gen = PDFResumeBuilder()
-    out_file = GENERATED_DIR / f"Europass_CV_{int(time.time())}.pdf"
+    out_file = GENERATED_DIR / f"Europass_CV_{clean_user_id(current_user_id)}_{int(time.time())}.pdf"
     pdf_gen.build_resume_pdf(
         resume_data=req.tailored_resume,
         output_path=out_file
@@ -930,7 +972,7 @@ def generate_pdf(req: PDFGenRequest, current_user_id: str = Depends(get_current_
 def generate_ats_pdf(req: PDFGenRequest, current_user_id: str = Depends(get_current_user_id)):
     import time
     pdf_gen = PDFResumeBuilder()
-    out_file = GENERATED_DIR / f"Clean_ATS_CV_{int(time.time())}.pdf"
+    out_file = GENERATED_DIR / f"Clean_ATS_CV_{clean_user_id(current_user_id)}_{int(time.time())}.pdf"
     pdf_gen.build_ats_clean_pdf(
         resume_data=req.tailored_resume,
         output_path=out_file
@@ -1003,40 +1045,17 @@ def preview_document(
 
         # 1. Custom uploaded document preview
         if custom_file:
-            if "\0" in custom_file or ".." in custom_file or "/" in custom_file or "\\" in custom_file:
-                raise HTTPException(status_code=403, detail="Forbidden: Invalid filename.")
-
-            safe_name = os.path.basename(custom_file)
-            user_upload_dir = UPLOADS_DIR / user_id
-            target = user_upload_dir / safe_name
-            if not target.exists():
-                legacy_target = UPLOADS_DIR / safe_name
-                if legacy_target.exists() and (user_id in ["default", "admin"] or safe_name.startswith(f"manual_{user_id}_")):
-                    target = legacy_target
-                else:
-                    target = GENERATED_DIR / safe_name
-
-            if target.exists():
-                is_owned = (
-                    str(target.resolve()).startswith(str(user_upload_dir.resolve())) or
-                    user_id in target.name or
-                    user_id in ["default", "admin"]
-                )
-                if not is_owned:
-                    raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to view this document.")
-
-                media_type = "application/pdf" if target.suffix.lower() == ".pdf" else "application/octet-stream"
-                return FileResponse(
-                    target,
-                    media_type=media_type,
-                    headers={"Content-Disposition": f"inline; filename={target.name}"}
-                )
-            else:
-                raise HTTPException(status_code=404, detail="Requested preview file not found.")
+            target = find_user_file_by_name(custom_file, user_id)
+            media_type = "application/pdf" if target.suffix.lower() == ".pdf" else "application/octet-stream"
+            return FileResponse(
+                target,
+                media_type=media_type,
+                headers={"Content-Disposition": f"inline; filename={target.name}"}
+            )
 
         # 2. Standard generated document preview
         safe_comp = re.sub(r'[^a-zA-Z0-9_-]', '_', company).strip('_') or "Company"
-        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
+        clean_uid = clean_user_id(user_id)
         pb = PersonaBuilder(user_id=user_id)
         pdf_gen = PDFResumeBuilder()
 
@@ -1064,6 +1083,8 @@ def preview_document(
                 media_type="application/pdf",
                 headers={"Content-Disposition": f"inline; filename={out_file.name}"}
             )
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[Document Preview Generation Error]: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to compile PDF document: {str(e)}")
@@ -1076,7 +1097,7 @@ async def upload_outreach_attachment(
 ):
     """Saves candidate's manual CV or Cover Letter to replace generated documents."""
     try:
-        clean_uid = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)[:20]
+        clean_uid = clean_user_id(user_id)
         user_upload_dir = UPLOADS_DIR / clean_uid
         user_upload_dir.mkdir(parents=True, exist_ok=True)
 

@@ -13,6 +13,8 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
+from generators.style_checker import find_style_issues
+
 # canonical term -> aliases (all lowercase). Matching is word-boundary based.
 TECH_VOCAB: Dict[str, List[str]] = {
     "python": [], "java": [], "javascript": ["js"], "typescript": ["ts"],
@@ -168,8 +170,14 @@ class FactChecker:
                         add("inflated_experience", m.group(0), section,
                             f"Claims {claimed} years but profile supports about {self.experience_years:.1f}.")
 
+        bullets: List[str] = []
+        for entry in (resume.get("work_history") or []) + (resume.get("projects") or []):
+            bullets.extend(str(b) for b in entry.get("bullets", []) if isinstance(entry, dict))
+        style_flags = find_style_issues(sections, self.corpus, bullets)
+
+        # Style issues never affect the grounding score: they are wording, not facts.
         score = max(0, 100 - 12 * len(flags))
-        return {"flags": flags, "score": score, "clean": not flags}
+        return {"flags": flags, "style_flags": style_flags, "score": score, "clean": not flags}
 
     # ------------------------------------------------------------- sanitization
     def strip_unverified_skills(self, resume: Dict[str, Any]) -> List[str]:
@@ -195,9 +203,15 @@ class FactChecker:
         return removed
 
 
-def format_feedback(flags: List[Dict[str, str]]) -> str:
-    """Turn flags into revision instructions for the Drafter."""
-    lines = ["A fact-check found unsupported claims in your previous draft. Remove or rephrase them using ONLY facts from the candidate profile:"]
-    for f in flags[:12]:
-        lines.append(f"- [{f['section']}] {f['claim']}: {f['detail']}")
+def format_feedback(flags: List[Dict[str, str]], style_flags: Optional[List[Dict[str, str]]] = None) -> str:
+    """Turn fact and style flags into revision instructions for the Drafter."""
+    lines: List[str] = []
+    if flags:
+        lines.append("A fact-check found unsupported claims in your previous draft. Remove or rephrase them using ONLY facts from the candidate profile:")
+        for f in flags[:12]:
+            lines.append(f"- [{f['section']}] {f['claim']}: {f['detail']}")
+    if style_flags:
+        lines.append("Some wording reads as AI-generated. Rewrite these in plain, specific language, keeping the facts unchanged:")
+        for f in style_flags[:12]:
+            lines.append(f"- [{f['section']}] \"{f['claim']}\": {f['detail']}")
     return "\n".join(lines)

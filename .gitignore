@@ -13,8 +13,6 @@ env/
 venv/
 .venv/
 
-# Streamlit
-.streamlit/secrets.toml
 
 # Candidate uploaded files and generated PDFs (contains personal PII)
 data/uploads/*
@@ -43,3 +41,4 @@ stitch_autonomous_job_hunter_saas.zip
 stitch_design/
 frontend/node_modules/
 frontend/.next/
+data/.data_key

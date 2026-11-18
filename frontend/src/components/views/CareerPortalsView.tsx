@@ -283,10 +283,21 @@ export default function CareerPortalsView({
 
                 {/* HR Email Contact Pattern */}
                 {portal.hr_email && (
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-2 py-1 rounded border border-[#4edea3]/20">
-                    <Mail className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate">{portal.hr_email}</span>
-                  </div>
+                  portal.is_custom === 1 ? (
+                    <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#4edea3] bg-[#4edea3]/10 px-2 py-1 rounded border border-[#4edea3]/20">
+                      <Mail className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{portal.hr_email}</span>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center gap-1.5 text-[11px] font-mono text-[#869296] bg-[#1a1b22] px-2 py-1 rounded border border-[#3d494c]/50"
+                      title="Common address format for this company, not a confirmed inbox. Apply through the portal, or confirm the address before emailing it."
+                    >
+                      <Mail className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{portal.hr_email}</span>
+                      <span className="ml-auto flex-shrink-0 font-sans text-[10px] uppercase tracking-wide text-[#ffb95f]">Unverified</span>
+                    </div>
+                  )
                 )}
               </div>
 

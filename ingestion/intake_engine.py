@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from ingestion.cv_parser import CVParser
 from ingestion.persona_builder import PersonaBuilder
 from config import GENERATED_DIR, UPLOADS_DIR
+from net_safety import safe_get, UnsafeURLError
 
 class IntakeEngine:
     """Orchestrates multi-source candidate intake:
@@ -249,7 +250,7 @@ class IntakeEngine:
         }
 
         try:
-            resp = requests.get(
+            resp = safe_get(
                 url,
                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NexusHunt-CareerAgent/2.4"},
                 timeout=10
@@ -280,6 +281,8 @@ class IntakeEngine:
                         result["detected_projects"].append(txt)
 
                 result["detected_tech"] = self._extract_tech_terms(clean_text)
+        except UnsafeURLError as e:
+            result["error"] = f"This address can't be fetched: {e}"
         except Exception as e:
             result["error"] = str(e)
             print(f"[Website Scrape Error]: {e}")

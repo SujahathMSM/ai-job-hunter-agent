@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 import uuid
 
 # Add project root to sys.path
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 from api import app, create_access_token, JWT_SECRET, JWT_ALGORITHM

@@ -308,6 +308,8 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
           : { text: "text-[#ffd479]", bg: "bg-[#ffd479]/10", border: "border-[#ffd479]/40", icon: "text-[#ffd479]" };
         const flaggedClaims: string[] = reviewerAudit?.flagged_claims || [];
         const correctedClaims: string[] = reviewerAudit?.corrected_claims || [];
+        const styleNotes: string[] = reviewerAudit?.style_notes || [];
+        const styleRewritten: string[] = reviewerAudit?.style_rewritten || [];
         return (
           <div className="p-3.5 rounded-xl bg-[#0d0e15] border border-[#3d494c]/40 specular-border flex flex-col gap-3 text-xs">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -341,6 +343,14 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
                     {reviewerAudit.revision_rounds} revision{reviewerAudit.revision_rounds === 1 ? "" : "s"}
                   </span>
                 )}
+                {reviewerAudit && (
+                  <span
+                    className={`px-2.5 py-1 rounded bg-[#1e1f26] border border-[#3d494c]/40 ${styleNotes.length ? "text-[#ffd479]" : "text-[#4edea3]"}`}
+                    title="Stock phrases and buzzword stacks that make a CV read as AI-written. Advisory: does not affect the score."
+                  >
+                    {styleNotes.length ? `${styleNotes.length} wording note${styleNotes.length === 1 ? "" : "s"}` : "Natural wording"}
+                  </span>
+                )}
                 {reviewerAudit && reviewerAudit.ai_review === false && (
                   <span className="px-2.5 py-1 rounded bg-[#1e1f26] border border-[#ffd479]/40 text-[#ffd479]">AI review unavailable</span>
                 )}
@@ -355,6 +365,18 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
                 {correctedClaims.map((c, i) => (
                   <div key={`c${i}`} className="text-[#4edea3]">✓ {c}</div>
                 ))}
+              </div>
+            )}
+
+            {(styleNotes.length > 0 || styleRewritten.length > 0) && (
+              <div className="flex flex-col gap-1 pt-2 border-t border-[#3d494c]/20 text-[11px]">
+                <div className="text-[10px] font-mono uppercase text-[#869397]">Wording (sounds AI-written)</div>
+                {styleNotes.map((c, i) => (
+                  <div key={`s${i}`} className="text-[#ffd479]">✎ {c}</div>
+                ))}
+                {styleRewritten.length > 0 && (
+                  <div className="text-[#4edea3]">✓ Rewritten: {styleRewritten.join(", ")}</div>
+                )}
               </div>
             )}
           </div>

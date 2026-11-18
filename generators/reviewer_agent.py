@@ -22,6 +22,7 @@ class ReviewerAgent:
         jd_text: str,
         prior_flags: Optional[List[Dict[str, str]]] = None,
         revision_rounds: int = 0,
+        prior_style_flags: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """Audits the drafted resume and cover letter against the candidate's master profile.
 
@@ -39,6 +40,7 @@ class ReviewerAgent:
         checker = FactChecker(self.profile)
         rule = checker.check(tailored_resume, cover_letter)
         rule_flags: List[Dict[str, str]] = rule["flags"]
+        style_flags: List[Dict[str, str]] = rule["style_flags"]
 
         # Dynamically construct grounding facts bank from candidate's master profile
         grounded_facts = []
@@ -127,8 +129,15 @@ OUTPUT JSON FORMAT ONLY:
             verified.append("Every numeric claim in the draft matches your profile")
         if checker.experience_years is not None and not any(f["type"] == "inflated_experience" for f in rule_flags):
             verified.append("Experience claims are consistent with your work history dates")
+        if not style_flags:
+            verified.append("No stock AI phrases or buzzword stacks found")
         if ai_review_ok:
             verified.extend(str(v) for v in llm_review.get("verified_claims", [])[:3])
+
+        # Wording notes are advisory: they never change the status or the score.
+        style_notes = [f"\"{f['claim']}\" ({f['section']}): {f['detail']}" for f in style_flags]
+        style_fixed = sorted({f["claim"] for f in (prior_style_flags or [])}
+                             - {f["claim"] for f in style_flags})
 
         # Status (fails closed)
         if flagged_claims:
@@ -153,6 +162,9 @@ OUTPUT JSON FORMAT ONLY:
             "reviewer_verdict": verdict,
             "ai_review": ai_review_ok,
             "rule_flags": rule_flags,
+            "style_flags": style_flags,
+            "style_notes": style_notes,
+            "style_rewritten": style_fixed,
             "revision_rounds": revision_rounds,
         }
 
