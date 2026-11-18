@@ -1,3 +1,4 @@
+import html
 import re
 import unicodedata
 from pathlib import Path
@@ -17,6 +18,9 @@ def sanitize_pdf_text(text: Any) -> str:
         text = ", ".join([str(t) for t in text])
     elif not isinstance(text, str):
         text = str(text)
+
+    # ReportLab parses text as XML-like markup: a raw "&" or "<" garbles output ("R&D" -> "R&D;")
+    text = html.escape(text, quote=False)
 
     # Clean block / bullet artifacts that corrupt layouts
     replacements = {
@@ -207,6 +211,55 @@ class PDFResumeBuilder:
             spaceAfter=10
         ))
 
+    def _section(self, story: list, title: str, first_block: list) -> None:
+        """Section heading kept on the same page as the section's first entry (no stranded headings)."""
+        story.append(KeepTogether([
+            Paragraph(title, self.styles["EuropassSectionTitle"]),
+            HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3),
+            *first_block,
+        ]))
+
+    def _two_col(self, dates: str, place: str, right_cell: list) -> list:
+        left = [Paragraph(f"<b>{sanitize_pdf_text(dates)}</b>", self.styles["EuropassDateCol"])]
+        if place:
+            left.append(Paragraph(sanitize_pdf_text(place), self.styles["EuropassCityCol"]))
+        table = Table([[left, right_cell]], colWidths=[105, 430])
+        table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 1),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ]))
+        return [table, Spacer(1, 2)]
+
+    @staticmethod
+    def _clean_skill_groups(groups: List[Any], project_titles: List[str]) -> List[tuple]:
+        """De-duplicate skills across groups, drop project names listed as skills, and fold
+        one-item groups into a final 'Other' line so the section doesn't fragment."""
+        project_keys = {re.sub(r"[^a-z0-9]", "", t.split("|")[0].lower()) for t in project_titles if t}
+        seen, cleaned, leftovers = set(), [], []
+        for g in groups or []:
+            if not isinstance(g, dict):
+                continue
+            raw = g.get("skills", "")
+            items = raw if isinstance(raw, list) else re.split(r",(?![^()]*\))", str(raw))
+            kept = []
+            for item in (str(x).strip() for x in items):
+                key = re.sub(r"[^a-z0-9]", "", item.lower())
+                base = re.sub(r"[^a-z0-9]", "", item.split("(")[0].lower())
+                if not item or key in seen or base in project_keys:
+                    continue
+                seen.add(key)
+                kept.append(item)
+            if len(kept) >= 2:
+                cleaned.append((str(g.get("category", "")).strip() or "Skills", kept))
+            else:
+                leftovers.extend(kept)
+        if leftovers:
+            cleaned.append(("Other", leftovers))
+        return cleaned
+
     def _default_canonical_work_history(self) -> List[Dict[str, Any]]:
         return []
 
@@ -338,215 +391,124 @@ class PDFResumeBuilder:
         )
         story = []
 
-        identity = resume_data.get("identity", {})
-        full_name = sanitize_pdf_text(identity.get("full_name", "Candidate"))
-        title = sanitize_pdf_text(resume_data.get("tailored_title", identity.get("professional_title", "Software Engineer | Backend, Data & AI Systems")))
-        subtitle = sanitize_pdf_text(resume_data.get("tailored_subtitle", resume_data.get("subtitle", identity.get("subtitle", "Python | SQL | FastAPI | PostgreSQL | Docker | Linux | AWS"))))
-        relocation = sanitize_pdf_text(identity.get("relocation_status", "Available for Full-time Roles | Immediate International & Remote Relocation"))
-        phone = identity.get("phone", "")
-        email = identity.get("email", "")
-        linkedin = identity.get("linkedin", "").replace("https://", "")
-        github = identity.get("github", "").replace("https://", "")
-        location_str = identity.get("current_location", "Global / Remote")
+        identity = resume_data.get("identity", {}) or {}
+        full_name = sanitize_pdf_text(identity.get("full_name") or "Candidate")
+        # Headline is the candidate's own title, never the target job's title
+        title = sanitize_pdf_text(identity.get("professional_title") or resume_data.get("tailored_title") or "")
+        # Raw values here; each is sanitized exactly once when its cell is built
+        subtitle = resume_data.get("tailored_subtitle") or resume_data.get("subtitle") or identity.get("subtitle") or ""
+        relocation = identity.get("relocation_status") or ""
+        linkedin = (identity.get("linkedin") or "").replace("https://", "").replace("http://", "").rstrip("/")
+        github = (identity.get("github") or "").replace("https://", "").replace("http://", "").rstrip("/")
 
-        # 1. OFFICIAL EUROPASS HEADER
-        header_table_data = [
-            [
-                Paragraph("<b>europass</b> &nbsp;|&nbsp; <b>CURRICULUM VITAE</b>", self.styles["EuropassBrand"]),
-                Paragraph("<b>European Standard Format</b>", self.styles["EuropassCityCol"])
-            ]
-        ]
-        t_header = Table(header_table_data, colWidths=[395, 140])
-        t_header.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
-        ]))
-        story.append(t_header)
+        # 1. HEADER
+        story.append(Paragraph("<b>CURRICULUM VITAE</b>", self.styles["EuropassBrand"]))
         story.append(HRFlowable(width="100%", thickness=1.5, color=self.c_europass, spaceBefore=1, spaceAfter=5))
-
-        # Identity Details Block
         story.append(Paragraph(full_name, self.styles["EuropassName"]))
-        story.append(Paragraph(title, self.styles["EuropassRoleTitle"]))
+        if title:
+            story.append(Paragraph(title, self.styles["EuropassRoleTitle"]))
 
-        contact_table_data = [
-            [
-                Paragraph(f"<b>Location:</b> {location_str}", self.styles["EuropassContactItem"]),
-                Paragraph(f"<b>Phone:</b> {phone}", self.styles["EuropassContactItem"])
-            ],
-            [
-                Paragraph(f"<b>Email:</b> {email}", self.styles["EuropassContactItem"]),
-                Paragraph(f"<b>Nationality:</b> {identity.get('nationality', 'Sri Lankan')}", self.styles["EuropassContactItem"])
-            ],
-            [
-                Paragraph(f"<b>LinkedIn:</b> {linkedin}", self.styles["EuropassContactItem"]),
-                Paragraph(f"<b>GitHub:</b> {github}", self.styles["EuropassContactItem"])
-            ],
-            [
-                Paragraph(f"<b>Work Availability:</b> {relocation}", self.styles["EuropassContactItem"]),
-                Paragraph(f"<b>Core Stack:</b> {subtitle}", self.styles["EuropassContactItem"])
-            ]
+        contacts = [
+            ("Location", identity.get("current_location")), ("Phone", identity.get("phone")),
+            ("Email", identity.get("email")), ("Nationality", identity.get("nationality")),
+            ("LinkedIn", linkedin), ("GitHub", github),
+            ("Availability", relocation), ("Core Stack", subtitle),
         ]
-        t_contact = Table(contact_table_data, colWidths=[267, 268])
-        t_contact.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-            ('TOPPADDING', (0,0), (-1,-1), 0.5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 0.5),
-        ]))
-        story.append(t_contact)
+        cells = [Paragraph(f"<b>{label}:</b> {sanitize_pdf_text(value)}", self.styles["EuropassContactItem"])
+                 for label, value in contacts if value and str(value).strip()]
+        if cells:
+            rows = [cells[i:i + 2] + [""] * (2 - len(cells[i:i + 2])) for i in range(0, len(cells), 2)]
+            t_contact = Table(rows, colWidths=[267, 268])
+            t_contact.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('LEFTPADDING', (0,0), (-1,-1), 0),
+                ('RIGHTPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING', (0,0), (-1,-1), 0.5),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 0.5),
+            ]))
+            story.append(t_contact)
         story.append(Spacer(1, 4))
 
-        # 2. ABOUT ME / EXECUTIVE PROFILE
+        # 2. PROFILE
         summary = resume_data.get("summary", "") or resume_data.get("tailored_summary", "")
         if summary:
-            story.append(Paragraph("ABOUT ME", self.styles["EuropassSectionTitle"]))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
-            story.append(Paragraph(sanitize_pdf_text(summary), self.styles["EuropassBody"]))
-            story.append(Spacer(1, 3))
+            self._section(story, "PROFILE", [Paragraph(sanitize_pdf_text(summary), self.styles["EuropassBody"]), Spacer(1, 3)])
 
-        # 3. WORK EXPERIENCE (EUROPASS 2-COLUMN FORMAT)
-        raw_work = resume_data.get("work_history", [])
-        work_history = self._deduplicate_work_history(raw_work)
-
-        if work_history:
-            story.append(Paragraph("WORK EXPERIENCE", self.styles["EuropassSectionTitle"]))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
-
-            for exp in work_history:
-                comp = sanitize_pdf_text(exp.get("company", ""))
-                branch = sanitize_pdf_text(exp.get("branch", ""))
-                r_title = sanitize_pdf_text(exp.get("title", ""))
-                dur = sanitize_pdf_text(exp.get("duration", ""))
-                bullets = exp.get("bullets", [])
-
-                date_cell = [
-                    Paragraph(f"<b>[ {dur} ]</b>", self.styles["EuropassDateCol"]),
-                    Paragraph(f"{branch or 'Sri Lanka'}", self.styles["EuropassCityCol"])
-                ]
-
-                right_cell = [
-                    Paragraph(f"<b>{r_title}</b>", self.styles["EuropassJobTitle"]),
-                    Paragraph(f"<b>Employer: {comp}</b>", self.styles["EuropassEmployer"]),
-                    Paragraph("Sector: Information and Communication Technology / Systems Engineering", self.styles["EuropassSector"])
-                ]
-
-                for b in bullets:
-                    clean_b = sanitize_pdf_text(b)
-                    if clean_b:
-                        right_cell.append(Paragraph(f"&bull; {clean_b}", self.styles["EuropassBullet"]))
-
-                job_table = Table([[date_cell, right_cell]], colWidths=[105, 430])
-                job_table.setStyle(TableStyle([
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('LEFTPADDING', (0,0), (-1,-1), 0),
-                    ('RIGHTPADDING', (0,0), (-1,-1), 0),
-                    ('TOPPADDING', (0,0), (-1,-1), 1),
-                    ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-                ]))
-                story.append(job_table)
-                story.append(Spacer(1, 2))
+        # 3. WORK EXPERIENCE (two columns: dates/place | role, employer, bullets)
+        work_history = self._deduplicate_work_history(resume_data.get("work_history", []))
+        for i, exp in enumerate(work_history):
+            right_cell = [
+                Paragraph(f"<b>{sanitize_pdf_text(exp.get('title', ''))}</b>", self.styles["EuropassJobTitle"]),
+                Paragraph(f"<b>{sanitize_pdf_text(exp.get('company', ''))}</b>", self.styles["EuropassEmployer"]),
+            ]
+            if exp.get("sector"):
+                right_cell.append(Paragraph(sanitize_pdf_text(exp["sector"]), self.styles["EuropassSector"]))
+            for b in exp.get("bullets", []):
+                clean_b = sanitize_pdf_text(b)
+                if clean_b:
+                    right_cell.append(Paragraph(f"&bull; {clean_b}", self.styles["EuropassBullet"]))
+            block = self._two_col(exp.get("duration", ""), exp.get("location") or exp.get("branch") or "", right_cell)
+            if i == 0:
+                self._section(story, "WORK EXPERIENCE", block)
+            else:
+                story.extend(block)
 
         # 4. EDUCATION AND TRAINING
-        raw_edu = resume_data.get("education", [])
-        education = self._deduplicate_education(raw_edu)
-
-        if education:
-            story.append(Paragraph("EDUCATION AND TRAINING", self.styles["EuropassSectionTitle"]))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
-
-            for edu in education:
-                deg = sanitize_pdf_text(edu.get("degree", ""))
-                inst = sanitize_pdf_text(edu.get("institution", ""))
-                dur = sanitize_pdf_text(edu.get("duration", ""))
-                loc = sanitize_pdf_text(edu.get("location", ""))
-                det = sanitize_pdf_text(edu.get("details", ""))
-
-                date_cell = [
-                    Paragraph(f"<b>[ {dur} ]</b>", self.styles["EuropassDateCol"]),
-                    Paragraph(f"{loc}", self.styles["EuropassCityCol"])
-                ]
-
-                right_cell = [
-                    Paragraph(f"<b>{deg}</b>", self.styles["EuropassJobTitle"]),
-                    Paragraph(f"<b>Organisation: {inst}</b>", self.styles["EuropassEmployer"])
-                ]
-                if det:
-                    right_cell.append(Paragraph(f"&bull; {det}", self.styles["EuropassBullet"]))
-
-                edu_table = Table([[date_cell, right_cell]], colWidths=[105, 430])
-                edu_table.setStyle(TableStyle([
-                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                    ('LEFTPADDING', (0,0), (-1,-1), 0),
-                    ('RIGHTPADDING', (0,0), (-1,-1), 0),
-                    ('TOPPADDING', (0,0), (-1,-1), 1),
-                    ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-                ]))
-                story.append(edu_table)
-                story.append(Spacer(1, 2))
-
-        # 5. DIGITAL SKILLS (EUROPASS CATEGORIZED)
-        skills_categorized = resume_data.get("core_skills_categorized", [])
-        if not skills_categorized:
-            skills_categorized = [
-                {"category": "Programming & Backend", "skills": "Python (FastAPI, AsyncIO), SQL, Java, Node.js, C; REST APIs, WebSockets, GraphQL"},
-                {"category": "Data & Databases", "skills": "PostgreSQL, TimescaleDB, pgvector, Redis, MongoDB, Schema Design, Query Optimisation"},
-                {"category": "AI & Machine Learning", "skills": "LangGraph, RAG (Retrieval-Augmented Generation), PyTorch, TensorFlow, LLM Evaluation (evalX), Vision Models"},
-                {"category": "Cloud & DevOps", "skills": "AWS (EC2, S3, RDS, Lambda), Docker, Docker Compose, GitLab CI/CD, GitHub Actions, Linux, Ansible"},
-                {"category": "IoT & Protocols", "skills": "MQTT/EMQX, Modbus RTU/RS485, Raspberry Pi, STM32, Device Telemetry"},
-                {"category": "Analysis & Delivery", "skills": "System Architecture, Root-Cause Analysis, Test Planning, Regression Verification, Agile/Scrum"},
-                {"category": "Documentation & Records", "skills": "Technical Specifications, Runbooks, Onboarding Guides, Version-Controlled Records"}
+        education = self._deduplicate_education(resume_data.get("education", []))
+        for i, edu in enumerate(education):
+            right_cell = [
+                Paragraph(f"<b>{sanitize_pdf_text(edu.get('degree', ''))}</b>", self.styles["EuropassJobTitle"]),
+                Paragraph(f"<b>{sanitize_pdf_text(edu.get('institution', ''))}</b>", self.styles["EuropassEmployer"]),
             ]
+            det = sanitize_pdf_text(edu.get("details", ""))
+            if det:
+                right_cell.append(Paragraph(f"&bull; {det}", self.styles["EuropassBullet"]))
+            block = self._two_col(edu.get("duration", ""), edu.get("location", ""), right_cell)
+            if i == 0:
+                self._section(story, "EDUCATION AND TRAINING", block)
+            else:
+                story.extend(block)
 
-        story.append(Paragraph("DIGITAL SKILLS", self.styles["EuropassSectionTitle"]))
-        story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
-        for cat_item in skills_categorized:
-            cat = sanitize_pdf_text(cat_item.get("category", ""))
-            s_text = sanitize_pdf_text(cat_item.get("skills", ""))
-            story.append(Paragraph(f"<b>{cat}:</b> {s_text}", self.styles["EuropassBody"]))
-        story.append(Spacer(1, 2))
+        # 5. SKILLS
+        projects = self._deduplicate_projects(resume_data.get("projects", []))
+        skill_groups = self._clean_skill_groups(
+            resume_data.get("core_skills_categorized", []),
+            [p.get("title", "") for p in projects],
+        )
+        if skill_groups:
+            lines = [Paragraph(f"<b>{sanitize_pdf_text(cat)}:</b> {sanitize_pdf_text(', '.join(items))}", self.styles["EuropassBody"])
+                     for cat, items in skill_groups]
+            self._section(story, "SKILLS", lines[:2])
+            story.extend(lines[2:])
+            story.append(Spacer(1, 2))
 
-        # 6. PROJECTS (VERIFIED GITHUB & PRODUCTION REPOSITORIES)
-        raw_projects = resume_data.get("projects", [])
-        projects = self._deduplicate_projects(raw_projects)
+        # 6. PROJECTS
+        for i, proj in enumerate(projects[:4]):
+            p_title = sanitize_pdf_text(proj.get("title", ""))
+            p_tech = sanitize_pdf_text(proj.get("technologies", ""))
+            block = [Paragraph(f"<b>{p_title}</b> | <font color='#0E4194'>{p_tech}</font>" if p_tech else f"<b>{p_title}</b>",
+                               self.styles["EuropassBody"])]
+            for b in proj.get("bullets", []):
+                clean_b = sanitize_pdf_text(b)
+                if clean_b:
+                    block.append(Paragraph(f"&bull; {clean_b}", self.styles["EuropassBullet"]))
+            block.append(Spacer(1, 1))
+            if i == 0:
+                self._section(story, "PROJECTS", block)
+            else:
+                story.append(KeepTogether(block))
 
-        if projects:
-            story.append(Paragraph("PROJECTS", self.styles["EuropassSectionTitle"]))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
+        # 7. LANGUAGES (from the profile; omitted if none are listed)
+        languages = resume_data.get("languages") or identity.get("languages")
+        if languages:
+            text = languages if isinstance(languages, str) else ", ".join(str(x) for x in languages)
+            self._section(story, "LANGUAGES", [Paragraph(sanitize_pdf_text(text), self.styles["EuropassBody"]), Spacer(1, 2)])
 
-            for proj in projects[:4]:
-                p_title = sanitize_pdf_text(proj.get("title", ""))
-                p_tech = sanitize_pdf_text(proj.get("technologies", ""))
-                header_line = f"<b>{p_title}</b> | <font color='#0E4194'>{p_tech}</font>" if p_tech else f"<b>{p_title}</b>"
-                story.append(Paragraph(header_line, self.styles["EuropassBody"]))
-
-                p_bullets = proj.get("bullets", [])
-                for b in p_bullets:
-                    clean_b = sanitize_pdf_text(b)
-                    if clean_b:
-                        story.append(Paragraph(f"&bull; {clean_b}", self.styles["EuropassBullet"]))
-                story.append(Spacer(1, 1))
-
-        # 7. LANGUAGE SKILLS
-        story.append(Paragraph("LANGUAGE SKILLS", self.styles["EuropassSectionTitle"]))
-        story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
-        story.append(Paragraph("<b>Mother tongue(s):</b> Tamil, Sinhala &nbsp;|&nbsp; <b>Other language(s):</b> English (Proficient user - C1/C2 | Full Professional Working Proficiency)", self.styles["EuropassBody"]))
-        story.append(Spacer(1, 2))
-
-        # 8. CERTIFICATIONS
-        certs = resume_data.get("certifications", [
-            "University of Michigan - Python for Everybody",
-            "DeepLearning.AI - Supervised Machine Learning",
-            "Meta - Programming with JavaScript",
-            "Google - IT Support Professional"
-        ])
+        # 8. CERTIFICATIONS (from the profile only)
+        certs = [sanitize_pdf_text(c if isinstance(c, str) else c.get("name", "")) for c in (resume_data.get("certifications") or [])]
+        certs = [c for c in certs if c]
         if certs:
-            story.append(Paragraph("CERTIFICATIONS & HONOURS", self.styles["EuropassSectionTitle"]))
-            story.append(HRFlowable(width="100%", thickness=0.8, color=self.c_europass, spaceBefore=1, spaceAfter=3))
-            certs_str = " &nbsp;|&nbsp; ".join([sanitize_pdf_text(c) for c in certs])
-            story.append(Paragraph(certs_str, self.styles["EuropassBody"]))
+            self._section(story, "CERTIFICATIONS", [Paragraph(" &nbsp;|&nbsp; ".join(certs), self.styles["EuropassBody"])])
 
         doc.build(story)
         return output_path
@@ -567,11 +529,11 @@ class PDFResumeBuilder:
 
         ident = resume_data.get("identity", {})
         c_name = sanitize_pdf_text(ident.get("full_name", "Candidate"))
-        title = sanitize_pdf_text(resume_data.get("tailored_title", "Software Engineer"))
+        title = sanitize_pdf_text(ident.get("professional_title") or resume_data.get("tailored_title") or "")
         
         c_phone = ident.get("phone", "")
         c_email = ident.get("email", "")
-        c_loc = ident.get("current_location", "Global / Remote")
+        c_loc = ident.get("current_location", "")
         c_li = ident.get("linkedin", "")
         c_gh = ident.get("github", "")
 
@@ -640,8 +602,9 @@ class PDFResumeBuilder:
 
         # Header Block
         story.append(Paragraph(f"<b>{c_name.upper()}</b>", ats_name_style))
-        story.append(Paragraph(f"<b>{title.upper()}</b>", ats_title_style))
-        contact_str = f"{c_email} | {c_phone} | {c_loc} | {c_li} | {c_gh}"
+        if title:
+            story.append(Paragraph(f"<b>{title.upper()}</b>", ats_title_style))
+        contact_str = " | ".join(v for v in (c_email, c_phone, c_loc, c_li, c_gh) if v and str(v).strip())
         story.append(Paragraph(sanitize_pdf_text(contact_str), ats_contact_style))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#111827"), spaceBefore=1, spaceAfter=6))
 
@@ -716,10 +679,10 @@ class PDFResumeBuilder:
         """Generates pure plaintext formatted specifically for ATS text input boxes."""
         ident = resume_data.get("identity", {})
         c_name = ident.get("full_name", "Candidate")
-        title = resume_data.get("tailored_title", "Software Engineer")
+        title = (resume_data.get("identity") or {}).get("professional_title") or resume_data.get("tailored_title") or ""
         c_phone = ident.get("phone", "")
         c_email = ident.get("email", "")
-        c_loc = ident.get("current_location", "Global / Remote")
+        c_loc = ident.get("current_location", "")
         c_li = ident.get("linkedin", "")
         c_gh = ident.get("github", "")
 
