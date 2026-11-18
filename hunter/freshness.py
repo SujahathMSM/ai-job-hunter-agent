@@ -22,6 +22,11 @@ def parse_posted_date(value: Any) -> Optional[date]:
     milliseconds, ISO 8601, or RFC 2822 (RSS). Returns None when there is no real date."""
     if value is None:
         return None
+    try:
+        if value != value:  # NaN / NaT
+            return None
+    except (TypeError, ValueError):
+        pass
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):

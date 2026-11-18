@@ -18,6 +18,7 @@ from config import COMPANY_CAREER_BOARDS
 from hunter.freshness import MAX_POSTING_AGE_DAYS, assess
 
 TIMEOUT = (3.0, 10.0)
+LEVER_TIMEOUT = (3.0, 30.0)  # Lever returns every posting with full text in one large response
 CACHE_TTL = 1800
 GENERIC_TOKENS = {"engineer", "engineering", "developer", "senior", "junior", "lead", "jobs", "job", "role",
                   "specialist", "manager", "the", "and", "for", "with"}
@@ -81,7 +82,7 @@ def _greenhouse(slug: str, company: str) -> List[Dict[str, Any]]:
 
 
 def _lever(slug: str, company: str) -> List[Dict[str, Any]]:
-    r = _session.get(f"https://api.lever.co/v0/postings/{slug}", params={"mode": "json"}, timeout=TIMEOUT)
+    r = _session.get(f"https://api.lever.co/v0/postings/{slug}", params={"mode": "json"}, timeout=LEVER_TIMEOUT)
     r.raise_for_status()
     out = []
     for j in r.json():

@@ -124,3 +124,19 @@ def test_worldwide_region_accepts_any_country_but_not_excluded():
     assert LiveJobHunter.region_meta("Tokyo, Japan", "Backend Engineer", "WORLDWIDE")["category"] == "WORLDWIDE"
     assert LiveJobHunter.region_meta("Tokyo, Japan", "Backend Engineer", "GULF") is None
     assert LiveJobHunter.region_meta("Tel Aviv, Israel", "Backend Engineer", "WORLDWIDE") is None
+
+
+def test_nan_emails_and_dates_do_not_crash():
+    row = {"site": "indeed", "title": "IT Support Engineer", "company": "Gamma", "location": "Dubai",
+           "date_posted": float("nan"), "emails": float("nan"), "job_url": "https://x/9", "description": float("nan")}
+    job = job_sources.normalize_row(row, "Dubai", max_days=14, hours_window=14 * 24)
+    assert job["hr_email"] == "" and job["posted_label"] == "Posted within 14d"
+
+
+def test_rate_limited_board_is_paused_then_skipped():
+    import logging
+    logging.getLogger("jobspy.linkedin").error("response status code 429 (blocked: use a proxy)")
+    for _ in range(3):
+        logging.getLogger("jobspy.google").error("no job data returned")
+    available = job_sources.BOARD_HEALTH.available(["indeed", "linkedin", "google"])
+    assert available == ["indeed"]

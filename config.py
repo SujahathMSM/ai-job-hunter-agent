@@ -186,10 +186,9 @@ COMPANY_CAREER_BOARDS = [
     ("greenhouse", "databricks", "Databricks"), ("greenhouse", "instacart", "Instacart"),
     ("greenhouse", "lyft", "Lyft"), ("greenhouse", "pinterest", "Pinterest"),
     ("greenhouse", "coinbase", "Coinbase"), ("greenhouse", "okta", "Okta"),
-    ("greenhouse", "hubspot", "HubSpot"), ("greenhouse", "grammarly", "Grammarly"),
     ("greenhouse", "duolingo", "Duolingo"), ("greenhouse", "asana", "Asana"),
     ("greenhouse", "anthropic", "Anthropic"), ("greenhouse", "remote", "Remote.com"),
-    ("greenhouse", "toptal", "Toptal"), ("greenhouse", "wikimedia", "Wikimedia"),
+    ("greenhouse", "wikimedia", "Wikimedia"),
     # Lever
     ("lever", "palantir", "Palantir"), ("lever", "spotify", "Spotify"),
     ("lever", "binance", "Binance"), ("lever", "kraken", "Kraken"),
