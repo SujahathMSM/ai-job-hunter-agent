@@ -15,7 +15,10 @@ hours_old filter, and each board runs separately so one blocked or failing board
 lose the results from the others. Jooble is added when its free API key is set (see
 hunter/keyed_sources.py).
 """
+import logging
 import re
+import threading
+import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Iterable, List, Optional
@@ -47,6 +50,63 @@ def _indeed_countries() -> set:
 
 
 INDEED_COUNTRIES = _indeed_countries()
+
+
+# --- Board health -----------------------------------------------------------------
+# JobSpy logs board failures instead of raising them. This handler reads those logs and
+# pauses a board that is rate-limiting us (429), whose endpoint is gone (404), or that keeps
+# returning nothing, so a 44-city search doesn't hammer a dead board 200 times. It also
+# replaces JobSpy's per-request error lines with one line per pause.
+LOGGER_TO_SITE = {"ziprecruiter": "zip_recruiter"}
+PAUSE_RATE_LIMITED_S = 15 * 60
+PAUSE_GONE_S = 6 * 3600
+PAUSE_EMPTY_S = 30 * 60
+EMPTY_STRIKES = 3
+
+
+class _BoardHealth(logging.Handler):
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.paused_until: Dict[str, float] = {}
+        self.empty_strikes: Dict[str, int] = {}
+        self._state = threading.Lock()
+
+    def _pause(self, site: str, seconds: int, reason: str) -> None:
+        with self._state:
+            if self.paused_until.get(site, 0) > time.time():
+                return
+            self.paused_until[site] = time.time() + seconds
+        print(f"[Job Sources] {SITE_LABELS.get(site, site)} {reason}; skipping it for {seconds // 60} min")
+
+    def emit(self, record: logging.LogRecord) -> None:
+        part = record.name.split(".")[1] if record.name.count(".") >= 1 else ""
+        site = LOGGER_TO_SITE.get(part, part)
+        msg = record.getMessage().lower()
+        if "429" in msg or "blocked" in msg or "rate limit" in msg:
+            self._pause(site, PAUSE_RATE_LIMITED_S, "is rate-limiting requests (429)")
+        elif "404" in msg or "403" in msg:
+            self._pause(site, PAUSE_GONE_S, "rejected the request (404/403)")
+        elif "no job data" in msg or "no jobs" in msg:
+            with self._state:
+                self.empty_strikes[site] = self.empty_strikes.get(site, 0) + 1
+                strikes = self.empty_strikes[site]
+            if strikes >= EMPTY_STRIKES:
+                self._pause(site, PAUSE_EMPTY_S, f"returned no data {strikes} times in a row")
+
+    def ok(self, site: str) -> None:
+        with self._state:
+            self.empty_strikes[site] = 0
+
+    def available(self, sites: Iterable[str]) -> List[str]:
+        now = time.time()
+        with self._state:
+            return [s for s in sites if self.paused_until.get(s, 0) <= now]
+
+
+BOARD_HEALTH = _BoardHealth()
+_jobspy_logger = logging.getLogger("jobspy")
+_jobspy_logger.addHandler(BOARD_HEALTH)
+_jobspy_logger.propagate = False
 
 
 def sites_for_country(country: str) -> List[str]:
@@ -112,10 +172,13 @@ def normalize_row(row: Dict[str, Any], fallback_location: str, max_days: int, ho
     site = _text(row.get("site")).lower()
     url = _text(row.get("job_url_direct")) or _text(row.get("job_url"))
     desc = clean_description(_text(row.get("description")))
+    # JobSpy gives a list, a comma-separated string, or NaN (a float) when there are no emails
     emails = row.get("emails")
     if isinstance(emails, str):
         emails = [e.strip() for e in emails.split(",") if e.strip()]
-    found = [e for e in (emails or []) if "@" in str(e)] or HRFinder.extract_emails_from_text(desc)
+    elif not isinstance(emails, (list, tuple)):
+        emails = []
+    found = [e for e in emails if "@" in str(e)] or HRFinder.extract_emails_from_text(desc)
     hr_email = found[0] if found else ""
     snippet = re.sub(r"\s+", " ", desc)[:300].strip() + ("..." if len(desc) > 300 else "")
     encoded = urllib.parse.quote(f'"{company}"')
@@ -176,7 +239,7 @@ def scrape_location(
 
     try:
         import jobspy  # noqa: F401
-        chosen = list(sites) if sites else sites_for_country(country)
+        chosen = BOARD_HEALTH.available(list(sites) if sites else sites_for_country(country))
     except ImportError:
         chosen = []
 
@@ -206,6 +269,7 @@ def scrape_location(
                 continue
             if df is None or df.empty:
                 continue
+            BOARD_HEALTH.ok(site)
             for row in df.to_dict("records"):
                 add(normalize_row(row, display or city, max_days, hours_old))
         try:

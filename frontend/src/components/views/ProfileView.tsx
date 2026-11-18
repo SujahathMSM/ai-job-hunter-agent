@@ -115,6 +115,7 @@ export default function ProfileView() {
     summary: "",
     current_location: "",
     nationality: "",
+    languages: "",
     phone: "",
     email: "",
     linkedin: "",
@@ -130,6 +131,7 @@ export default function ProfileView() {
       summary: profile.summary || "",
       current_location: profile.identity?.current_location || "",
       nationality: profile.identity?.nationality || "",
+      languages: profile.identity?.languages || "",
       phone: profile.identity?.phone || "",
       email: profile.identity?.email || "",
       linkedin: profile.identity?.linkedin || "",
@@ -151,6 +153,7 @@ export default function ProfileView() {
           professional_title: editForm.professional_title,
           current_location: editForm.current_location,
           nationality: editForm.nationality,
+          languages: editForm.languages,
           phone: editForm.phone,
           email: editForm.email,
           linkedin: editForm.linkedin,
@@ -1104,6 +1107,17 @@ export default function ProfileView() {
                     className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-[#869296] uppercase mb-1">Languages (shown on your CV)</label>
+                <input
+                  type="text"
+                  value={editForm.languages}
+                  placeholder="e.g. Tamil, Sinhala (native); English (C1)"
+                  onChange={(e) => setEditForm({ ...editForm, languages: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#1a1b22] text-[#e3e1ec] rounded-lg border border-[#3d494c]/50 focus:border-[#4cd7f6] focus:outline-none"
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

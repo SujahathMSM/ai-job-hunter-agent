@@ -25,6 +25,12 @@ class ResumeTailorer:
         certs = self.profile.get("certifications", [])
 
         full_name = identity.get("full_name", "Candidate")
+        # The CV headline is always the candidate's real title, never the job being applied for
+        own_title = (
+            identity.get("professional_title")
+            or (work_hist[0].get("title") if work_hist and isinstance(work_hist[0], dict) else "")
+            or "Professional"
+        )
         current_loc = identity.get("current_location", "Remote")
         tech_stack = self.profile.get("technical_stack", [])
 
@@ -69,7 +75,7 @@ STRICT ANTI-HALLUCINATION & FACT-LOCKING RULES:
 {STYLE_RULES_FOR_PROMPT}
 
 CRITICAL TAILORING OBJECTIVES:
-1. 'tailored_title': High-impact executive headline matching the target role (e.g. for AI/Backend: '{job_title} | Systems & API Architecture Specialist').
+1. 'tailored_title': The candidate's own current professional title from the profile. Do NOT use the target job title as the candidate's title; the candidate does not hold that role yet.
 2. 'tailored_subtitle': Refined subtitle featuring the core technologies needed for this role that match candidate's actual strengths (e.g. 'Python (AsyncIO, FastAPI) | PostgreSQL | Docker | AWS | System Reliability').
 3. 'summary': An impressive 3-4 sentence Executive Profile. Highlight how candidate's technical rigor directly bridges with the target role's demands. State relocation or remote delivery readiness for {location}.
 4. 'core_skills_categorized': Return a list of skill category dicts ({{"category": "...", "skills": "..."}}). Prioritize and weave in the role's key requirements from the candidate's actual skills.
@@ -102,7 +108,7 @@ Return ONLY valid JSON with keys:
                 parsed = None
 
         if parsed and isinstance(parsed, dict) and "tailored_title" in parsed:
-            tailored_title = parsed.get("tailored_title", f"{job_title} Specialist")
+            tailored_title = own_title
             tailored_subtitle = parsed.get("tailored_subtitle", identity.get("subtitle") or "Backend & Systems Engineering")
             tailored_profile = parsed.get("summary", self.profile.get("summary", ""))
             tailored_skills = parsed.get("core_skills_categorized") or skills_cat
@@ -110,7 +116,7 @@ Return ONLY valid JSON with keys:
             raw_tailored_projects = parsed.get("projects") or projects
         else:
             # Deterministic fallback: built only from the profile, never from assumed skills
-            tailored_title = job_title
+            tailored_title = own_title
             tailored_subtitle = (
                 identity.get("subtitle")
                 or identity.get("professional_title")
@@ -165,6 +171,7 @@ Return ONLY valid JSON with keys:
         return {
             "identity": identity,
             "tailored_title": tailored_title,
+            "target_role": job_title,
             "tailored_subtitle": tailored_subtitle,
             "summary": tailored_profile,
             "tailored_summary": tailored_profile,

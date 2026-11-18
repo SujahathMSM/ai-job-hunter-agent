@@ -148,8 +148,8 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
     return (
       tailoredData || {
         identity: baseProfile?.identity,
-        tailored_title: jobTitle,
-        tailored_subtitle: "Python (AsyncIO, FastAPI) | Scalable Backend Architecture | TimescaleDB | Docker | AWS",
+        tailored_title: baseProfile?.identity?.professional_title || "",
+        tailored_subtitle: baseProfile?.identity?.subtitle || "",
         summary: baseProfile?.summary,
         projects: baseProfile?.projects,
         work_history: baseProfile?.work_history,
@@ -225,11 +225,11 @@ export default function CVTailorView({ initialJob, onProceedToOutreach, onSelect
   };
 
   // Resolved display fields
-  const displayTitle = tailoredData?.tailored_title || jobTitle;
+  const displayTitle = tailoredData?.tailored_title || baseProfile?.identity?.professional_title || "";
   const displaySummary =
     cleanText(tailoredData?.tailored_summary || tailoredData?.summary) ||
     baseProfile?.summary ||
-    "Production-tested Backend Engineer with a BScEngHons from the University of Moratuwa, specializing in high-throughput distributed architectures, secure API pipelines, and PostgreSQL/TimescaleDB optimization. Proven record reducing polling failures from 80% to 0% and slashing system startup times by 90%. 100% prepared for immediate international relocation.";
+    "";
 
   const displayProjects =
     tailoredData?.projects && tailoredData.projects.length > 0

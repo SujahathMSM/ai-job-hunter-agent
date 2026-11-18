@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { Send, Shield, CheckCircle2, AlertCircle, Paperclip, FileText, UserCheck, Mail, Eye, X, ExternalLink, Upload, RotateCcw, FileCheck } from "lucide-react";
 import { sendEmail, uploadOutreachAttachment } from "../../lib/api";
-import { getStoredUser, withAuthQuery } from "../../lib/auth";
+import { getStoredUser, withAuthQuery, AuthUser } from "../../lib/auth";
 
 interface ColdEmailViewProps {
   initialData?: {
@@ -15,19 +15,47 @@ interface ColdEmailViewProps {
   onSentSuccess?: () => void;
 }
 
+function defaultSubject(jobTitle: string, name: string): string {
+  return `Application: ${jobTitle} — ${name}`;
+}
+
+function defaultBody(jobTitle: string, company: string, name: string, email: string): string {
+  return (
+    `Dear Hiring Team,\n\n` +
+    `I'd like to apply for the ${jobTitle} role at ${company}. My CV and cover letter are attached.\n\n` +
+    `I'd welcome the chance to talk about the role and how my experience fits it.\n\n` +
+    `Best regards,\n${name}${email ? `\n${email}` : ""}`
+  );
+}
+
 export default function ColdEmailView({ initialData, onSentSuccess }: ColdEmailViewProps) {
-  const user = getStoredUser();
+  // Browser storage is only readable after mount: reading it during render makes the
+  // server HTML (no user) differ from the first client render (React hydration error).
+  const [user, setUser] = useState<AuthUser | null>(null);
   const candidateName = user?.full_name || "Candidate";
   const candidateEmail = user?.email || "";
 
   const [toEmail, setToEmail] = useState(initialData?.hrEmail || "");
   const [company, setCompany] = useState(initialData?.company || "Target Enterprise");
   const [jobTitle, setJobTitle] = useState(initialData?.jobTitle || "Backend Systems Engineer");
-  const [subject, setSubject] = useState(`Application: ${jobTitle} — ${candidateName}`);
-  const [body, setBody] = useState(
-    initialData?.context ||
-      `Dear Hiring Team,\n\nI am writing to express my strong interest in the ${jobTitle} opening at ${company}.\n\nWith production-tested software engineering experience building scalable backend microservices and reliable data workflows, I look forward to contributing immediate technical value to your team.\n\nI am prepared for international relocation with seamless onboarding.\n\nPlease find my attached official Europass CV and Cover Letter for your review.\n\nBest regards,\n${candidateName}${candidateEmail ? `\n${candidateEmail}` : ""}`
-  );
+  const [subject, setSubject] = useState(defaultSubject(jobTitle, "Candidate"));
+  const [body, setBody] = useState(initialData?.context || defaultBody(jobTitle, company, "Candidate", ""));
+
+  React.useEffect(() => {
+    // Syncing from browser storage once after mount is the intended use of this effect
+    const stored = getStoredUser();
+    if (!stored) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUser(stored);
+    // Fill the sender into the default text, unless the user already edited it
+    setSubject((s) => (s === defaultSubject(jobTitle, "Candidate") ? defaultSubject(jobTitle, stored.full_name || "Candidate") : s));
+    setBody((b) =>
+      b === defaultBody(jobTitle, company, "Candidate", "")
+        ? defaultBody(jobTitle, company, stored.full_name || "Candidate", stored.email || "")
+        : b
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [safeMode, setSafeMode] = useState(false);
   const [sending, setSending] = useState(false);

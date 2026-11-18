@@ -6,7 +6,6 @@ from pathlib import Path
 
 # Add project root to path
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(BASE_DIR))
 
 from matcher.geo_rules import GeoLocationEngine
 from matcher.jd_analyzer import JobDescriptionAnalyzer
@@ -199,7 +198,10 @@ evalX | Pytest, LLM-as-a-Judge
             location="Abu Dhabi, UAE",
             jd_text="Looking for an engineer with deep expertise in RAG, vector databases, LangGraph, FastAPI, and production AI."
         )
-        self.assertIn("AI", tailored["tailored_title"])
+        # Headline is the candidate's own title, not the target job's
+        own = self.profile["identity"].get("professional_title") or self.profile["work_history"][0]["title"]
+        self.assertEqual(tailored["tailored_title"], own)
+        self.assertEqual(tailored["target_role"], "Senior RAG & AI Engineer")
         self.assertGreaterEqual(len(tailored["projects"]), 2)
         self.assertTrue(any("Scalable Telemetry Pipeline" in p["title"] for p in tailored["projects"]))
 

@@ -10,6 +10,8 @@ export interface CandidateProfile {
     linkedin: string;
     github: string;
     website?: string;
+    subtitle?: string;
+    languages?: string;
   };
   summary: string;
   core_skills: string[];
