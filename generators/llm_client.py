@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Optional, Dict, Any, List
 import requests
 from config import GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
@@ -8,6 +9,9 @@ from config import GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 CONNECT_TIMEOUT_S = 5.0
 READ_TIMEOUT_S = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
 MAX_OUTPUT_TOKENS = 8000
+# Gemini returns 503/429 when overloaded; these are usually gone within seconds
+RETRYABLE_STATUS = {429, 500, 503}
+RETRY_BACKOFF_S = (2, 5)
 
 
 class LLMClient:
@@ -87,25 +91,32 @@ class LLMClient:
 
         for model_name in self.gemini_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
-            try:
-                res = requests.post(url, json=payload, headers=headers, timeout=(CONNECT_TIMEOUT_S, READ_TIMEOUT_S))
-            except requests.RequestException as e:
-                self.last_error = f"Gemini {model_name}: {type(e).__name__}"
-                print(f"[LLM Error] {self.last_error}")
-                continue
-            if res.status_code == 404:
-                continue  # Model not available for this key, try the next one
-            if res.status_code != 200:
-                self.last_error = f"Gemini {model_name} HTTP {res.status_code}"
-                print(f"[LLM Warning] {self.last_error}: {res.text[:200]}")
-                continue
-            candidates = res.json().get("candidates", [])
-            parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
-            text = "".join(p.get("text", "") for p in parts).strip()
-            if text:
-                print(f"[LLM SUCCESS] Gemini '{model_name}' generated {len(text)} characters.")
-                return text
-            self.last_error = f"Gemini {model_name} returned no text"
+            for attempt, wait in enumerate((0, *RETRY_BACKOFF_S)):
+                if wait:
+                    time.sleep(wait)
+                try:
+                    res = requests.post(url, json=payload, headers=headers, timeout=(CONNECT_TIMEOUT_S, READ_TIMEOUT_S))
+                except requests.RequestException as e:
+                    self.last_error = f"Gemini {model_name}: {type(e).__name__}"
+                    print(f"[LLM Error] {self.last_error}")
+                    break
+                if res.status_code == 404:
+                    break  # Model not available for this key, try the next one
+                if res.status_code in RETRYABLE_STATUS and attempt < len(RETRY_BACKOFF_S):
+                    print(f"[LLM Notice] Gemini {model_name} busy (HTTP {res.status_code}); retrying in {RETRY_BACKOFF_S[attempt]}s")
+                    continue
+                if res.status_code != 200:
+                    self.last_error = f"Gemini {model_name} HTTP {res.status_code}"
+                    print(f"[LLM Warning] {self.last_error}: {res.text[:200]}")
+                    break
+                candidates = res.json().get("candidates", [])
+                parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+                text = "".join(p.get("text", "") for p in parts).strip()
+                if text:
+                    print(f"[LLM SUCCESS] Gemini '{model_name}' generated {len(text)} characters.")
+                    return text
+                self.last_error = f"Gemini {model_name} returned no text"
+                break
         return ""
 
     def _call_openai(self, prompt: str, system_prompt: str, api_key: str) -> str:
