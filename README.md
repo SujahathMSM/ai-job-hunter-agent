@@ -81,10 +81,22 @@ This automatically launches:
 
 ### 2. Manual Startup
 
-**Backend:**
+**Backend** with [uv](https://docs.astral.sh/uv/) (recommended; installs the exact versions in `uv.lock` into `.venv`):
 ```bash
-python -m pip install -r requirements.txt
+uv sync --extra dev
+uv run uvicorn api:app --port 8005 --reload
+```
+
+Or with pip:
+```bash
+python -m pip install -e ".[dev]"      # or: python -m pip install -r requirements.txt  (exact pinned versions)
 python -m uvicorn api:app --port 8005 --reload
+```
+
+Dependencies are declared in `pyproject.toml`. After changing them, run `uv lock`, then refresh the pip files:
+```bash
+uv export --format requirements-txt --no-hashes --no-emit-project -o requirements.txt
+uv export --format requirements-txt --no-hashes --no-emit-project --extra dev -o requirements-dev.txt
 ```
 
 **Frontend:**
@@ -98,9 +110,9 @@ npm run dev
 
 ### 3. Run Test Suite
 ```bash
-python -m pip install -r requirements-dev.txt
-pytest
+uv run pytest
 ```
+(or `pytest` inside an environment set up with `pip install -e ".[dev]"`)
 
 Tests live in `tests/`. `scripts/` holds manual smoke checks (`smoke_all_features.py`, `qa_verification.py`) that run against your local profile and are not part of CI.
 

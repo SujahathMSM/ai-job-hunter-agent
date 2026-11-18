@@ -12,7 +12,15 @@ if "%BACKEND_PORT%"=="" set BACKEND_PORT=8005
 if "%ALLOW_DEV_AUTH%"=="" set ALLOW_DEV_AUTH=true
 
 :: 1. Launch FastAPI Backend
-start "NexusHunt - FastAPI Backend (:%BACKEND_PORT%)" cmd /k "cd /d "%~dp0" && python -m uvicorn api:app --port %BACKEND_PORT% --reload"
+:: Use uv when installed (installs/updates dependencies from uv.lock automatically),
+:: otherwise the Python environment you installed requirements.txt into.
+where uv >nul 2>nul
+if %ERRORLEVEL%==0 (
+    set "BACKEND_CMD=uv run uvicorn api:app --port %BACKEND_PORT% --reload"
+) else (
+    set "BACKEND_CMD=python -m uvicorn api:app --port %BACKEND_PORT% --reload"
+)
+start "NexusHunt - FastAPI Backend (:%BACKEND_PORT%)" cmd /k "cd /d "%~dp0" && %BACKEND_CMD%"
 
 :: 2. Launch Next.js Frontend on port 3000
 start "NexusHunt - Next.js Frontend (:3000)" cmd /k "cd /d "%~dp0frontend" && set BACKEND_PORT=%BACKEND_PORT% && npm run dev"

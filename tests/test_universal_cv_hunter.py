@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(BASE_DIR))
 
 from fastapi.testclient import TestClient
 from api import app, create_access_token

@@ -42,3 +42,7 @@ stitch_design/
 frontend/node_modules/
 frontend/.next/
 data/.data_key
+
+# Python build metadata
+*.egg-info/
+build/
