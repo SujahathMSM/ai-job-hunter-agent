@@ -6,6 +6,7 @@ from hunter.hr_finder import HRFinder
 from config import RAPIDAPI_KEY, EXPANDED_LOCATION_TARGETS
 from hunter.freshness import assess
 from hunter.job_sources import clean_description, scrape_location
+from hunter.company_boards import search_company_boards
 
 class LiveJobHunter:
     """Live job search across Indeed, LinkedIn, Glassdoor, Google Jobs and the regional boards
@@ -73,7 +74,7 @@ class LiveJobHunter:
         """Expands narrow search terms into broader related engineering queries for wider coverage."""
         kw = keyword.strip()
         if not kw:
-            return ["Software Engineer", "Backend Engineer", "AI Engineer"]
+            return ["Software Engineer", "Backend Engineer", "AI Engineer", "Data Engineer", "Full Stack Developer"]
 
         kw_lower = kw.lower()
         queries = [kw]
@@ -87,9 +88,15 @@ class LiveJobHunter:
         elif any(term in kw_lower for term in ["embedded", "firmware", "iot"]):
             queries.extend(["IoT Engineer", "Embedded Systems Engineer", "Firmware Engineer"])
         elif "python" in kw_lower:
-            queries.extend(["Python Engineer", "Python Backend Developer", "Software Engineer Python"])
+            queries.extend(["Python Engineer", "Python Backend Developer", "Software Engineer Python", "Django Developer", "FastAPI Developer"])
         elif "backend" in kw_lower:
-            queries.extend(["Backend Engineer", "API Engineer", "Systems Engineer"])
+            queries.extend(["Backend Engineer", "API Engineer", "Systems Engineer", "Platform Engineer"])
+        elif any(term in kw_lower for term in ["frontend", "front end", "react", "full stack", "fullstack"]):
+            queries.extend(["Frontend Developer", "Full Stack Developer", "React Developer", "Web Developer"])
+        elif any(term in kw_lower for term in ["devops", "cloud", "sre", "infrastructure"]):
+            queries.extend(["DevOps Engineer", "Cloud Engineer", "Site Reliability Engineer", "Platform Engineer"])
+        elif any(term in kw_lower for term in ["machine learning", "ml ", "data scien"]):
+            queries.extend(["Machine Learning Engineer", "Data Scientist", "AI Engineer", "MLOps Engineer"])
         elif "business analyst" in kw_lower or kw_lower == "ba":
             queries.extend(["Business Analyst", "Technical Business Analyst", "Operations Analyst", "Systems Analyst"])
         elif "it support" in kw_lower or "support" in kw_lower:
@@ -106,7 +113,7 @@ class LiveJobHunter:
             if clean_q.lower() not in seen:
                 seen.add(clean_q.lower())
                 unique.append(clean_q)
-        return unique[:3]
+        return unique[:5]
 
     @staticmethod
     def clean_description(text: str) -> str:
@@ -171,14 +178,31 @@ class LiveJobHunter:
         max_results: int = 15,
         max_days_old: int = 14
     ):
-        """Yields live postings one by one as each location returns, searching every job
-        board that covers that location (see hunter/job_sources.py)."""
+        """Yields live postings: first matching open roles from companies' own careers pages,
+        then each location's results from every job board that covers it."""
         region = (region_filter or "ALL").upper()
         targets = EXPANDED_LOCATION_TARGETS.get(region, EXPANDED_LOCATION_TARGETS["ALL"])
         queries = self._expand_search_queries(keyword)
         per_location = max(5, min(20, max_results // len(targets) + 4))
         seen = set()
         count = 0
+
+        # Companies' own careers pages first: one parallel fetch, every result is an open role
+        try:
+            board_jobs = search_company_boards(keyword)
+        except Exception as e:
+            print(f"[Company Boards Error]: {e}")
+            board_jobs = []
+        for job in board_jobs:
+            key = (job["job_title"].lower(), job["company"].lower())
+            if key in seen or not self._accept(job, keyword, region):
+                continue
+            seen.add(key)
+            count += 1
+            job["id"] = f"live-{count}"
+            yield job
+            if count >= max_results:
+                return
 
         for q in queries:
             for loc in targets:

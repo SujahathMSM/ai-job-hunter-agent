@@ -377,121 +377,17 @@ class GlobalRemoteHunter:
 
     # 7. Direct Company ATS Boards (Canonical, GitLab, Linear, LangChain, Modal)
     def fetch_direct_ats(self, keyword: str = "python") -> List[Dict[str, Any]]:
+        """Remote roles from companies' own careers pages (Greenhouse, Lever, Ashby, SmartRecruiters)."""
+        from hunter.company_boards import search_company_boards
         jobs = []
-
-        # 7A. Canonical (Greenhouse)
-        try:
-            r = self.session.get("https://boards-api.greenhouse.io/v1/boards/canonical/jobs", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data[:60]:
-                    title = item.get("title") or ""
-                    loc_dict = item.get("location") or {}
-                    loc_name = loc_dict.get("name") or "Home based - Worldwide"
-                    link = item.get("absolute_url") or ""
-
-                    if "home based" in loc_name.lower() or "remote" in loc_name.lower():
-                        if keyword.lower() in title.lower() or not keyword:
-                            jobs.append({
-                                "job_id": f"canonical_{item.get('id')}",
-                                "job_title": title,
-                                "company": "Canonical (Ubuntu)",
-                                "location": f"🌐 {loc_name}",
-                                "salary": "Competitive Global Band",
-                                "portal": link,
-                                "description": f"Canonical is a global remote-first software company delivering Ubuntu Linux, cloud infrastructure, and open-source software.\nRole: {title}\nLocation: {loc_name}",
-                                "tags": ["Linux", "Open Source", "Distributed Systems", "Global Remote"],
-                                "source": "Greenhouse: Canonical",
-                                "date_posted": "",
-                                "is_worldwide": is_worldwide_open(loc_name)
-                            })
-        except Exception as e:
-            print(f"[Canonical ATS Error]: {e}")
-
-        # 7B. GitLab (Greenhouse)
-        try:
-            r = self.session.get("https://boards-api.greenhouse.io/v1/boards/gitlab/jobs", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data[:40]:
-                    title = item.get("title") or ""
-                    loc_name = (item.get("location") or {}).get("name") or "Remote - Worldwide"
-                    link = item.get("absolute_url") or ""
-
-                    if keyword.lower() in title.lower() or not keyword:
-                        jobs.append({
-                            "job_id": f"gitlab_{item.get('id')}",
-                            "job_title": title,
-                            "company": "GitLab",
-                            "location": "🌐 Remote (All-Remote Worldwide)",
-                            "salary": "Global Remote Compensation",
-                            "portal": link,
-                            "description": f"GitLab is one of the world's largest all-remote companies, building the unified DevSecOps platform.\nRole: {title}",
-                            "tags": ["DevOps", "CI/CD", "All-Remote", "Cloud"],
-                            "source": "Greenhouse: GitLab",
-                            "date_posted": "",
-                            "is_worldwide": True
-                        })
-        except Exception as e:
-            print(f"[GitLab ATS Error]: {e}")
-
-        # 7C. Linear (Ashby)
-        try:
-            r = self.session.get("https://api.ashbyhq.com/posting-api/job-board/linear", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data:
-                    title = item.get("title") or ""
-                    loc = item.get("location") or "Remote"
-                    is_rem = item.get("isRemote", True)
-                    link = item.get("jobUrl") or ""
-
-                    if is_rem or "remote" in loc.lower():
-                        if keyword.lower() in title.lower() or not keyword:
-                            jobs.append({
-                                "job_id": f"linear_{hash(link) % 1000000}",
-                                "job_title": title,
-                                "company": "Linear",
-                                "location": f"🌐 {loc}",
-                                "salary": "Top-tier Equity & Salary",
-                                "portal": link,
-                                "description": f"Linear builds the purpose-built issue tracking and project management tool for modern software teams.\nRole: {title}",
-                                "tags": ["Engineering", "Product", "Remote"],
-                                "source": "Ashby: Linear",
-                                "date_posted": "",
-                                "is_worldwide": is_worldwide_open(loc)
-                            })
-        except Exception as e:
-            print(f"[Linear ATS Error]: {e}")
-
-        # 7D. LangChain (Ashby)
-        try:
-            r = self.session.get("https://api.ashbyhq.com/posting-api/job-board/langchain", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data[:30]:
-                    title = item.get("title") or ""
-                    loc = item.get("location") or "Remote"
-                    is_rem = item.get("isRemote", False)
-                    link = item.get("jobUrl") or ""
-
-                    if is_rem or "remote" in loc.lower():
-                        jobs.append({
-                            "job_id": f"langchain_{hash(link) % 1000000}",
-                            "job_title": title,
-                            "company": "LangChain",
-                            "location": f"🌐 {loc}",
-                            "salary": "Competitive AI Startup Package",
-                            "portal": link,
-                            "description": f"LangChain builds open-source frameworks and tools powering production LLM and agentic workflows.\nRole: {title}",
-                            "tags": ["AI", "LLM", "Python", "Agentic Systems"],
-                            "source": "Ashby: LangChain",
-                            "date_posted": "",
-                            "is_worldwide": is_worldwide_open(loc)
-                        })
-        except Exception as e:
-            print(f"[LangChain ATS Error]: {e}")
-
+        for j in search_company_boards(keyword, remote_only=True):
+            jobs.append({
+                **j,
+                "job_id": f"ats_{abs(hash(j['job_url'])) % 10_000_000}",
+                "location": f"🌐 {j['location'] or 'Remote'}",
+                "tags": [j["company"], "Company careers page"],
+                "is_worldwide": is_worldwide_open(j["location"], ""),
+            })
         return jobs
 
     # Orchestrator
@@ -531,15 +427,13 @@ class GlobalRemoteHunter:
             if source_filter in ["ALL", "ATS"]:
                 tasks.append(executor.submit(self.fetch_direct_ats, keyword))
 
+        # The executor waits for every source (each has its own request timeout), so collect
+        # all results here rather than discarding sources that finish after a fixed deadline.
+        for future in tasks:
             try:
-                for future in as_completed(tasks, timeout=4.5):
-                    try:
-                        res = future.result()
-                        all_jobs.extend(res)
-                    except Exception as e:
-                        print(f"[Remote Sub-Scraper Task Error]: {e}")
-            except (TimeoutError, FuturesTimeoutError):
-                print("[Remote Hunter]: Sub-scrapers reached 4.5s deadline; returning collected results.")
+                all_jobs.extend(future.result())
+            except Exception as e:
+                print(f"[Remote Sub-Scraper Task Error]: {e}")
 
         # Deduplicate by company + title
         deduped = []

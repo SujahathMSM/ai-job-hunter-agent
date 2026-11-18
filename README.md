@@ -49,6 +49,7 @@ ai-job-hunter-agent/
 ├── hunter/
 │   ├── job_sources.py          # One scraper for Indeed, LinkedIn, Glassdoor, Google Jobs, ZipRecruiter, Bayt, Naukri, ...
 │   ├── freshness.py            # Posting-date parsing and the live-postings-only rule
+│   ├── company_boards.py       # Open roles from companies' own careers pages (Greenhouse, Lever, Ashby, SmartRecruiters)
 │   ├── live_scraper.py         # Job Hunter tab: region search (Gulf, migration routes, worldwide)
 │   ├── universal_cv_hunter.py  # Deep CV semantic matching engine for any profession worldwide
 │   ├── remote_hunter.py        # Worldwide remote job discovery engine

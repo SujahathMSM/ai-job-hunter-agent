@@ -2,7 +2,8 @@
 
 Which boards are searched depends on the country:
 
-    every country   Indeed, LinkedIn, Glassdoor, Google Jobs
+    every country   Indeed, LinkedIn, Glassdoor, Google Jobs (LinkedIn + Google only where
+                    Indeed has no national site)
     USA / Canada    + ZipRecruiter
     Gulf & MENA     + Bayt
     India           + Naukri
@@ -36,9 +37,22 @@ SITE_LABELS = {
 PLACEHOLDER_COMPANIES = {"", "nan", "none", "verified employer", "gulf employer", "external job link"}
 
 
+def _indeed_countries() -> set:
+    try:
+        from jobspy.model import Country
+        return {c.value for c in Country}
+    except Exception:
+        return set()
+
+
+INDEED_COUNTRIES = _indeed_countries()
+
+
 def sites_for_country(country: str) -> List[str]:
     c = (country or "").lower().strip()
-    sites = list(BASE_SITES) + COUNTRY_SITES.get(c, [])
+    # Indeed and Glassdoor need a country they have a site for; otherwise search LinkedIn and Google only.
+    base = BASE_SITES if c in INDEED_COUNTRIES else ["linkedin", "google"]
+    sites = list(base) + COUNTRY_SITES.get(c, [])
     if c in BAYT_COUNTRIES:
         sites.append("bayt")
     return sites
@@ -137,7 +151,7 @@ def _scrape_one_site(site: str, search_term: str, city: str, country: str, resul
         description_format="markdown",
         verbose=0,
     )
-    if country:
+    if country and country.lower() in INDEED_COUNTRIES:
         kwargs["country_indeed"] = country
     if site == "google":
         kwargs["google_search_term"] = f"{search_term} jobs near {city} since last week"

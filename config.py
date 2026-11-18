@@ -143,8 +143,63 @@ EXPANDED_LOCATION_TARGETS = {
         {"city": "Auckland", "country": "new zealand", "display": "Auckland, New Zealand"},
         {"city": "Sao Paulo", "country": "brazil", "display": "Sao Paulo, Brazil"},
         {"city": "Johannesburg", "country": "south africa", "display": "Johannesburg, South Africa"},
+        {"city": "Seattle", "country": "usa", "display": "Seattle, USA"},
+        {"city": "Chicago", "country": "usa", "display": "Chicago, USA"},
+        {"city": "Boston", "country": "usa", "display": "Boston, USA"},
+        {"city": "Vancouver", "country": "canada", "display": "Vancouver, Canada"},
+        {"city": "Mexico City", "country": "mexico", "display": "Mexico City, Mexico"},
+        {"city": "Buenos Aires", "country": "argentina", "display": "Buenos Aires, Argentina"},
+        {"city": "Manchester", "country": "uk", "display": "Manchester, UK"},
+        {"city": "Munich", "country": "germany", "display": "Munich, Germany"},
+        {"city": "Zurich", "country": "switzerland", "display": "Zurich, Switzerland"},
+        {"city": "Stockholm", "country": "sweden", "display": "Stockholm, Sweden"},
+        {"city": "Warsaw", "country": "poland", "display": "Warsaw, Poland"},
+        {"city": "Madrid", "country": "spain", "display": "Madrid, Spain"},
+        {"city": "Lisbon", "country": "portugal", "display": "Lisbon, Portugal"},
+        {"city": "Abu Dhabi", "country": "united arab emirates", "display": "Abu Dhabi, UAE"},
+        {"city": "Doha", "country": "qatar", "display": "Doha, Qatar"},
+        {"city": "Cairo", "country": "egypt", "display": "Cairo, Egypt"},
+        {"city": "Nairobi", "country": "kenya", "display": "Nairobi, Kenya"},
+        {"city": "Lagos", "country": "nigeria", "display": "Lagos, Nigeria"},
+        {"city": "Hyderabad", "country": "india", "display": "Hyderabad, India"},
+        {"city": "Hong Kong", "country": "hong kong", "display": "Hong Kong"},
+        {"city": "Seoul", "country": "south korea", "display": "Seoul, South Korea"},
+        {"city": "Jakarta", "country": "indonesia", "display": "Jakarta, Indonesia"},
+        {"city": "Bangkok", "country": "thailand", "display": "Bangkok, Thailand"},
+        {"city": "Manila", "country": "philippines", "display": "Manila, Philippines"},
+        {"city": "Melbourne", "country": "australia", "display": "Melbourne, Australia"},
     ]
 }
+
+# Companies whose own careers pages are searched directly: (ATS, board id, display name).
+# These boards list only open roles. A board that moves or is renamed is skipped and
+# logged; add your target employers here.
+COMPANY_CAREER_BOARDS = [
+    # Greenhouse
+    ("greenhouse", "gitlab", "GitLab"), ("greenhouse", "canonical", "Canonical"),
+    ("greenhouse", "stripe", "Stripe"), ("greenhouse", "airbnb", "Airbnb"),
+    ("greenhouse", "cloudflare", "Cloudflare"), ("greenhouse", "datadog", "Datadog"),
+    ("greenhouse", "mongodb", "MongoDB"), ("greenhouse", "elastic", "Elastic"),
+    ("greenhouse", "twilio", "Twilio"), ("greenhouse", "dropbox", "Dropbox"),
+    ("greenhouse", "reddit", "Reddit"), ("greenhouse", "robinhood", "Robinhood"),
+    ("greenhouse", "discord", "Discord"), ("greenhouse", "figma", "Figma"),
+    ("greenhouse", "databricks", "Databricks"), ("greenhouse", "instacart", "Instacart"),
+    ("greenhouse", "lyft", "Lyft"), ("greenhouse", "pinterest", "Pinterest"),
+    ("greenhouse", "coinbase", "Coinbase"), ("greenhouse", "okta", "Okta"),
+    ("greenhouse", "hubspot", "HubSpot"), ("greenhouse", "grammarly", "Grammarly"),
+    ("greenhouse", "duolingo", "Duolingo"), ("greenhouse", "asana", "Asana"),
+    ("greenhouse", "anthropic", "Anthropic"), ("greenhouse", "remote", "Remote.com"),
+    ("greenhouse", "toptal", "Toptal"), ("greenhouse", "wikimedia", "Wikimedia"),
+    # Lever
+    ("lever", "palantir", "Palantir"), ("lever", "spotify", "Spotify"),
+    ("lever", "binance", "Binance"), ("lever", "kraken", "Kraken"),
+    # Ashby
+    ("ashby", "linear", "Linear"), ("ashby", "langchain", "LangChain"),
+    ("ashby", "openai", "OpenAI"), ("ashby", "notion", "Notion"),
+    ("ashby", "ramp", "Ramp"), ("ashby", "deel", "Deel"),
+    # SmartRecruiters
+    ("smartrecruiters", "Visa", "Visa"), ("smartrecruiters", "BoschGroup", "Bosch"),
+]
 
 # Engineering Disciplines & Broad Keywords
 ENGINEERING_KEYWORDS: List[str] = [
