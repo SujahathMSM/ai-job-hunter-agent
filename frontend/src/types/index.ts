@@ -120,6 +120,7 @@ export interface GlobalRemoteJob {
   fit_analysis?: JobItem["fit_analysis"];
   date_posted?: string;
   posted_at?: string;
+  posted_label?: string;
 }
 
 export interface DubaiJobItem {
@@ -137,6 +138,7 @@ export interface DubaiJobItem {
   source: string;
   date_posted?: string;
   posted_at?: string;
+  posted_label?: string;
   is_dubai: boolean;
   match_score: number;
   fit_analysis?: JobItem["fit_analysis"];

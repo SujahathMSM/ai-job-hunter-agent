@@ -5,6 +5,7 @@ import threading
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 from typing import List, Dict, Any, Optional
+from hunter.freshness import MAX_POSTING_AGE_DAYS, assess
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 NexusHuntAI/2.4"
 REQUEST_HEADERS = {
@@ -164,7 +165,7 @@ class GlobalRemoteHunter:
                     salary = f"${sal_min:,} - ${sal_max:,}" if sal_min and sal_max else ""
 
                     tags = item.get("tags") or []
-                    date_posted = item.get("date") or "Recently"
+                    date_posted = item.get("date") or ""
 
                     jobs.append({
                         "job_id": f"remoteok_{item.get('id')}",
@@ -176,7 +177,7 @@ class GlobalRemoteHunter:
                         "description": desc[:3000],
                         "tags": tags[:6],
                         "source": "RemoteOK",
-                        "date_posted": str(date_posted)[:10],
+                        "date_posted": str(date_posted),
                         "is_worldwide": is_worldwide_open(loc, desc[:500])
                     })
         except Exception as e:
@@ -199,7 +200,7 @@ class GlobalRemoteHunter:
                     salary = item.get("salary") or ""
                     url = item.get("url") or ""
                     tags = item.get("tags") or []
-                    pub = item.get("publication_date") or "Recently"
+                    pub = item.get("publication_date") or ""
 
                     jobs.append({
                         "job_id": f"remotive_{item.get('id')}",
@@ -211,7 +212,7 @@ class GlobalRemoteHunter:
                         "description": desc[:3000],
                         "tags": tags[:6],
                         "source": "Remotive",
-                        "date_posted": str(pub)[:10],
+                        "date_posted": str(pub),
                         "is_worldwide": is_worldwide_open(req_loc, desc[:500])
                     })
         except Exception as e:
@@ -246,7 +247,7 @@ class GlobalRemoteHunter:
                         "description": desc[:3000],
                         "tags": [item.get("jobIndustry", "Tech"), item.get("jobType", "Full-Time")],
                         "source": "Jobicy",
-                        "date_posted": str(item.get("pubDate") or "Recently")[:10],
+                        "date_posted": str(item.get("pubDate") or ""),
                         "is_worldwide": is_worldwide_open(geo, desc[:500])
                     })
         except Exception as e:
@@ -287,7 +288,7 @@ class GlobalRemoteHunter:
                             "description": desc[:3000],
                             "tags": (item.get("categories") or [])[:5],
                             "source": "Himalayas",
-                            "date_posted": "Recently",
+                            "date_posted": item.get("pubDate") or "",
                             "is_worldwide": is_worldwide_open(loc_str, desc[:500])
                         })
         except Exception as e:
@@ -311,7 +312,7 @@ class GlobalRemoteHunter:
                     raw_title = title_elem.text if title_elem is not None else ""
                     link = link_elem.text if link_elem is not None else ""
                     desc = clean_html(desc_elem.text if desc_elem is not None else "")
-                    pub = pub_elem.text if pub_elem is not None else "Recently"
+                    pub = pub_elem.text if pub_elem is not None else ""
 
                     parts = raw_title.split(":", 1)
                     comp = parts[0].strip() if len(parts) > 1 else "Tech Startup"
@@ -328,64 +329,12 @@ class GlobalRemoteHunter:
                             "description": desc[:3000],
                             "tags": ["Full-Time", "Programming", "Remote"],
                             "source": "WeWorkRemotely",
-                            "date_posted": str(pub)[:16],
+                            "date_posted": str(pub),
                             "is_worldwide": is_worldwide_open("Worldwide", desc[:500])
                         })
         except Exception as e:
             print(f"[WeWorkRemotely Error]: {e}")
 
-        # 5B. Top Trending Remote Jobs from WeWorkRemotely
-        try:
-            from bs4 import BeautifulSoup
-            trend_url = "https://weworkremotely.com/top-trending-remote-jobs"
-            r_trend = self.session.get(trend_url, timeout=SCRAPER_TIMEOUT)
-            if r_trend.status_code == 200:
-                soup = BeautifulSoup(r_trend.text, "html.parser")
-                links = soup.find_all("a", href=lambda h: h and "/remote-jobs/" in h)
-                for a in links:
-                    href = a.get("href", "")
-                    if "find-your-plan" in href:
-                        continue
-                    full_link = "https://weworkremotely.com" + href if href.startswith("/") else href
-                    t_elem = a.find(class_=re.compile(r'title', re.I))
-                    c_elem = a.find(class_=re.compile(r'company-name', re.I))
-                    if not t_elem or not c_elem:
-                        continue
-                    title = t_elem.get_text(strip=True)
-                    comp = c_elem.get_text(strip=True)
-                    
-                    full_text = " ".join(a.stripped_strings)
-                    
-                    # Strict zero tolerance for Israel
-                    if any(ex in full_text.lower() for ex in EXCLUDED_TERMS):
-                        continue
-                    
-                    cats = [c.get_text(strip=True) for c in a.find_all(class_=re.compile(r'category', re.I))]
-                    sal_match = re.search(r'\$[\d,]+(?:\s*-\s*\$[\d,]+|\s*or more|\s*/\s*hr)?\s*USD', full_text)
-                    sal = sal_match.group(0) if sal_match else ""
-                    
-                    is_ww = "anywhere in the world" in full_text.lower() or "worldwide" in full_text.lower()
-                    
-                    combined = f"{title} {comp} {' '.join(cats)}".lower()
-                    if keyword.lower() in combined or not keyword or "engineer" in combined or "developer" in combined or "backend" in combined or "python" in combined:
-                        jobs.append({
-                            "job_id": f"wwr_trend_{abs(hash(full_link)) % 1000000}",
-                            "job_title": title,
-                            "company": comp,
-                            "location": "🌐 Worldwide / Remote" if is_ww else "🌐 Remote",
-                            "salary": sal,
-                            "portal": full_link,
-                            "apply_url": full_link,
-                            "job_url": full_link,
-                            "description": f"Trending remote position at {comp}.\nCategories: {', '.join(cats)}.\nApply via official WeWorkRemotely listing.",
-                            "tags": cats[:5] if cats else ["Trending", "Remote"],
-                            "source": "WWR Trending",
-                            "source_type": "rss",
-                            "date_posted": "Trending Now",
-                            "is_worldwide": is_ww
-                        })
-        except Exception as e:
-            print(f"[WWR Trending Scraper Error]: {e}")
 
         return jobs
 
@@ -419,7 +368,7 @@ class GlobalRemoteHunter:
                             "description": desc[:3000],
                             "tags": tags[:5],
                             "source": "Arbeitnow",
-                            "date_posted": "Recently",
+                            "date_posted": item.get("created_at") or "",
                             "is_worldwide": is_worldwide_open(loc, desc[:500])
                         })
         except Exception as e:
@@ -428,121 +377,17 @@ class GlobalRemoteHunter:
 
     # 7. Direct Company ATS Boards (Canonical, GitLab, Linear, LangChain, Modal)
     def fetch_direct_ats(self, keyword: str = "python") -> List[Dict[str, Any]]:
+        """Remote roles from companies' own careers pages (Greenhouse, Lever, Ashby, SmartRecruiters)."""
+        from hunter.company_boards import search_company_boards
         jobs = []
-
-        # 7A. Canonical (Greenhouse)
-        try:
-            r = self.session.get("https://boards-api.greenhouse.io/v1/boards/canonical/jobs", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data[:60]:
-                    title = item.get("title") or ""
-                    loc_dict = item.get("location") or {}
-                    loc_name = loc_dict.get("name") or "Home based - Worldwide"
-                    link = item.get("absolute_url") or ""
-
-                    if "home based" in loc_name.lower() or "remote" in loc_name.lower():
-                        if keyword.lower() in title.lower() or not keyword:
-                            jobs.append({
-                                "job_id": f"canonical_{item.get('id')}",
-                                "job_title": title,
-                                "company": "Canonical (Ubuntu)",
-                                "location": f"🌐 {loc_name}",
-                                "salary": "Competitive Global Band",
-                                "portal": link,
-                                "description": f"Canonical is a global remote-first software company delivering Ubuntu Linux, cloud infrastructure, and open-source software.\nRole: {title}\nLocation: {loc_name}",
-                                "tags": ["Linux", "Open Source", "Distributed Systems", "Global Remote"],
-                                "source": "Greenhouse: Canonical",
-                                "date_posted": "Active",
-                                "is_worldwide": is_worldwide_open(loc_name)
-                            })
-        except Exception as e:
-            print(f"[Canonical ATS Error]: {e}")
-
-        # 7B. GitLab (Greenhouse)
-        try:
-            r = self.session.get("https://boards-api.greenhouse.io/v1/boards/gitlab/jobs", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data[:40]:
-                    title = item.get("title") or ""
-                    loc_name = (item.get("location") or {}).get("name") or "Remote - Worldwide"
-                    link = item.get("absolute_url") or ""
-
-                    if keyword.lower() in title.lower() or not keyword:
-                        jobs.append({
-                            "job_id": f"gitlab_{item.get('id')}",
-                            "job_title": title,
-                            "company": "GitLab",
-                            "location": "🌐 Remote (All-Remote Worldwide)",
-                            "salary": "Global Remote Compensation",
-                            "portal": link,
-                            "description": f"GitLab is one of the world's largest all-remote companies, building the unified DevSecOps platform.\nRole: {title}",
-                            "tags": ["DevOps", "CI/CD", "All-Remote", "Cloud"],
-                            "source": "Greenhouse: GitLab",
-                            "date_posted": "Active",
-                            "is_worldwide": True
-                        })
-        except Exception as e:
-            print(f"[GitLab ATS Error]: {e}")
-
-        # 7C. Linear (Ashby)
-        try:
-            r = self.session.get("https://api.ashbyhq.com/posting-api/job-board/linear", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data:
-                    title = item.get("title") or ""
-                    loc = item.get("location") or "Remote"
-                    is_rem = item.get("isRemote", True)
-                    link = item.get("jobUrl") or ""
-
-                    if is_rem or "remote" in loc.lower():
-                        if keyword.lower() in title.lower() or not keyword:
-                            jobs.append({
-                                "job_id": f"linear_{hash(link) % 1000000}",
-                                "job_title": title,
-                                "company": "Linear",
-                                "location": f"🌐 {loc}",
-                                "salary": "Top-tier Equity & Salary",
-                                "portal": link,
-                                "description": f"Linear builds the purpose-built issue tracking and project management tool for modern software teams.\nRole: {title}",
-                                "tags": ["Engineering", "Product", "Remote"],
-                                "source": "Ashby: Linear",
-                                "date_posted": "Active",
-                                "is_worldwide": is_worldwide_open(loc)
-                            })
-        except Exception as e:
-            print(f"[Linear ATS Error]: {e}")
-
-        # 7D. LangChain (Ashby)
-        try:
-            r = self.session.get("https://api.ashbyhq.com/posting-api/job-board/langchain", timeout=SCRAPER_TIMEOUT)
-            if r.status_code == 200:
-                data = r.json().get("jobs", [])
-                for item in data[:30]:
-                    title = item.get("title") or ""
-                    loc = item.get("location") or "Remote"
-                    is_rem = item.get("isRemote", False)
-                    link = item.get("jobUrl") or ""
-
-                    if is_rem or "remote" in loc.lower():
-                        jobs.append({
-                            "job_id": f"langchain_{hash(link) % 1000000}",
-                            "job_title": title,
-                            "company": "LangChain",
-                            "location": f"🌐 {loc}",
-                            "salary": "Competitive AI Startup Package",
-                            "portal": link,
-                            "description": f"LangChain builds open-source frameworks and tools powering production LLM and agentic workflows.\nRole: {title}",
-                            "tags": ["AI", "LLM", "Python", "Agentic Systems"],
-                            "source": "Ashby: LangChain",
-                            "date_posted": "Active",
-                            "is_worldwide": is_worldwide_open(loc)
-                        })
-        except Exception as e:
-            print(f"[LangChain ATS Error]: {e}")
-
+        for j in search_company_boards(keyword, remote_only=True):
+            jobs.append({
+                **j,
+                "job_id": f"ats_{abs(hash(j['job_url'])) % 10_000_000}",
+                "location": f"🌐 {j['location'] or 'Remote'}",
+                "tags": [j["company"], "Company careers page"],
+                "is_worldwide": is_worldwide_open(j["location"], ""),
+            })
         return jobs
 
     # Orchestrator
@@ -582,15 +427,13 @@ class GlobalRemoteHunter:
             if source_filter in ["ALL", "ATS"]:
                 tasks.append(executor.submit(self.fetch_direct_ats, keyword))
 
+        # The executor waits for every source (each has its own request timeout), so collect
+        # all results here rather than discarding sources that finish after a fixed deadline.
+        for future in tasks:
             try:
-                for future in as_completed(tasks, timeout=4.5):
-                    try:
-                        res = future.result()
-                        all_jobs.extend(res)
-                    except Exception as e:
-                        print(f"[Remote Sub-Scraper Task Error]: {e}")
-            except (TimeoutError, FuturesTimeoutError):
-                print("[Remote Hunter]: Sub-scrapers reached 4.5s deadline; returning collected results.")
+                all_jobs.extend(future.result())
+            except Exception as e:
+                print(f"[Remote Sub-Scraper Task Error]: {e}")
 
         # Deduplicate by company + title
         deduped = []
@@ -607,6 +450,18 @@ class GlobalRemoteHunter:
 
             dedupe_key = f"{j['company'].lower()}_{j['job_title'].lower()}"
             if dedupe_key in seen:
+                continue
+
+            # Live postings only. A company's own careers board lists only open roles, so
+            # those stay regardless of date; feed items need a real date inside the age limit.
+            source_type = j.get("source_type") or ("ats" if any(k in j.get("source", "") for k in ("Greenhouse", "Ashby", "Lever")) else "public_api")
+            if source_type == "ats":
+                fresh = assess(j.get("date_posted"), max_days=36500, undated_label="Open on company board")
+                if fresh and fresh["days_ago"] is not None and fresh["days_ago"] > MAX_POSTING_AGE_DAYS:
+                    fresh = {"date_posted": "", "days_ago": None, "posted_label": "Open on company board"}
+            else:
+                fresh = assess(j.get("date_posted"), MAX_POSTING_AGE_DAYS)
+            if fresh is None:
                 continue
             seen.add(dedupe_key)
 
@@ -629,16 +484,18 @@ class GlobalRemoteHunter:
                 "description": j.get("description") or "",
                 "tags": j.get("tags") or [],
                 "source": j.get("source", "Remote Board"),
-                "source_type": j.get("source_type") or ("ats" if "Greenhouse" in j.get("source", "") or "Ashby" in j.get("source", "") else "public_api"),
-                "date_posted": j.get("date_posted") or "Recently",
-                "posted_at": j.get("date_posted") or "Recently",
+                "source_type": source_type,
+                "date_posted": fresh["date_posted"],
+                "posted_at": fresh["date_posted"],
+                "days_ago": fresh["days_ago"],
+                "posted_label": fresh["posted_label"],
                 "is_worldwide": j.get("is_worldwide", True),
                 "match_score": match_score,
             }
             deduped.append(normalized_job)
 
-        # Sort by match score descending
-        deduped.sort(key=lambda x: x.get("match_score", 70), reverse=True)
+        # Newest first (the API re-sorts by the user's fit score)
+        deduped.sort(key=lambda x: x.get("date_posted") or "0000-00-00", reverse=True)
         GLOBAL_REMOTE_CACHE.set(cache_key, deduped)
         return deduped[:limit]
 

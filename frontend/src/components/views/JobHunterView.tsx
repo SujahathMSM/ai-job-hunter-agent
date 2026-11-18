@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { JobItem } from "../../types";
 import { withAuthQuery } from "../../lib/auth";
+import { formatDatePosted } from "../../lib/dates";
 
 interface JobHunterViewProps {
   onSelectForTailor: (job: JobItem) => void;
@@ -39,36 +40,6 @@ function formatCleanText(text: string): string {
     .trim();
 }
 
-function formatDatePosted(dateStr?: string): string {
-  if (!dateStr) return "Recently Listed";
-  const lower = dateStr.toLowerCase().trim();
-
-  if (lower.includes("trending")) {
-    return dateStr;
-  }
-
-  try {
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      const diffMs = Date.now() - d.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
-
-      if (diffHours < 1) return `${formattedDate} · Just now`;
-      if (diffHours < 24) return `${formattedDate} · ${diffHours}h ago`;
-      if (diffDays === 1) return `${formattedDate} · Yesterday`;
-      if (diffDays >= 2 && diffDays <= 30) return `${formattedDate} · ${diffDays}d ago`;
-      return formattedDate;
-    }
-  } catch {}
-
-  if (lower.includes("active") || lower.includes("corporate") || lower === "recent" || lower === "recently") {
-    return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  }
-
-  return dateStr;
-}
 
 export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }: JobHunterViewProps) {
   const [keyword, setKeyword] = useState("Python Developer");
@@ -179,7 +150,8 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
             >
               <option value="GULF">GULF (UAE, KSA, Qatar, Oman)</option>
               <option value="MIGRATABLE">MIGRATABLE (Singapore, UK, Germany, AU)</option>
-              <option value="ALL">ALL (Global)</option>
+              <option value="WORLDWIDE">WORLDWIDE (Americas, Europe, Asia, Africa, Oceania)</option>
+              <option value="ALL">ALL TARGET REGIONS (Gulf + migration routes)</option>
             </select>
           </div>
 
@@ -214,7 +186,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
       {jobs.length > 0 && (
         <div className="flex items-center justify-between text-[14px] text-[#e3e1ec] font-medium">
           <div>
-            Found <strong className="text-[#4cd7f6]">{jobs.length}</strong> active verified postings:
+            Found <strong className="text-[#4cd7f6]">{jobs.length}</strong> live postings from Indeed, LinkedIn, Glassdoor, Google Jobs and regional boards:
           </div>
           {loading && (
             <span className="text-xs text-[#4cd7f6] font-mono animate-pulse flex items-center gap-1.5">
@@ -297,7 +269,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                         </span>
                         <span>•</span>
                         <span className="inline-flex items-center gap-1 text-[#4cd7f6] font-mono bg-[#1a1b22] px-2 py-0.5 rounded border border-[#3d494c]/30">
-                          <Calendar className="w-3.5 h-3.5" /> Posted: {formatDatePosted(job.posted_label || job.date_posted)}
+                          <Calendar className="w-3.5 h-3.5" /> Posted: {formatDatePosted(job.date_posted || job.posted_label)}
                         </span>
                         {job.salary && (
                           <>
@@ -480,7 +452,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                       <div className="flex items-center gap-2 text-[11px] text-[#869397] font-mono mt-1 flex-wrap">
                         <span className="inline-flex items-center gap-1 text-[#4cd7f6] bg-[#1a1b22] px-2 py-0.5 rounded border border-[#3d494c]/30">
                           <Calendar className="w-3 h-3" />
-                          <span>Posted: {formatDatePosted(job.posted_label || job.date_posted)}</span>
+                          <span>Posted: {formatDatePosted(job.date_posted || job.posted_label)}</span>
                         </span>
                         {job.salary && (
                           <span className="text-[#4edea3] font-semibold">{job.salary}</span>
@@ -622,7 +594,7 @@ export default function JobHunterView({ onSelectForTailor, onSelectForOutreach }
                   )}
                   <span className="inline-flex items-center gap-1 text-[11px] font-mono text-[#bcc9cd] bg-[#1a1b22] px-2.5 py-0.5 rounded border border-[#3d494c]/40">
                     <Calendar className="w-3.5 h-3.5 text-[#4cd7f6]" />
-                    <span>Posted: {formatDatePosted(modalJob.posted_label || modalJob.date_posted)}</span>
+                    <span>Posted: {formatDatePosted(modalJob.date_posted || modalJob.posted_label)}</span>
                   </span>
                 </div>
               </div>
