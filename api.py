@@ -670,7 +670,8 @@ def search_jobs(req: JobSearchRequest, current_user_id: str = Depends(get_curren
             job_title=j.get("job_title", ""),
             company=j.get("company", ""),
             location=j.get("location", ""),
-            jd_text=j.get("description", "")
+            jd_text=j.get("full_description") or j.get("description", ""),
+            enforce_geo=(req.region or "").upper() != "WORLDWIDE",
         )
         j["fit_analysis"] = analysis
         scored_jobs.append(j)
@@ -694,7 +695,8 @@ def stream_jobs(keyword: str = "Python Developer", region: str = "GULF", max_res
                 job_title=j.get("job_title", ""),
                 company=j.get("company", ""),
                 location=j.get("location", ""),
-                jd_text=j.get("full_description") or j.get("description", "")
+                jd_text=j.get("full_description") or j.get("description", ""),
+                enforce_geo=region.upper() != "WORLDWIDE",
             )
             j["fit_analysis"] = analysis
             yield f"data: {json.dumps(j)}\n\n"

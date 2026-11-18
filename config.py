@@ -121,6 +121,28 @@ EXPANDED_LOCATION_TARGETS = {
         {"city": "Jeddah", "country": "saudi arabia", "display": "Jeddah, Saudi Arabia"},
         {"city": "Dublin", "country": "ireland", "display": "Dublin, Ireland"},
         {"city": "Muscat", "country": "oman", "display": "Muscat, Oman"},
+    ],
+    # Major hiring hubs on every continent. Only the strict exclusion list applies here.
+    "WORLDWIDE": [
+        {"city": "New York", "country": "usa", "display": "New York, USA"},
+        {"city": "San Francisco", "country": "usa", "display": "San Francisco, USA"},
+        {"city": "Austin", "country": "usa", "display": "Austin, USA"},
+        {"city": "Toronto", "country": "canada", "display": "Toronto, Canada"},
+        {"city": "London", "country": "uk", "display": "London, UK"},
+        {"city": "Berlin", "country": "germany", "display": "Berlin, Germany"},
+        {"city": "Amsterdam", "country": "netherlands", "display": "Amsterdam, Netherlands"},
+        {"city": "Dublin", "country": "ireland", "display": "Dublin, Ireland"},
+        {"city": "Paris", "country": "france", "display": "Paris, France"},
+        {"city": "Dubai", "country": "united arab emirates", "display": "Dubai, UAE"},
+        {"city": "Riyadh", "country": "saudi arabia", "display": "Riyadh, Saudi Arabia"},
+        {"city": "Singapore", "country": "singapore", "display": "Singapore"},
+        {"city": "Kuala Lumpur", "country": "malaysia", "display": "Kuala Lumpur, Malaysia"},
+        {"city": "Bangalore", "country": "india", "display": "Bangalore, India"},
+        {"city": "Tokyo", "country": "japan", "display": "Tokyo, Japan"},
+        {"city": "Sydney", "country": "australia", "display": "Sydney, Australia"},
+        {"city": "Auckland", "country": "new zealand", "display": "Auckland, New Zealand"},
+        {"city": "Sao Paulo", "country": "brazil", "display": "Sao Paulo, Brazil"},
+        {"city": "Johannesburg", "country": "south africa", "display": "Johannesburg, South Africa"},
     ]
 }
 

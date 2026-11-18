@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { GlobalRemoteJob, JobItem } from "../../types";
 import { fetchGlobalRemoteJobs } from "../../lib/api";
+import { formatDatePosted } from "../../lib/dates";
 
 interface GlobalRemoteJobsViewProps {
   onSelectForTailor: (job: JobItem) => void;
@@ -44,36 +45,6 @@ function formatCleanText(text: string): string {
     .trim();
 }
 
-function formatDatePosted(dateStr?: string): string {
-  if (!dateStr) return "Recently Listed";
-  const lower = dateStr.toLowerCase().trim();
-
-  if (lower.includes("trending")) {
-    return dateStr;
-  }
-
-  try {
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-      const diffMs = Date.now() - d.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
-
-      if (diffHours < 1) return `${formattedDate} · Just now`;
-      if (diffHours < 24) return `${formattedDate} · ${diffHours}h ago`;
-      if (diffDays === 1) return `${formattedDate} · Yesterday`;
-      if (diffDays >= 2 && diffDays <= 30) return `${formattedDate} · ${diffDays}d ago`;
-      return formattedDate;
-    }
-  } catch {}
-
-  if (lower.includes("active") || lower.includes("corporate") || lower === "recent" || lower === "recently") {
-    return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  }
-
-  return dateStr;
-}
 
 const QUICK_KEYWORDS = [
   "Python",
@@ -360,7 +331,7 @@ export default function GlobalRemoteJobsView({
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-[#e3e1ec]">
-            {loading ? "Scanning feeds & ATS..." : `${jobs.length} Verified Worldwide Jobs Found`}
+            {loading ? "Scanning feeds & ATS..." : `${jobs.length} live remote jobs (posted in the last 30 days or open on company boards)`}
           </span>
           {keyword && (
             <span className="text-xs text-[#879396]">for "{keyword}"</span>
@@ -434,7 +405,7 @@ export default function GlobalRemoteJobsView({
                     </span>
                     <span className="inline-flex items-center gap-1 text-[11px] font-mono text-[#bcc9cd] bg-[#1a1b22] px-2 py-0.5 rounded border border-[#3d494c]/40">
                       <Calendar className="w-3 h-3 text-[#4cd7f6]" />
-                      <span>Posted: {formatDatePosted(job.date_posted || job.posted_at)}</span>
+                      <span>Posted: {formatDatePosted(job.date_posted || job.posted_label)}</span>
                     </span>
                   </div>
                 </div>
@@ -608,7 +579,7 @@ export default function GlobalRemoteJobsView({
                   )}
                   <span className="inline-flex items-center gap-1 text-[11px] font-mono text-[#bcc9cd] bg-[#1a1b22] px-2.5 py-0.5 rounded border border-[#3d494c]/40">
                     <Calendar className="w-3.5 h-3.5 text-[#4cd7f6]" />
-                    <span>Posted: {formatDatePosted(activeModalJob.date_posted || activeModalJob.posted_at)}</span>
+                    <span>Posted: {formatDatePosted(activeModalJob.date_posted || activeModalJob.posted_label)}</span>
                   </span>
                 </div>
               </div>

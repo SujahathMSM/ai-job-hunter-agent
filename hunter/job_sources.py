@@ -1,0 +1,190 @@
+"""One place that scrapes job boards through JobSpy and returns postings in one shape.
+
+Which boards are searched depends on the country:
+
+    every country   Indeed, LinkedIn, Glassdoor, Google Jobs
+    USA / Canada    + ZipRecruiter
+    Gulf & MENA     + Bayt
+    India           + Naukri
+    Bangladesh      + BDJobs
+    France          + HelloWork
+
+Glassdoor skips countries it doesn't cover on its own. Every board is queried with an
+hours_old filter, and each board runs separately so one blocked or failing board doesn't
+lose the results from the others.
+"""
+import re
+import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Iterable, List, Optional
+
+from hunter.freshness import MAX_POSTING_AGE_DAYS, assess
+
+BASE_SITES = ["indeed", "linkedin", "glassdoor", "google"]
+COUNTRY_SITES = {
+    "usa": ["zip_recruiter"],
+    "canada": ["zip_recruiter"],
+    "india": ["naukri"],
+    "bangladesh": ["bdjobs"],
+    "france": ["hellowork"],
+}
+BAYT_COUNTRIES = {"united arab emirates", "saudi arabia", "qatar", "kuwait", "bahrain", "oman", "egypt", "jordan", "lebanon", "morocco"}
+SITE_LABELS = {
+    "indeed": "Indeed", "linkedin": "LinkedIn", "glassdoor": "Glassdoor", "google": "Google Jobs",
+    "zip_recruiter": "ZipRecruiter", "bayt": "Bayt", "naukri": "Naukri", "bdjobs": "BDJobs", "hellowork": "HelloWork",
+}
+PLACEHOLDER_COMPANIES = {"", "nan", "none", "verified employer", "gulf employer", "external job link"}
+
+
+def sites_for_country(country: str) -> List[str]:
+    c = (country or "").lower().strip()
+    sites = list(BASE_SITES) + COUNTRY_SITES.get(c, [])
+    if c in BAYT_COUNTRIES:
+        sites.append("bayt")
+    return sites
+
+
+def _text(value: Any) -> str:
+    s = "" if value is None else str(value).strip()
+    return "" if s.lower() in {"nan", "none", "null", "nat"} else s
+
+
+def _salary(row: Dict[str, Any]) -> str:
+    try:
+        lo, hi = row.get("min_amount"), row.get("max_amount")
+        cur = _text(row.get("currency"))
+        per = _text(row.get("interval")) or "yr"
+        lo_f = float(lo) if _text(lo) else 0
+        hi_f = float(hi) if _text(hi) else 0
+        if lo_f > 0 and hi_f > 0:
+            return f"{cur} {int(lo_f):,} - {int(hi_f):,} / {per}".strip()
+        if lo_f > 0:
+            return f"{cur} {int(lo_f):,}+ / {per}".strip()
+    except (TypeError, ValueError):
+        pass
+    return ""
+
+
+def clean_description(text: str) -> str:
+    """Strip markdown noise from JobSpy's markdown descriptions."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"\*{1,3}(.*?)\*{1,3}", r"\1", text)
+    cleaned = re.sub(r"^#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+    cleaned = re.sub(r"_{1,2}(.*?)_{1,2}", r"\1", cleaned)
+    cleaned = re.sub(r"^\s*[-*•]\s*", "• ", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def normalize_row(row: Dict[str, Any], fallback_location: str, max_days: int, hours_window: int) -> Optional[Dict[str, Any]]:
+    """Turn one JobSpy row into the app's posting shape, or None if it isn't usable/live."""
+    from hunter.hr_finder import HRFinder
+
+    title = _text(row.get("title"))
+    company = _text(row.get("company"))
+    if not title or company.lower() in PLACEHOLDER_COMPANIES:
+        return None
+
+    # The board was queried for postings from the last `hours_window` hours, so an undated
+    # result still comes from inside that window.
+    days = max(1, hours_window // 24)
+    fresh = assess(row.get("date_posted"), max_days, undated_label=f"Posted within {days}d")
+    if fresh is None:
+        return None
+
+    site = _text(row.get("site")).lower()
+    url = _text(row.get("job_url_direct")) or _text(row.get("job_url"))
+    desc = clean_description(_text(row.get("description")))
+    emails = row.get("emails")
+    if isinstance(emails, str):
+        emails = [e.strip() for e in emails.split(",") if e.strip()]
+    found = [e for e in (emails or []) if "@" in str(e)] or HRFinder.extract_emails_from_text(desc)
+    hr_email = found[0] if found else ""
+    snippet = re.sub(r"\s+", " ", desc)[:300].strip() + ("..." if len(desc) > 300 else "")
+    encoded = urllib.parse.quote(f'"{company}"')
+    salary = _salary(row)
+
+    return {
+        "job_title": title,
+        "company": company,
+        "location": _text(row.get("location")) or fallback_location,
+        "site": SITE_LABELS.get(site, site.title() or "Job board"),
+        "portal": url,
+        "job_url": url,
+        "apply_url": url,
+        "salary": salary,
+        "salary_range": salary,
+        "hr_email": hr_email,
+        "has_hr_email": bool(hr_email),
+        "recruiter_dork": f"https://www.google.com/search?q=site:linkedin.com/in+('Technical+Recruiter'+OR+'Talent+Acquisition'+OR+'HR')+{encoded}",
+        "description": snippet,
+        "full_description": desc,
+        **fresh,
+    }
+
+
+def _scrape_one_site(site: str, search_term: str, city: str, country: str, results_wanted: int, hours_old: int):
+    from jobspy import scrape_jobs
+
+    kwargs = dict(
+        site_name=[site],
+        search_term=search_term,
+        location=city,
+        results_wanted=results_wanted,
+        hours_old=hours_old,
+        description_format="markdown",
+        verbose=0,
+    )
+    if country:
+        kwargs["country_indeed"] = country
+    if site == "google":
+        kwargs["google_search_term"] = f"{search_term} jobs near {city} since last week"
+    if site in {"indeed", "linkedin"}:
+        kwargs["fetch_description"] = True
+    return scrape_jobs(**kwargs)
+
+
+def scrape_location(
+    search_term: str,
+    city: str,
+    country: str,
+    display: Optional[str] = None,
+    results_wanted: int = 10,
+    max_days: int = MAX_POSTING_AGE_DAYS,
+    sites: Optional[Iterable[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Search every relevant board for one location; returns live, de-duplicated postings."""
+    try:
+        import jobspy  # noqa: F401
+    except ImportError:
+        return []
+
+    hours_old = max_days * 24
+    chosen = list(sites) if sites else sites_for_country(country)
+    jobs: List[Dict[str, Any]] = []
+    seen = set()
+    with ThreadPoolExecutor(max_workers=len(chosen)) as pool:
+        futures = {
+            pool.submit(_scrape_one_site, s, search_term, city, country, results_wanted, hours_old): s
+            for s in chosen
+        }
+        for future, site in futures.items():
+            try:
+                df = future.result()
+            except Exception as e:  # one board failing (blocked, changed markup) must not lose the rest
+                print(f"[Job Sources] {SITE_LABELS.get(site, site)} failed for '{search_term}' in {city}: {type(e).__name__}: {e}")
+                continue
+            if df is None or df.empty:
+                continue
+            for row in df.to_dict("records"):
+                job = normalize_row(row, display or city, max_days, hours_old)
+                if not job:
+                    continue
+                key = (job["job_title"].lower(), job["company"].lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                jobs.append(job)
+    return jobs
